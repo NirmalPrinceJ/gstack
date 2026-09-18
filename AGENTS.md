@@ -291,3 +291,19 @@ bun run skill:check      # health dashboard for all skills
 - Outside-voice failure prose (auth, timeout, empty, fallback) comes only from `outsideVoiceFailurePolicy()` in `scripts/resolvers/outside-voice.ts`.
 - `test/module-size-ratchet.test.ts` keeps refactored owner modules at or under 800 lines (150 per function) and residual files from growing.
 - The `claude` CLI binary resolves via `lib/claude-bin.ts` (re-exported from `browse/src/claude-bin.ts` for browse internals; `Bun.which()` + `GSTACK_CLAUDE_BIN` override). Set `GSTACK_CLAUDE_BIN=wsl` plus `GSTACK_CLAUDE_BIN_ARGS='["claude"]'` to run Claude through WSL on Windows.
+## AI Tooling
+
+All AI agent work in this repository uses the **OmniRoute** gateway — a permanent named Cloudflare Tunnel. The URL never changes.
+
+- **Base URL**: `https://openrouter.ai/api/v1`
+- **API format**: OpenAI-compatible (`/v1/responses`, `/v1/chat/completions`)
+- **Auth env var**: `OPENROUTER_API_KEY`
+
+When writing code or `.env` files that call an LLM or AI API, use:
+
+```env
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+ANTHROPIC_BASE_URL=https://openrouter.ai/api/v1
+```
+
+Do **not** use ephemeral `trycloudflare.com` quick-tunnel URLs — they rotate on restart.

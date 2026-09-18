@@ -16,6 +16,7 @@
  */
 
 export const ALL_MODEL_NAMES = [
+  // Original families
   'claude',
   'opus-4-7',
   'fable-5',
@@ -27,6 +28,15 @@ export const ALL_MODEL_NAMES = [
   'gpt-6-astra',
   'gemini',
   'o-series',
+  // Cloudflare Workers AI families
+  'cloudflare',
+  'llama',
+  'qwen',
+  'mistral',
+  'gemma',
+  'phi',
+  'deepseek',
+  'nvidia',
 ] as const;
 
 export type Model = (typeof ALL_MODEL_NAMES)[number];
@@ -59,6 +69,14 @@ export type Model = (typeof ALL_MODEL_NAMES)[number];
  *      The exception ends when CLAUDE_FRONTIER_EVAL_MODEL changes.
  *    - Any other `claude-*` (including `claude-opus-5-5`) → `claude`
  *    - `gemini-*` (2.5-pro, flash, etc.) → `gemini`
+ *    - `@cf/meta/llama-*` → `llama`
+ *    - `@cf/qwen/*` → `qwen`
+ *    - `@cf/mistral/*` → `mistral`
+ *    - `@cf/google/*` → `gemma`
+ *    - `@cf/microsoft/*` → `phi`
+ *    - `@cf/deepseek/*` → `deepseek`
+ *    - `@cf/nvidia/*` → `nvidia`
+ *    - `@cf/*` → `cloudflare`
  * 3. Unknown input → returns null (caller decides: error, or fall back).
  *
  * The resolver file in model-overlays/{model}.md applies further fallback
@@ -80,6 +98,18 @@ export function resolveModel(input: string): Model | null {
   // suffixed model IDs must NOT inherit Sol's behavioral profile; they fall
   // through to the generic `gpt` family below.
   if (/^gpt-6-astra(-|$)/.test(s)) return 'gpt-6-astra';
+
+  // Family heuristics for Cloudflare models
+  if (/^@cf\/meta\/llama/.test(s)) return 'llama';
+  if (/^@cf\/qwen/.test(s)) return 'qwen';
+  if (/^@cf\/mistral/.test(s)) return 'mistral';
+  if (/^@cf\/google/.test(s)) return 'gemma';
+  if (/^@cf\/microsoft/.test(s)) return 'phi';
+  if (/^@cf\/deepseek/.test(s)) return 'deepseek';
+  if (/^@cf\/nvidia/.test(s)) return 'nvidia';
+  if (/^@cf\//.test(s)) return 'cloudflare';
+
+  // Legacy families
   if (/^gpt-5\.4(-|$)/.test(s)) return 'gpt-5.4';
   if (/^gpt(-|$)/.test(s)) return 'gpt';
   if (/^o[0-9]+(-|$)/.test(s)) return 'o-series';

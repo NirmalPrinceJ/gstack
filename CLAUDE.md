@@ -597,3 +597,20 @@ add --path <dir>` (no `--url`): URL-managed sources can auto-reclone, and the
 sync code walk for them requires an explicit `--allow-reclone` opt-in.
 
 <!-- gstack-gbrain-search-guidance:end -->
+
+## AI Tooling
+
+All AI agent work in this repository uses the **OmniRoute** gateway — a permanent named Cloudflare Tunnel. The URL never changes.
+
+- **Base URL**: `https://openrouter.ai/api/v1`
+- **API format**: OpenAI-compatible (`/v1/responses`, `/v1/chat/completions`)
+- **Auth env var**: `OPENROUTER_API_KEY`
+
+When writing code or `.env` files that call an LLM or AI API, use:
+
+```env
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+ANTHROPIC_BASE_URL=https://openrouter.ai/api/v1
+```
+
+Do **not** use ephemeral `trycloudflare.com` quick-tunnel URLs — they rotate on restart.

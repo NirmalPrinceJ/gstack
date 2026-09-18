@@ -3,13 +3,15 @@
  * wrapped in a subordinate behavioral-patch section.
  *
  * Precedence:
- *   1. Exact match: ctx.model === 'gpt-5.4' → reads model-overlays/gpt-5.4.md
- *   2. INHERIT directive: if the file's first non-whitespace line is
- *      `{{INHERIT:claude}}`, the resolver reads model-overlays/claude.md first
+ *   1. Exact match: ctx.model === '@cf/meta/llama-3.3-70b-instruct-fp8-fast'
+ *      → reads model-overlays/llama.md
+ *   2. Family resolution: ctx.model === '@cf/qwen/qwen2.5-coder-32b-instruct'
+ *      → resolveModel() → 'qwen' → reads model-overlays/qwen.md
+ *   3. INHERIT directive: if the file's first non-whitespace line is
+ *      `{{INHERIT:cloudflare}}`, the resolver reads model-overlays/cloudflare.md first
  *      and concatenates it ahead of the rest of this file's content.
- *      This lets `gpt-5.4.md` build on top of `gpt.md` without duplication.
- *   3. Missing file: returns empty string (graceful degradation, no error).
- *   4. No ctx.model set: returns empty string.
+ *   4. Missing file: returns empty string (graceful degradation, no error).
+ *   5. No ctx.model set: returns empty string.
  *
  * The returned block is subordinate to skill workflow, safety gates, and
  * AskUserQuestion instructions. The subordination language is part of the
@@ -19,6 +21,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { TemplateContext } from './types';
+import { resolveModel } from '../models';
 
 const OVERLAY_DIR = path.resolve(import.meta.dir, '../../model-overlays');
 
@@ -43,10 +46,38 @@ export function readOverlay(model: string, seen: Set<string> = new Set()): strin
   return `${base}\n\n${rest}`;
 }
 
+/**
+ * Resolve a model name to its overlay file name.
+ * Handles both exact matches and provider/model format
+ * (@cf/meta/llama-* → llama).
+ */
+function resolveOverlayName(model: string): string {
+  // Try exact match first
+  if (fs.existsSync(path.join(OVERLAY_DIR, `${model}.md`))) {
+    return model;
+  }
+
+  // Try resolving via model family
+  const resolved = resolveModel(model);
+  if (resolved && fs.existsSync(path.join(OVERLAY_DIR, `${resolved}.md`))) {
+    return resolved;
+  }
+
+  // Try provider prefix (e.g., @cf/meta/llama-* → cloudflare)
+  if (model.startsWith('@cf/')) {
+    if (fs.existsSync(path.join(OVERLAY_DIR, 'cloudflare.md'))) {
+      return 'cloudflare';
+    }
+  }
+
+  return model;
+}
+
 export function generateModelOverlay(ctx: TemplateContext): string {
   if (!ctx.model) return '';
 
-  const content = readOverlay(ctx.model);
+  const overlayName = resolveOverlayName(ctx.model);
+  const content = readOverlay(overlayName);
   if (!content) return '';
 
   const precedence = ctx.model === 'gpt-5.6-sol'
