@@ -70,9 +70,13 @@ describeE2E('plan-mode-info no-op outside plan mode (gate regression)', () => {
         // that shape CONTRACTUAL ("use exactly this shape" in the template);
         // native AskUserQuestion could render terse option labels that a
         // correct run would fail on (red-team finding).
+        // requireProseEvidence: with the prose fallback forced, the gate
+        // renders as a lettered menu, so a judge 'waiting' verdict on a
+        // spinner-only frame must not end the run as 'asked' before that
+        // menu has rendered.
         ...(skillName === 'plan-ceo-review'
           ? {}
-          : { extraArgs: ['--disallowedTools', 'AskUserQuestion'] }),
+          : { extraArgs: ['--disallowedTools', 'AskUserQuestion'], requireProseEvidence: true }),
       });
 
       if (obs.outcome === 'silent_write' || obs.outcome === 'exited' || obs.outcome === 'timeout') {
