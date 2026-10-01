@@ -8,7 +8,7 @@ import { DOC_PATH, type DocsScenario, type fixtureDocs } from './docsync-fixture
 import { sliceBetween } from './skill-fixture';
 
 export async function observeDocsWrites(fixture: ReturnType<typeof fixtureDocs>) {
-  return observeQAWrites(fixture.repo);
+  return observeQAWrites(fixture.repo, { atomicTargets: [DOC_PATH] });
 }
 
 type DocsWriteContext = {

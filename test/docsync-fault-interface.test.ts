@@ -4,7 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
 import { DOC_PATH, docsCandidate, fixtureDocs, repoSnapshot } from './helpers/docsync-fixture';
-import { DOCS_CHECKPOINT_MARKER, docsActorCommand, docsActorHook, installDocsActor, type DocsActorState } from './helpers/docsync-fault-actor';
+import { DOCS_CHECKPOINT_MARKER, DOCS_SEEDED_AUDIT_ID, docsActorCommand, docsActorHook, docsActorSeeded, installDocsActor, seedDocsFirstAttempt, type DocsActorState } from './helpers/docsync-fault-actor';
 import { docsActorVerdict } from './helpers/docsync-fault-eval';
 import { extractDocsDispatch, parseDocsCompletion } from './helpers/docsync-contract';
 import { docsNativeInterface } from './helpers/docsync-observer';
@@ -19,6 +19,9 @@ test('prepare copies the exact generated prompt and snapshots actual inputs with
     const prepared = JSON.parse(response.text);
     const candidate = JSON.parse(fs.readFileSync(prepared.candidate, 'utf8'));
     expect(candidate).toEqual(docsCandidate(fixture.repo, 'first', 'edit', candidate.base_sha));
+    const supplied = JSON.parse(fs.readFileSync(path.join(fixture.home, 'candidate.json'), 'utf8'));
+    expect(candidate.selected_paths).toEqual(supplied.selected_paths);
+    expect(fs.readFileSync(fixture.invocation, 'utf8')).toContain('prepare saves the same selection with current hashes, so it needs no separate Read.');
     const source = extractDocsDispatch(fs.readFileSync(path.join(fixture.skills, 'ship/sections/documentation.md'), 'utf8'));
     expect(fs.readFileSync(prepared.prompt, 'utf8')).toBe(source.replaceAll('${HOME}', fixture.home)
       .replaceAll('<branch>', 'feature/docs').replaceAll('<base>', 'main')
@@ -208,6 +211,44 @@ test('inspect grants no repair, attempt, or missing-asset bypass and no lifecycl
   } finally { fixture.clean(); }
 });
 
+test('seeded attempt 1 runs the real prepare and dispatch, saves verbatim output once and journals its pre-dispatch entry', () => {
+  expect((['missing-asset', 'legacy-completion'] as const).filter(docsActorSeeded)).toEqual([]);
+  for (const scenario of ['stale-after', 'launch-failure', 'late-result'] as const) {
+    expect(docsActorSeeded(scenario)).toBe(true);
+    const fixture = fixtureDocs('current');
+    try {
+      const stateFile = installDocsActor(fixture, scenario);
+      const seed = seedDocsFirstAttempt(fixture, stateFile);
+      const state = JSON.parse(fs.readFileSync(stateFile, 'utf8')) as DocsActorState;
+      expect(state.events.map(e => e.action)).toEqual(scenario === 'stale-after' ? ['prepare', 'dispatch', 'completion'] : ['prepare', 'dispatch']);
+      expect(seed.events).toBe(state.events.length);
+      expect(state.tasks).toHaveLength(1);
+      expect(state.tasks[0].audit_id).toBe(DOCS_SEEDED_AUDIT_ID);
+      expect(state.armed).toBe(scenario === 'stale-after');
+      expect(repoSnapshot(fixture.repo)).toEqual(fixture.before);
+      expect(fs.readFileSync(seed.completion, 'utf8')).toBe(seed.text);
+      expect(seed.exit).toBe(scenario === 'launch-failure' ? 23 : 0);
+      expect(JSON.parse(fs.readFileSync(seed.candidate, 'utf8'))).toEqual(state.tasks[0].observed_candidate);
+      const record = fs.readFileSync(fixture.invocation, 'utf8');
+      expect(record.split(DOCS_CHECKPOINT_MARKER)).toHaveLength(2);
+      const entry = record.slice(record.indexOf('### Checkpoint 1'));
+      expect(entry).toContain('Attempts used: 1.');
+      for (const value of [seed.candidate, seed.prompt, seed.completion, 'dispatch exit code ' + seed.exit, 'run_in_background=false']) expect(entry).toContain(value);
+      for (const asset of ['SKILL.md', 'sections/audit-scope.md', 'sections/release-body.md']) {
+        const file = path.join(fixture.skills, 'document-release', asset);
+        expect(entry).toContain(file + ' ' + createHash('sha256').update(fs.readFileSync(file)).digest('hex'));
+      }
+      expect(entry.includes('Returned child handle: fixture-child-1.')).toBe(scenario === 'late-result');
+      expect(entry).not.toMatch(/stale|blocked|current|accepted|repair/i);
+      expect(() => seedDocsFirstAttempt(fixture, stateFile)).toThrow();
+    } finally { fixture.clean(); }
+  }
+  const missing = fixtureDocs('current');
+  try {
+    expect(() => seedDocsFirstAttempt(missing, installDocsActor(missing, 'missing-asset'))).toThrow('seeded attempt requires installed document-release/sections/audit-scope.md');
+  } finally { missing.clean(); }
+});
+
 test('legacy completion is deterministic data with a real preserved partial edit, not instructions to a model', () => {
   const fixture = fixtureDocs('legacy');
   try {
@@ -289,6 +330,7 @@ const fixtures = { ...await import(fixtureModule) };
 const observers = { ...await import(observerModule) };
 const { CAPTURE_MS, CAPTURE_LONG_MS } = await import(path.join(root, 'test/helpers/eval-budgets.ts'));
 const { parseDocsCompletion } = await import(path.join(root, 'test/helpers/docsync-contract.ts'));
+const { docsActorSeeded, DOCS_SEEDED_AUDIT_ID } = await import(path.join(root, 'test/helpers/docsync-fault-actor.ts'));
 const callbacks = new Map();
 let fixture, control = '', launches = 0, recorded, legacyReaudit = false;
 let returnedResult: SkillTestResult | undefined;
@@ -419,7 +461,15 @@ mock.module(path.join(root, 'test/helpers/session-runner.ts'), () => ({ async ru
   expect(initialRecord.split(marker)).toHaveLength(2);
   const recordPrefix = initialRecord.split(marker)[0];
   let checkpointCount = 0;
-  let attemptsUsed = 0;
+  const seeded = docsActorSeeded(scenario);
+  let attemptsUsed = seeded ? 1 : 0;
+  let seedOutput = '';
+  if (seeded) {
+    expect(initialRecord).toContain('Attempts used: 1');
+    read(path.join(fixture.home, 'candidate-' + DOCS_SEEDED_AUDIT_ID + '.json'));
+    const saved = path.join(fixture.home, 'completion-' + DOCS_SEEDED_AUDIT_ID + '.md');
+    seedOutput = control === 'skip-seeded-output' ? fs.readFileSync(saved, 'utf8') : read(saved);
+  }
   const checkpoint = (details, finished = false) => {
     const before = fs.readFileSync(fixture.invocation, 'utf8');
     expect(before.split(marker)).toHaveLength(2);
@@ -465,16 +515,18 @@ mock.module(path.join(root, 'test/helpers/session-runner.ts'), () => ({ async ru
     expect(saved.input.new_string).toContain(prepared.prompt);
     return result;
   };
-  let output = '', accepted = null;
+  let output = '', accepted = null, first;
   if (scenario !== 'missing-asset') {
-    const first = prepare('ship-docs-20260926-a1');
-    const initial = dispatch(first);
+    first = seeded ? { audit_id: DOCS_SEEDED_AUDIT_ID, candidate: path.join(fixture.home, 'candidate-' + DOCS_SEEDED_AUDIT_ID + '.json'),
+      prompt: path.join(fixture.home, 'prompt-' + DOCS_SEEDED_AUDIT_ID + '.md') } : prepare('ship-docs-20260926-a1');
+    const initial = seeded ? { text: seedOutput, output: seedOutput } : dispatch(first);
     output = initial.text;
     if (scenario === 'missing-marker') {
-      expect(initial.output).toBe('SESSION_KIND: interactive\\n{"schema_version":1,"audit_id":"ship-docs-20260926-a1","status":"blocked","files_updated":[],"files_reviewed":[],"documentation_section":"blocked — fixture child audit ship-docs-20260926-a1; Missing spawned marker.","blockers":["Missing spawned marker"],"decisions":[]}');
+      expect(initial.output).toBe('SESSION_KIND: interactive\\n{"schema_version":1,"audit_id":"' + first.audit_id + '","status":"blocked","files_updated":[],"files_reviewed":[],"documentation_section":"blocked — fixture child audit ' + first.audit_id + '; Missing spawned marker.","blockers":["Missing spawned marker"],"decisions":[]}');
     }
     if (scenario === 'launch-failure') {
-      expect(initial.output).toBe('Exit code 23\\nChild launch failed: injected unavailable worker. No child was started.');
+      expect(initial.text).toBe('Child launch failed: injected unavailable worker. No child was started.');
+      expect(seeded ? initialRecord.includes('dispatch exit code 23') : initial.output.startsWith('Exit code 23\\n')).toBe(true);
       const attempts = JSON.parse(fs.readFileSync(stateFile, 'utf8')).tasks;
       expect(attempts).toHaveLength(1);
       expect(attempts[0].id).toBeNull();
@@ -483,7 +535,8 @@ mock.module(path.join(root, 'test/helpers/session-runner.ts'), () => ({ async ru
     if (['timeout-unsettled', 'late-result'].includes(scenario)) {
       expect(initial.output).toBe('{"task_id":"fixture-child-1","status":"running","elapsed_ms":0,"virtual_clock":true}');
       const task_id = JSON.parse(output).task_id;
-      checkpoint('Running child handle: ' + task_id);
+      if (seeded) expect(initialRecord).toContain('Returned child handle: ' + task_id + '.');
+      else checkpoint('Running child handle: ' + task_id);
       expect(invoke('status', { task_id }).output).toBe('{"task_id":"fixture-child-1","status":"running","settled":false,"elapsed_ms":600001,"virtual_clock":true}');
       const stop = invoke('stop', { task_id });
       expect(JSON.parse(stop.text).settled).toBe(scenario === 'late-result');
@@ -567,7 +620,7 @@ mock.module(path.join(root, 'test/helpers/session-runner.ts'), () => ({ async ru
   if (control !== 'missing-report') write(report, finalReport);
   expect(fs.readFileSync(fixture.invocation, 'utf8')).toContain(finalReport);
   expect(fs.readFileSync(fixture.invocation, 'utf8')).toContain('Attempts used: ' + attemptsUsed);
-  if (attemptsUsed > 1) expect(fs.readFileSync(fixture.invocation, 'utf8')).toContain('ship-docs-20260926-a1');
+  if (attemptsUsed > 1) expect(fs.readFileSync(fixture.invocation, 'utf8')).toContain(first.audit_id);
   if (control === '') {
     expect(calls.slice(-2).map(call => [call.tool, call.input.file_path])).toEqual([
       ['Edit', fixture.invocation], ['Write', report],
@@ -582,7 +635,7 @@ mock.module(path.join(root, 'test/helpers/session-runner.ts'), () => ({ async ru
   return returnedResult;
 } }));
 await import(path.join(root, 'test/skill-e2e-ship-docsync.test.ts'));
-expect(callbacks.size).toBe(13);
+expect(callbacks.size).toBe(12);
 const names = ['ship-docsync-failure', 'ship-docsync-missing-marker', 'ship-docsync-missing-asset',
   'ship-docsync-launch-failure', 'ship-docsync-timeout-unsettled', 'ship-docsync-late-result',
   'ship-docsync-stale-before', 'ship-docsync-stale-after', 'ship-docsync-recovery'];
@@ -620,6 +673,7 @@ for (const [name, mutation] of [
   ['ship-docsync-launch-failure', 'invented-handle'], ['ship-docsync-timeout-unsettled', 'skip-post-stop-status'],
   ['ship-docsync-late-result', 'missing-report'],
   ['ship-docsync-stale-before', 'stale-candidate'],
+  ['ship-docsync-recovery', 'skip-seeded-output'],
   ['ship-docsync-failure', 'legacy-unchanged'], ['ship-docsync-failure', 'legacy-unsettled'],
   ['ship-docsync-failure', 'legacy-stale'], ['ship-docsync-failure', 'legacy-third'],
   ['ship-docsync-failure', 'legacy-fake-repair'],
@@ -646,7 +700,7 @@ for (const [name, mutation] of [
     });
     const output = result.stdout.toString() + result.stderr.toString();
     expect(result.exitCode, output).toBe(0);
-    expect(output).toContain('35 pass');
+    expect(output).toContain('36 pass');
     expect(output).toContain('0 fail');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }, 120_000);

@@ -84,8 +84,8 @@ mock.module(path.join(root, 'test/helpers/session-runner.ts'), () => ({
   },
 }));
 await import(path.join(root, 'test/skill-e2e-ship-docsync.test.ts'));
-expect(callbacks.size).toBe(13);
-for (const name of ['ship-docsync', 'ship-docsync-completion', 'ship-docsync-current', 'ship-docsync-failure', 'ship-docsync-store']) {
+expect(callbacks.size).toBe(12);
+for (const name of ['ship-docsync-completion', 'ship-docsync-current', 'ship-docsync-failure', 'ship-docsync-store']) {
   test(name + ' constructs its real native request without launching it', async () => {
     const before = launched;
     await expect(callbacks.get(name)()).rejects.toBe(stopped);
@@ -101,7 +101,7 @@ for (const name of ['ship-docsync', 'ship-docsync-completion', 'ship-docsync-cur
     });
     const output = result.stdout.toString() + result.stderr.toString();
     expect(result.exitCode, output).toBe(0);
-    expect(output).toContain('5 pass');
+    expect(output).toContain('4 pass');
     expect(output).toContain('0 fail');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

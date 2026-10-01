@@ -232,7 +232,7 @@ Earlier review stages are synthetic and outside this fixture. No live review han
 ## Checks
 Earlier check stages are synthetic and outside this fixture. No test receipts are asserted.
 ## Initial documentation state
-Attempts used: 0. No accepted audit, hashes, exception or child handle. The supplied candidate.json is initial fixture input, not an accepted audit.
+Attempts used: 0. No accepted audit, hashes, exception or child handle. The supplied candidate.json is initial fixture input, not an accepted audit; prepare saves the same selection with current hashes, so it needs no separate Read.
 ## Initial next steps
 1. CURRENT: documentation phase (Step 14.5, or store documentation preflight).
 2. Save the result and optionally execute the authorized local publication stand-in if the actual documentation gate permits it.
@@ -252,6 +252,38 @@ ${DOCS_CHECKPOINT_MARKER}
   fs.writeFileSync(configFile, JSON.stringify(config));
   if (scenario === 'missing-asset') fs.unlinkSync(path.join(fixture.skills, 'document-release/sections/audit-scope.md'));
   return file;
+}
+
+export const DOCS_SEEDED_AUDIT_ID = 'ship-docs-a1';
+const DOCS_CHILD_ASSETS = ['document-release/SKILL.md', 'document-release/sections/audit-scope.md', 'document-release/sections/release-body.md'];
+
+export function docsActorSeeded(scenario: DocsFault): boolean {
+  return scenario !== 'missing-asset' && scenario !== 'legacy-completion';
+}
+
+export function seedDocsFirstAttempt(fixture: ReturnType<typeof fixtureDocs>, file: string) {
+  const assets = DOCS_CHILD_ASSETS.map(relative => {
+    const asset = path.join(fixture.skills, relative);
+    if (!fs.existsSync(asset)) throw Error(`seeded attempt requires installed ${relative}`);
+    return { asset, sha256: createHash('sha256').update(fs.readFileSync(asset)).digest('hex') };
+  });
+  const prepared = docsActorCommand(file, 'prepare', { audit_id: DOCS_SEEDED_AUDIT_ID });
+  if (prepared.exit) throw Error(`seeded prepare failed: ${prepared.text}`);
+  const { candidate, prompt } = JSON.parse(prepared.text) as { candidate: string; prompt: string };
+  const dispatched = docsActorCommand(file, 'dispatch', { audit_id: DOCS_SEEDED_AUDIT_ID, candidate, prompt, run_in_background: 'false' });
+  if (dispatched.exit === 24) throw Error(`seeded dispatch rejected: ${dispatched.text}`);
+  const completion = path.join(fixture.home, `completion-${DOCS_SEEDED_AUDIT_ID}.md`);
+  fs.writeFileSync(completion, dispatched.text, { flag: 'wx', mode: 0o600 });
+  let handle = '';
+  try { handle = JSON.parse(dispatched.text).task_id ?? ''; } catch {}
+  const record = fs.readFileSync(fixture.invocation, 'utf8');
+  if (record.split(DOCS_CHECKPOINT_MARKER).length !== 2) throw Error('invocation journal marker must occur exactly once');
+  fs.writeFileSync(fixture.invocation, record.replace(DOCS_CHECKPOINT_MARKER, () => `### Checkpoint 1 — attempt 1 (fixture-owned prior state)
+Attempts used: 1. Prepare step 1: installed child assets present with sha256 ${assets.map(a => `${a.asset} ${a.sha256}`).join('; ')}. Prepare steps 2–3: audit ${DOCS_SEEDED_AUDIT_ID}; candidate ${candidate}; prompt ${prompt}. Launched with dispatch run_in_background=false; dispatch exit code ${dispatched.exit}; its verbatim output is saved once at ${completion}.${handle ? ` Returned child handle: ${handle}.` : ''}
+Next: Parent processing for attempt 1, starting at Collect. A repeated Prepare may confirm step 1 with one literal sha256sum of these three asset paths instead of re-reading them; a missing asset or changed hash blocks before launch.
+${DOCS_CHECKPOINT_MARKER}`));
+  return { auditId: DOCS_SEEDED_AUDIT_ID, candidate, prompt, completion, exit: dispatched.exit, text: dispatched.text,
+    events: load(file).events.length };
 }
 
 if (import.meta.main) {

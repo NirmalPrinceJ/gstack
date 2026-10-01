@@ -13,11 +13,8 @@ import { runShipDocsFault } from './helpers/docsync-fault-eval';
 
 const describeE2E = describeE2ETier('gate');
 const collector = createEvalCollector('e2e-ship-docsync');
-const names = ['ship-docsync', 'ship-docsync-completion', 'ship-docsync-current', 'ship-docsync-failure', 'ship-docsync-store',
-  'ship-docsync-missing-marker', 'ship-docsync-missing-asset', 'ship-docsync-launch-failure', 'ship-docsync-timeout-unsettled',
-  'ship-docsync-late-result', 'ship-docsync-stale-before', 'ship-docsync-stale-after', 'ship-docsync-recovery'];
 
-async function runShipDocs(testName: string, scenario: DocsScenario, dispatchOnly = false) {
+async function runShipDocs(testName: string, scenario: DocsScenario) {
   if (!process.env.EVALS_RUN_ID) throw Error('Native docs acceptance requires EVALS_RUN_ID');
   const deadline = Date.now() + CAPTURE_LONG_MS;
   const fixture = fixtureDocs(scenario);
@@ -61,55 +58,51 @@ async function runShipDocs(testName: string, scenario: DocsScenario, dispatchOnl
       expect(dispatch).toBeGreaterThanOrEqual(0);
       expect(calls[dispatch].input.run_in_background).toBe(false);
       if (publishCall >= 0) expect(dispatch).toBeLessThan(publishCall);
-      if (dispatchOnly) {
-        expect(['success', 'error_max_turns', 'timeout']).toContain(result.exitReason);
+      expect(result.exitReason).toBe('success');
+      expect(docsWriteFailures(observation!, scenario === 'current' || scenario === 'store' ? [] : [DOC_PATH], {
+        result, fixture, scripts: [publish], readOnly: scenario === 'current' || scenario === 'store',
+      })).toEqual([]);
+      expect(docsToolFailures(result, fixture, [publish], scenario === 'current' || scenario === 'store')).toEqual([]);
+      const output = fs.readFileSync(report, 'utf8');
+      const after = repoSnapshot(fixture.repo);
+      const changed = changedFiles(fixture.before, after);
+      expect(after.head).toBe(fixture.before.head);
+      expect(after.index).toBe(fixture.before.index);
+      expect(after.contents['personal-note.txt']).toBe(fixture.before.contents['personal-note.txt']);
+      expect(fs.readFileSync(path.join(fixture.repo, DOC_PATH), 'utf8')).toContain('User-maintained note: KEEP THIS EXACTLY.');
+      if (scenario === 'store') {
+        expect(output).toMatch(/Documentation[\s\S]*blocked/i);
+        expect(fs.existsSync(receipt)).toBe(false);
+        expect(publishCall).toBe(-1);
+        expect(changed).toEqual([]);
+        expect(output).not.toMatch(/Documentation(?: is|:) current/i);
       } else {
-        expect(result.exitReason).toBe('success');
-        expect(docsWriteFailures(observation!, scenario === 'current' || scenario === 'store' ? [] : [DOC_PATH], {
-          result, fixture, scripts: [publish], readOnly: scenario === 'current' || scenario === 'store',
-        })).toEqual([]);
-        expect(docsToolFailures(result, fixture, [publish], scenario === 'current' || scenario === 'store')).toEqual([]);
-        const output = fs.readFileSync(report, 'utf8');
-        const after = repoSnapshot(fixture.repo);
-        const changed = changedFiles(fixture.before, after);
-        expect(after.head).toBe(fixture.before.head);
-        expect(after.index).toBe(fixture.before.index);
-        expect(after.contents['personal-note.txt']).toBe(fixture.before.contents['personal-note.txt']);
-        expect(fs.readFileSync(path.join(fixture.repo, DOC_PATH), 'utf8')).toContain('User-maintained note: KEEP THIS EXACTLY.');
-        if (scenario === 'legacy' || scenario === 'store') {
-          expect(output).toMatch(/Documentation[\s\S]*blocked/i);
-          expect(fs.existsSync(receipt)).toBe(false);
-          expect(publishCall).toBe(-1);
-          expect(changed).toEqual(scenario === 'legacy' ? [DOC_PATH] : []);
-          expect(output).not.toMatch(/Documentation(?: is|:) current/i);
-        } else {
-          const raw = JSON.parse(calls[dispatch].output.trimEnd().split('\n').at(-1)!);
-          const contract = parseDocsCompletion(calls[dispatch].output, raw.audit_id);
-          expect(JSON.stringify(calls[dispatch].input)).toContain(raw.audit_id);
-          expect(calls[dispatch].output).toContain('SESSION_KIND: spawned');
-          expect(sawSpawnedMarker(result)).toBe(true);
-          vetDocsCompletion(contract, {
-            settled: result.exitReason === 'success', markerSeen: sawSpawnedMarker(result),
-            headUnchanged: after.head === fixture.before.head, indexUnchanged: after.index === fixture.before.index,
-            candidateUnchanged: changed.every(p => p === DOC_PATH), readOnly: false,
-            changedPaths: changed, allowedDocs: [DOC_PATH],
-          });
-          expect(contract.status).toBe(scenario === 'current' ? 'current' : 'updated');
-          expect(contract.files_reviewed).toContain(DOC_PATH);
-          expect(docsCompletedRead(result, path.join(fixture.repo, DOC_PATH), fixture, {
-            source: Buffer.from(fixture.before.contents[DOC_PATH], 'base64').toString('utf8'),
-            beforeFirstEdit: scenario !== 'current',
-          })).toBe(true);
-          expect(output).toContain(contract.documentation_section);
-          expect(fs.existsSync(receipt)).toBe(true);
-          expect(publishCall).toBeGreaterThan(dispatch);
-          expect(changed).toEqual(scenario === 'current' ? [] : [DOC_PATH]);
-          if (scenario === 'updated') expect(fs.readFileSync(path.join(fixture.repo, DOC_PATH), 'utf8')).toMatch(/Default format: JSON\./i);
-        }
-        const actualMutation = calls.filter(call => call.tool === 'Bash').map(call => String(call.input?.command))
-          .filter(command => /\bgit\s+(?:add|commit|push|reset|checkout|stash|merge|pull|rebase)(?=[\s;&|<>)]|$)/.test(command));
-        expect(actualMutation).toEqual([]);
+        const raw = JSON.parse(calls[dispatch].output.trimEnd().split('\n').at(-1)!);
+        const contract = parseDocsCompletion(calls[dispatch].output, raw.audit_id);
+        expect(JSON.stringify(calls[dispatch].input)).toContain(raw.audit_id);
+        expect(calls[dispatch].output).toContain('SESSION_KIND: spawned');
+        expect(sawSpawnedMarker(result)).toBe(true);
+        vetDocsCompletion(contract, {
+          settled: result.exitReason === 'success', markerSeen: sawSpawnedMarker(result),
+          headUnchanged: after.head === fixture.before.head, indexUnchanged: after.index === fixture.before.index,
+          candidateUnchanged: changed.every(p => p === DOC_PATH), readOnly: false,
+          changedPaths: changed, allowedDocs: [DOC_PATH],
+        });
+        expect(contract.status).toBe(scenario === 'current' ? 'current' : 'updated');
+        expect(contract.files_reviewed).toContain(DOC_PATH);
+        expect(docsCompletedRead(result, path.join(fixture.repo, DOC_PATH), fixture, {
+          source: Buffer.from(fixture.before.contents[DOC_PATH], 'base64').toString('utf8'),
+          beforeFirstEdit: scenario !== 'current',
+        })).toBe(true);
+        expect(output).toContain(contract.documentation_section);
+        expect(fs.existsSync(receipt)).toBe(true);
+        expect(publishCall).toBeGreaterThan(dispatch);
+        expect(changed).toEqual(scenario === 'current' ? [] : [DOC_PATH]);
+        if (scenario === 'updated') expect(fs.readFileSync(path.join(fixture.repo, DOC_PATH), 'utf8')).toMatch(/Default format: JSON\./i);
       }
+      const actualMutation = calls.filter(call => call.tool === 'Bash').map(call => String(call.input?.command))
+        .filter(command => /\bgit\s+(?:add|commit|push|reset|checkout|stash|merge|pull|rebase)(?=[\s;&|<>)]|$)/.test(command));
+      expect(actualMutation).toEqual([]);
       passed = true;
     } finally {
       recordE2E(collector, testName, 'Ship doc-sync lifecycle', result, { passed });
@@ -120,8 +113,9 @@ async function runShipDocs(testName: string, scenario: DocsScenario, dispatchOnl
 }
 
 describeE2E('Ship doc-sync lifecycle E2E (gate)', () => {
-  describeIfSelected('Ship doc-sync lifecycle', names, () => {
-    testConcurrentIfSelected('ship-docsync', () => runShipDocs('ship-docsync', 'legacy', true), CAPTURE_LONG_MS);
+  describeIfSelected('Ship doc-sync lifecycle', ['ship-docsync-completion', 'ship-docsync-current', 'ship-docsync-failure', 'ship-docsync-store',
+      'ship-docsync-missing-marker', 'ship-docsync-missing-asset', 'ship-docsync-launch-failure', 'ship-docsync-timeout-unsettled',
+      'ship-docsync-late-result', 'ship-docsync-stale-before', 'ship-docsync-stale-after', 'ship-docsync-recovery'], () => {
     testConcurrentIfSelected('ship-docsync-completion', () => runShipDocs('ship-docsync-completion', 'updated'), CAPTURE_LONG_MS);
     testConcurrentIfSelected('ship-docsync-current', () => runShipDocs('ship-docsync-current', 'current'), CAPTURE_LONG_MS);
     testConcurrentIfSelected('ship-docsync-failure', () => runShipDocsFault('ship-docsync-failure', 'legacy-completion', collector, CAPTURE_LONG_MS), CAPTURE_LONG_MS);
