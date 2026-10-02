@@ -109,6 +109,59 @@ describe("pre-push hook gating", () => {
   });
 });
 
+// #2856: a 4-part release version is shaped like a public IPv4 address.
+// Assembled at runtime so this file's own pushed diff carries no IP-shaped
+// literal for the repo's pre-push scan to warn about.
+const RELEASE = ["1", "84", "1", "0"].join(".");
+const PUBLIC_IP = ["8", "8", "8", "8"].join(".");
+
+describe("release version exemption (#2856)", () => {
+  const mediums = (stderr: string): number => Number(/(\d+) MEDIUM finding/.exec(stderr)?.[1] ?? 0);
+  const commitAll = (files: Record<string, string>, msg: string): string => {
+    for (const [file, content] of Object.entries(files)) {
+      fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true });
+      fs.writeFileSync(path.join(repo, file), content);
+      git(["add", file]);
+    }
+    git(["commit", "-q", "-m", msg]);
+    return git(["rev-parse", "HEAD"]);
+  };
+
+  test("exempts only the VERSION file and the CHANGELOG release heading, not the same address elsewhere", () => {
+    const base = git(["rev-parse", "HEAD"]);
+    const head = commitAll({
+      "VERSION": `${RELEASE}\n`,
+      "CHANGELOG.md": `## [${RELEASE}] - 2026-10-01\n\n- Fixes.\n`,
+      "docs/links.md": `Admin console: http://${RELEASE}/admin\n`,
+      "deploy/net.conf": `server = ${RELEASE}\n`,
+    }, "release");
+    const { code, stderr } = runHook(`refs/heads/main ${head} refs/heads/main ${base}\n`);
+    expect(code).toBe(0);
+    expect(mediums(stderr)).toBe(2);
+  });
+
+  test("a version-only release push raises nothing, even with diff.noprefix set", () => {
+    git(["config", "diff.noprefix", "true"]);
+    const base = git(["rev-parse", "HEAD"]);
+    const head = commitAll({ "VERSION": `${RELEASE}\n`, "CHANGELOG.md": `## [${RELEASE}] - 2026-10-01\n` }, "bump");
+    const { stderr } = runHook(`refs/heads/main ${head} refs/heads/main ${base}\n`);
+    expect(stderr).not.toContain("MEDIUM");
+  });
+
+  test("a real public IP next to the word version is still flagged", () => {
+    const base = git(["rev-parse", "HEAD"]);
+    const head = commitAll({
+      "CHANGELOG.md": `## [${RELEASE}] - 2026-10-01 mirror ${PUBLIC_IP}\n- The version endpoint moved to ${PUBLIC_IP}.\n`,
+      "config/version.txt": `${RELEASE}\n`,
+      "VERSION": `${RELEASE}\nupstream ${PUBLIC_IP}\n`,
+    }, "not a release artifact");
+    const { stderr } = runHook(`refs/heads/main ${head} refs/heads/main ${base}\n`);
+    // heading tail + changelog body + config/version.txt + both VERSION lines
+    // (a two-line VERSION is not a whole-file version).
+    expect(mediums(stderr)).toBe(5);
+  });
+});
+
 describe("diff direction + special refs", () => {
   test("only NEW content is scanned (remote..local), not pre-existing", () => {
     // Put a secret in the FIRST commit (already on remote), then push a clean commit.

@@ -28,11 +28,13 @@ function runScript(args: string[], env: Record<string, string> = {}): { stdout: 
   };
 }
 
+// Fakes answer in `gbrain list`'s real row shape (slug, type, date, title,
+// tab-separated) so the loader's row parsing is exercised, not bypassed.
 function writeFakeGbrain(binDir: string): void {
   if (process.platform === "win32") {
     writeFileSync(
       join(binDir, "gbrain.cmd"),
-      "@echo off\r\nif \"%1\"==\"--version\" (\r\n  echo gbrain 0.test\r\n) else (\r\n  echo fake gbrain %*\r\n)\r\n",
+      "@echo off\r\nif \"%1\"==\"--version\" (\r\n  echo gbrain 0.test\r\n) else (\r\n  echo fake/page\tnote\t2026-10-01\tfake gbrain %*\r\n)\r\n",
       "utf-8",
     );
     return;
@@ -45,8 +47,45 @@ function writeFakeGbrain(binDir: string): void {
 if [ "$1" = "--version" ]; then
   echo "gbrain 0.test"
 else
-  echo "fake gbrain $*"
+  printf 'fake/page\\tnote\\t2026-10-01\\tfake gbrain %s\\n' "$*"
 fi
+`,
+    "utf-8",
+  );
+  chmodSync(fakeBin, 0o755);
+}
+
+/**
+ * Mirrors the real gbrain CLI contract (verified on gbrain 0.60.28.0):
+ * `list_pages` is an MCP tool name, not a CLI verb (exit 1 "Unknown command"),
+ * `list` rejects flags it does not declare (`--filter`), `query` rejects
+ * `--format`, and `list --sort` accepts only gbrain's own sort names. Every
+ * accepted invocation is appended to `logFile` and answers with `rows`.
+ */
+function writeStrictGbrain(binDir: string, logFile: string, rows: string[]): void {
+  const fakeBin = join(binDir, "gbrain");
+  const body = rows.map((r) => r.replace(/'/g, "")).join("\\n");
+  writeFileSync(
+    fakeBin,
+    `#!/bin/sh
+verb="$1"; shift
+all="$*"
+case "$verb" in
+  list|query) ;;
+  *) echo "Unknown command: $verb" >&2; echo "Run gbrain --help for available commands." >&2; exit 1 ;;
+esac
+[ "$verb" = "query" ] && shift
+while [ $# -gt 0 ]; do
+  case "$verb:$1" in
+    list:--type|list:--tag|list:--limit|list:--updated-after|query:--limit) shift 2 ;;
+    list:--sort)
+      case "$2" in updated_desc|updated_asc|created_desc|slug) shift 2 ;;
+        *) echo "invalid sort $2" >&2; exit 1 ;; esac ;;
+    *) echo "gbrain $verb: unknown flag $1 for 'gbrain $verb'" >&2; exit 1 ;;
+  esac
+done
+printf '%s\\n' "$verb $all" >> "${logFile}"
+printf '${body}\\n'
 `,
     "utf-8",
   );
@@ -284,13 +323,13 @@ describe("gstack-brain-context-load — graceful gbrain absence", () => {
       expect(r.exitCode).toBe(0);
       expect(r.stderr).toContain("OK");
       expect(r.stderr).not.toContain("gbrain CLI missing");
-      expect(r.stdout).toContain("fake gbrain list_pages");
+      expect(r.stdout).toContain("fake gbrain list");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it("manifest filter: blocks reach gbrain as --filter args with template vars resolved (#1687)", () => {
+  it("manifest filter: blocks reach gbrain list as its real flags with template vars resolved (#1687, #2883)", () => {
     const dir = mkdtempSync(join(tmpdir(), "gstack-bcl-"));
     const binDir = join(dir, "bin");
     mkdirSync(binDir);
@@ -319,10 +358,9 @@ gbrain:
     try {
       const r = runScript(["--skill-file", skillFile, "--repo", "my-test-repo"], prependPath(binDir));
       expect(r.exitCode).toBe(0);
-      expect(r.stdout).toContain("fake gbrain list_pages");
-      expect(r.stdout).toContain("--filter type=ceo-plan");
-      expect(r.stdout).toContain("--filter tags_contains=repo:my-test-repo");
-      expect(r.stdout).toContain("--sort updated_at_desc");
+      expect(r.stdout).toContain("fake gbrain list --type ceo-plan --tag repo:my-test-repo --sort updated_desc --limit 5");
+      expect(r.stdout).not.toContain("list_pages");
+      expect(r.stdout).not.toContain("--filter");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -333,7 +371,7 @@ gbrain:
     // memoized PATH stat scan. The plain writeFakeGbrain shim still ANSWERS
     // --version, so a revert to the spawn probe passes every other test in
     // this file. This fake logs its argv: detection must invoke gbrain zero
-    // times, so the only invocations are the 3 default-manifest list_pages
+    // times, so the only invocations are the 3 default-manifest `list`
     // queries — a revert adds `--version` lines (and re-probing adds one per
     // query) and fails exactly here.
     const dir = mkdtempSync(join(tmpdir(), "gstack-bcl-"));
@@ -343,14 +381,16 @@ gbrain:
     writeLoggingGbrain(binDir, logFile);
 
     try {
-      const r = runScript(["--repo", "test-repo", "--explain", "--quiet"], prependPath(binDir));
+      // --skill resolves the default manifest's {skill_name} filter, so all 3
+      // queries reach gbrain (an unresolved filter var is skipped, not sent).
+      const r = runScript(["--repo", "test-repo", "--skill", "no-such-skill-x", "--explain", "--quiet"], prependPath(binDir));
       expect(r.exitCode).toBe(0);
       expect(r.stderr).toContain("queries=3");
       const invocations = readFileSync(logFile, "utf-8").split("\n").filter(Boolean);
       expect(invocations.some((argv) => argv.includes("--version"))).toBe(false);
       // Exactly the 3 real queries — no extra availability spawns of any shape.
       expect(invocations).toHaveLength(3);
-      for (const argv of invocations) expect(argv.startsWith("list_pages")).toBe(true);
+      for (const argv of invocations) expect(argv.startsWith("list ")).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -564,4 +604,141 @@ gbrain:
       });
     }
   }
+});
+
+describe("gstack-brain-context-load — real gbrain CLI contract (#2883)", () => {
+  const ROWS = [
+    "plans/brand-plan\\tceo-plan\\t2026-10-01\\tBrand plan",
+    "timeline/investigate-1\\ttimeline\\t2026-10-01\\tinvestigate session",
+    "timeline/probe-1\\ttimeline\\t2026-10-01\\tqa-probe-skill run",
+  ];
+  function setup(rows = ROWS) {
+    const dir = mkdtempSync(join(tmpdir(), "gstack-bcl-strict-"));
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir);
+    const logFile = join(dir, "argv.log");
+    writeFileSync(logFile, "");
+    writeStrictGbrain(binDir, logFile, rows);
+    const gbrainHome = join(dir, "gbrain-home");
+    mkdirSync(join(gbrainHome, ".gbrain"), { recursive: true });
+    writeFileSync(join(gbrainHome, ".gbrain", "config.json"), JSON.stringify({ engine: "pglite" }));
+    return { dir, logFile, env: { ...prependPath(binDir), GBRAIN_HOME: gbrainHome } };
+  }
+  function manifest(dir: string, queries: string): string {
+    const file = join(dir, "SKILL.md");
+    writeFileSync(file, `---\nname: x\ngbrain:\n  schema: 1\n  context_queries:\n${queries}---\n`, "utf-8");
+    return file;
+  }
+
+  it.skipIf(process.platform === "win32")("the default manifest loads real rows from a CLI that rejects list_pages and --filter", () => {
+    const { dir, logFile, env } = setup();
+    try {
+      const r = runScript(["--repo", "acme-app", "--skill", "qa-probe-skill", "--explain"], env);
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toContain("queries=3");
+      expect(r.stderr).not.toContain("SKIP");
+      expect(r.stderr).not.toContain("queries failed");
+      expect(r.stdout).toContain("plans/brand-plan\tceo-plan\t2026-10-01\tBrand plan");
+      const argv = readFileSync(logFile, "utf-8").trim().split("\n");
+      expect(argv).toHaveLength(3);
+      expect(argv[0]).toBe("list --type transcript --tag repo:acme-app --sort updated_desc --limit 5");
+      expect(argv[1]).toMatch(/^list --tag repo:acme-app --updated-after \d{4}-\d\d-\d\d --sort updated_desc --limit 10$/);
+      expect(argv[2]).toBe("list --type timeline --limit 50");
+      expect(r.stdout).toContain("## Recent qa-probe-skill events");
+      expect(r.stdout).toContain("qa-probe-skill run");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("content_contains narrows the returned rows instead of reaching gbrain as a flag", () => {
+    const { dir, logFile, env } = setup();
+    try {
+      const file = manifest(dir, `    - id: prior-investigations
+      kind: list
+      filter:
+        type: timeline
+        content_contains: "investigate"
+      limit: 1
+      render_as: "## Prior investigations"
+`);
+      const r = runScript(["--skill-file", file, "--repo", "acme-app"], env);
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toContain("timeline/investigate-1");
+      expect(r.stdout).not.toContain("plans/brand-plan");
+      expect(readFileSync(logFile, "utf-8").trim()).toBe("list --type timeline --limit 50");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("vector queries call gbrain query without the rejected --format flag", () => {
+    const { dir, logFile, env } = setup(["[0.9] plans/brand-plan -- brand stuff"]);
+    try {
+      const file = manifest(dir, `    - id: related
+      kind: vector
+      query: "brand {repo_slug}"
+      limit: 2
+      render_as: "## Related"
+`);
+      const r = runScript(["--skill-file", file, "--repo", "acme-app"], env);
+      expect(r.exitCode).toBe(0);
+      expect(r.stdout).toContain("plans/brand-plan -- brand stuff");
+      expect(readFileSync(logFile, "utf-8").trim()).toBe("query brand acme-app --limit 2");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("failed queries produce one non-verbose line naming the reason, only when gbrain is configured", () => {
+    const { dir, env } = setup();
+    try {
+      const file = manifest(dir, `    - id: bad-sort
+      kind: list
+      sort: popularity
+      render_as: "## A"
+    - id: bad-key
+      kind: list
+      filter:
+        author: me
+      render_as: "## B"
+    - id: fine
+      kind: list
+      render_as: "## C"
+`);
+      const r = runScript(["--skill-file", file, "--repo", "acme-app"], env);
+      expect(r.exitCode).toBe(0);
+      const lines = r.stderr.split("\n").filter((l) => l.startsWith("brain context:"));
+      expect(lines).toEqual([
+        "brain context: 2/3 queries failed (unsupported list sort: popularity; unsupported list filter: author)",
+      ]);
+      expect(r.stdout).toContain("## C");
+
+      const quiet = runScript(["--skill-file", file, "--repo", "acme-app", "--quiet"], env);
+      expect(quiet.stderr).not.toContain("brain context:");
+
+      const unconfigured = runScript(["--skill-file", file, "--repo", "acme-app"], { ...env, GBRAIN_HOME: join(dir, "nowhere") });
+      expect(unconfigured.stderr).not.toContain("brain context:");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("a gbrain error carries its last stderr line into the failure summary", () => {
+    const dir = mkdtempSync(join(tmpdir(), "gstack-bcl-err-"));
+    const binDir = join(dir, "bin");
+    mkdirSync(binDir);
+    writeFileSync(join(binDir, "gbrain"), "#!/bin/sh\necho 'GBRAIN_DB_ACCESS no_url' >&2\necho 'No brain configured. Run: gbrain init' >&2\nexit 1\n");
+    chmodSync(join(binDir, "gbrain"), 0o755);
+    const gbrainHome = join(dir, "gh");
+    mkdirSync(join(gbrainHome, ".gbrain"), { recursive: true });
+    writeFileSync(join(gbrainHome, ".gbrain", "config.json"), "{}");
+    try {
+      const r = runScript(["--repo", "acme-app", "--skill", "no-such-skill-x"], { ...prependPath(binDir), GBRAIN_HOME: gbrainHome });
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toContain("brain context: 3/3 queries failed (gbrain list exited 1: No brain configured. Run: gbrain init)");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

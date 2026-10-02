@@ -148,8 +148,8 @@ replaceable from disk on each Mac.
   on the brain remote.
 
 - **Bulk-delete by criteria** (V1.0.1 follow-up — `gstack-transcript-prune`
-  helper). For V1.0, use `gbrain delete_page <slug>` per-page or write
-  a small loop over `gbrain list_pages` output.
+  helper). For V1.0, use `gbrain delete <slug>` per-page or write
+  a small loop over `gbrain list` output.
 
 - **Disable entirely:**
   ```bash

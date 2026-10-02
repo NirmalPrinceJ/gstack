@@ -622,15 +622,37 @@ describe('codex skeleton+sections union: review sandbox + fail-closed gate + tim
       expect(content).not.toContain(
         'If no `[P1]` markers are found (only `[P2]` or no findings) — the gate is **PASS**',
       );
-      // The new rule: FAIL on non-zero exit, empty output, and untagged
-      // output; [P0] recognized as blocking; PASS reachable only through the
-      // explicit tagged-advisory-only branch.
+      // The rule: FAIL on non-zero exit and empty output; [P0] recognized as
+      // blocking; untagged completed output is UNVERIFIED (#2769) — neither a
+      // PASS nor a FAIL; PASS reachable only through the explicit
+      // tagged-advisory-only branch, which now includes P3.
       expect(content).toContain('The gate FAILS CLOSED');
       expect(content).toContain('`_CODEX_EXIT` is non-zero (including 124) → **GATE: FAIL**');
       expect(content).toContain('empty or whitespace-only → **GATE: FAIL**');
-      expect(content).toContain('untagged output');
       expect(content).toContain('`[P0]`');
       expect(content).toContain('PASS is only reachable through check 5');
+    });
+
+    test(`${relPath}: (b2) a clean untagged review is UNVERIFIED, and P2/P3-only output can PASS (#2769)`, () => {
+      const content = read();
+      expect(content).toContain(
+        'anywhere → **GATE: UNVERIFIED** (Codex completed and tagged nothing; read\n      the output above)',
+      );
+      expect(content).toContain('GATE: UNVERIFIED (Codex completed and tagged nothing; read the output above)');
+      expect(content).toContain('(only P2/P3 advisory) →\n      **GATE: PASS**');
+      expect(content).not.toContain('**GATE: FAIL** (fail-closed: untagged output');
+      expect(content).toContain('"unverified" if UNVERIFIED');
+      // The captured clean review from the real CLI carries no severity tag, so
+      // check 4 is the branch it takes; the captured P2 review takes check 5.
+      const fixtures = path.join(ROOT, 'test', 'fixtures', 'codex-review');
+      const clean = fs.readFileSync(path.join(fixtures, 'clean-review.stdout.txt'), 'utf-8');
+      const p2 = fs.readFileSync(path.join(fixtures, 'p2-review.stdout.txt'), 'utf-8');
+      const tagged = (t: string) => /\[P[0-3]\]|(^|\s)P[0-3]:/m.test(t);
+      const blocking = (t: string) => /\[P[01]\]|(^|\s)P[01]:/m.test(t);
+      expect(clean.trim().length).toBeGreaterThan(0);
+      expect(tagged(clean)).toBe(false);
+      expect(tagged(p2)).toBe(true);
+      expect(blocking(p2)).toBe(false);
     });
 
     test(`${relPath}: (c) every Bash gate sits strictly above its section's wrapper budgets`, () => {

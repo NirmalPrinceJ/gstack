@@ -127,6 +127,11 @@ export interface ScannerExecution {
   timedOut?: boolean;
   unavailable?: boolean;
   truncated?: boolean;
+  /**
+   * Host checkout paths that stand for `sourceRoot` in SARIF `originalUriBaseIds`
+   * (an imported report names the directory its scanner actually ran in).
+   */
+  sarifCheckoutRoots?: string[];
 }
 
 const SOURCES: Record<ScannerId, string[]> = {
@@ -597,13 +602,82 @@ function location(path: unknown, line: unknown, column: unknown, root: string): 
   return { path: scannerLocation(str(path), root), line: integer(line), column: integer(column) };
 }
 
+/** Unredacted runs, consulted only for `originalUriBaseIds` (see sarifBaseDir). */
+function sarifRawRuns(raw: string): unknown[] {
+  const document: unknown = JSON.parse(raw);
+  const runs = document && typeof document === 'object' ? (document as Obj).runs : undefined;
+  return Array.isArray(runs) ? runs : [];
+}
+
+/** A `file:` URI as a slash path; Windows drive URIs (file:///C:/x) become `C:/x`. */
+function fileUriPath(uri: string): string {
+  if (!uri.startsWith('file:')) throw new Error('URI base is not a file URI');
+  const url = new URL(uri);
+  if (url.hostname || url.username || url.password || url.search || url.hash)
+    throw new Error('URI base is not a local file URI');
+  let path: string;
+  try {
+    path = decodeURIComponent(url.pathname);
+  } catch {
+    throw new Error('URI base is not decodable');
+  }
+  if (/[\x00-\x1f\x7f\\]/.test(path)) throw new Error('URI base is unsafe');
+  return /^\/[A-Za-z]:\//.test(path) ? path.slice(1) : path;
+}
+
+/** Compare as slash paths; drive letters and Windows paths case-insensitively. */
+function slashPath(path: string): string {
+  const slashed = path.replace(/\\/g, '/').replace(/\/+$/, '');
+  return /^[A-Za-z]:\//.test(slashed) ? slashed.toLowerCase() : slashed;
+}
+
+/**
+ * The source-root-relative directory a SARIF `uriBaseId` names ('' = the root).
+ * Undeclared bases resolve only through explicit mappings captured from real
+ * scanner output: Semgrep (1.179.0) emits `%SRCROOT%` with no
+ * `originalUriBaseIds`; Trivy (0.75.0) declares `ROOTPATH` as its scan
+ * target, which for a git URL target (`trivy repo https://…`) is the URL folded
+ * into a meaningless local path (`file:///https:/host/repo/`, prefixed by the
+ * working directory) — that names no directory, so it is treated as
+ * undeclared. Any other declared base is accepted only inside the source root
+ * or the checkout the run was started on. Bases are read from the unredacted
+ * report: redaction rewrites home-directory paths, so a redacted base can never
+ * be matched to the checkout. Only the root-relative remainder is used.
+ */
+function sarifBaseDir(rawBases: unknown, baseId: string, driverName: string, roots: string[]): string {
+  const bases = rawBases === undefined ? {} : obj(rawBases);
+  const declared = Object.prototype.hasOwnProperty.call(bases, baseId) ? obj(bases[baseId]) : undefined;
+  if (declared?.uriBaseId !== undefined) throw new Error('Nested URI base is not followed');
+  const declaredUri = declared === undefined ? undefined : str(declared.uri);
+  if (/^semgrep\b/i.test(driverName) && baseId === '%SRCROOT%' && declaredUri === undefined) return '';
+  if (
+    /^trivy$/i.test(driverName) &&
+    baseId === 'ROOTPATH' &&
+    /^file:\/\/(?:\/[^?#]*)?\/(?:https?|ssh|git):\/(?!\/)[^?#]*$/i.test(declaredUri ?? '')
+  )
+    return '';
+  if (declaredUri === undefined) throw new Error('Undeclared URI base');
+  const base = slashPath(fileUriPath(declaredUri));
+  if (base.split('/').includes('..') || base.split('/').includes('.'))
+    throw new Error('URI base has traversal');
+  for (const candidate of roots.map(slashPath)) {
+    if (base === candidate) return '';
+    if (base.startsWith(`${candidate}/`)) return base.slice(candidate.length + 1);
+  }
+  throw new Error('URI base outside source root');
+}
+
 function parseSarif(
   document: unknown,
   tool: ScannerCandidate['tool'],
   root: string,
   add: (value: ScannerCandidate) => void,
   gap: (code: ScannerGap['code'], message: string) => void,
+  checkoutRoots: string[] = [],
+  rawRuns: unknown[] = [],
 ): void {
+  const rejected: Partial<Record<'UNSAFE_LOCATION' | 'INVALID_OUTPUT', { count: number; example: string }>> =
+    {};
   const sarif = obj(document);
   if (sarif.version !== '2.1.0') throw new Error('SARIF 2.1.0 required');
   const runs = arr(sarif.runs);
@@ -611,10 +685,12 @@ function parseSarif(
     gap('SKIPPED_INPUT', 'SARIF contains no assessment runs.');
     return;
   }
-  for (const input of runs) {
+  for (const [runIndex, input] of runs.entries()) {
     const run = obj(input);
     const driver = obj(obj(run.tool).driver);
-    str(driver.name);
+    const driverName = str(driver.name);
+    const rawRun = rawRuns[runIndex];
+    const rawBases = rawRun && typeof rawRun === 'object' ? (rawRun as Obj).originalUriBaseIds : undefined;
     if (run.externalPropertyFileReferences !== undefined) {
       const refs = obj(run.externalPropertyFileReferences);
       if (refs.results !== undefined && arr(refs.results).length)
@@ -633,6 +709,9 @@ function parseSarif(
     const rules = driver.rules === undefined ? [] : arr(driver.rules);
     const results = arr(run.results);
     for (const inputResult of results) {
+      let ruleLabel = '(unknown rule)';
+      let baseLabel = '(none)';
+      let resolvedLabel = '(none)';
       try {
         const result = obj(inputResult);
         // SARIF also represents passing checks and informational inventory.
@@ -643,6 +722,7 @@ function parseSarif(
             ? obj(rules[ruleIndex as number])
             : undefined;
         const ruleId = str(result.ruleId ?? rule?.id);
+        ruleLabel = ruleId;
         const message = obj(result.message);
         let loc: ScannerCandidate['location'];
         if (result.locations !== undefined && arr(result.locations).length) {
@@ -655,12 +735,20 @@ function parseSarif(
             artifact = obj(obj(run.artifacts[index]).location);
           }
           let uri = str(artifact.uri);
-          if (artifact.uriBaseId !== undefined) {
+          resolvedLabel = uri;
+          const relative = !/^[a-z][a-z\d+.-]*:/i.test(uri) && !uri.startsWith('/');
+          if (artifact.uriBaseId !== undefined && relative) {
             const baseId = str(artifact.uriBaseId);
-            const bases = obj(run.originalUriBaseIds);
-            const base = str(obj(bases[baseId]).uri);
+            const declared =
+              run.originalUriBaseIds === undefined ? undefined : obj(run.originalUriBaseIds)[baseId];
+            baseLabel =
+              declared && typeof declared === 'object' && typeof (declared as Obj).uri === 'string'
+                ? `${baseId}=${(declared as Obj).uri}`
+                : `${baseId} (undeclared)`;
             // The base is evidence, not authority to access another directory.
-            if (base !== `file://${root}/` && base !== `file://${root}`) throw new Error('Unsafe location');
+            const dir = sarifBaseDir(rawBases, baseId, driverName, [root, ...checkoutRoots]);
+            if (dir) uri = `${dir.split('/').map(encodeURIComponent).join('/')}/${uri}`;
+            resolvedLabel = uri;
           }
           const region = physical.region === undefined ? {} : obj(physical.region);
           loc = location(uri, region.startLine, region.startColumn, root);
@@ -683,15 +771,27 @@ function parseSarif(
           }),
         );
       } catch (error) {
-        gap(
+        const code =
           error instanceof Error && /[Ll]ocation|URI|source root/.test(error.message)
             ? 'UNSAFE_LOCATION'
-            : 'INVALID_OUTPUT',
-          'A SARIF result could not be safely normalized.',
-        );
+            : 'INVALID_OUTPUT';
+        const entry = (rejected[code] ??= { count: 0, example: '' });
+        entry.count++;
+        if (!entry.example) {
+          const reason = error instanceof Error ? error.message : 'unreadable result';
+          const clip = (v: string) => v.slice(0, 160);
+          entry.example = `rule ${clip(ruleLabel)}, base ${clip(baseLabel)}, path ${clip(resolvedLabel)}: ${reason}`;
+        }
       }
     }
   }
+  for (const [code, entry] of Object.entries(rejected) as Array<
+    [ScannerGap['code'], { count: number; example: string }]
+  >)
+    gap(
+      code,
+      `${entry.count} SARIF result(s) could not be safely normalized and were not imported (first: ${entry.example}).`,
+    );
 }
 
 function parseResults(
@@ -699,10 +799,12 @@ function parseResults(
   document: unknown,
   add: (value: ScannerCandidate) => void,
   gap: (code: ScannerGap['code'], message: string) => void,
+  checkoutRoots: string[] = [],
+  rawRuns: unknown[] = [],
 ): void {
   const root = plan.sourceRoot;
   if (plan.format === 'sarif') {
-    parseSarif(document, plan.id, root, add, gap);
+    parseSarif(document, plan.id, root, add, gap, checkoutRoots, rawRuns);
     return;
   }
   if (plan.format === 'gitleaks-json') {
@@ -910,6 +1012,8 @@ export function parseScannerOutput(plan: ScannerPlan, execution: ScannerExecutio
         }
       },
       gap,
+      execution.sarifCheckoutRoots,
+      plan.format === 'sarif' ? sarifRawRuns(execution.stdout) : [],
     );
     outcome.status = 'complete';
   } catch (error) {
@@ -945,14 +1049,19 @@ export function parseScannerOutput(plan: ScannerPlan, execution: ScannerExecutio
 /** Import CodeQL or other SARIF as read-only candidates; never trust its verdict. */
 export function importSarif(
   raw: string,
-  opts: { sourceRoot: string; version?: string; scope?: string[] },
+  opts: { sourceRoot: string; version?: string; scope?: string[]; checkoutRoot?: string },
 ): ScannerOutcome {
   const root = absolutePath(opts.sourceRoot, 'sourceRoot');
   const plan = scannerPlans({ snapshotRoot: root, offline: true, selected: ['zizmor'] })[0];
   plan.coverage.scope = opts.scope ?? [root];
   plan.provenanceSources = ['https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html'];
   plan.coverage.exclusions = ['Imported scanner scope and suppressions require independent validation.'];
-  const outcome = parseScannerOutput(plan, { stdout: raw, exitCode: 0, version: opts.version });
+  const outcome = parseScannerOutput(plan, {
+    stdout: raw,
+    exitCode: 0,
+    version: opts.version,
+    sarifCheckoutRoots: opts.checkoutRoot ? [opts.checkoutRoot] : [],
+  });
   outcome.tool = 'sarif';
   outcome.candidates = outcome.candidates.map((item) => candidate('sarif', item));
   return outcome;

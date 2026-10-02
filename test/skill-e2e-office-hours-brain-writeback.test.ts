@@ -174,7 +174,10 @@ describeIfSelected(
 case "$1" in
   --version) echo "gbrain test-0.41.0"; exit 0 ;;
   search) echo "[]"; exit 0 ;;
-  get_page) echo ""; exit 0 ;;
+  # Real gbrain: \`get <slug>\` reads a page back; \`get_page\` is an MCP tool
+  # name, not a CLI verb.
+  get) cat "${payloadDir}/$2.md" 2>/dev/null; exit 0 ;;
+  get_page) echo "Unknown command: get_page" >&2; exit 1 ;;
   put)
     SLUG="$2"
     shift 2

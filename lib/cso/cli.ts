@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ABI,
   ApplicationModel,
@@ -1577,6 +1578,43 @@ function inspectV2(args: string[]) {
     throw new CsoError('INCOMPATIBLE_INPUT', 'Stored legacy report identity is inconsistent');
   return { id, report };
 }
+/**
+ * The directory a SARIF report's declared `originalUriBaseIds` share with this
+ * run's checkout (#3011). The report persists no host path, so a declared base
+ * (or its nearest ancestor) is bound to the run by the same realpath identity
+ * that named the run's repository.
+ */
+function sarifCheckoutRoot(raw: string, id: string): string | undefined {
+  let document: any;
+  try {
+    document = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  for (const run of Array.isArray(document?.runs) ? document.runs : []) {
+    const bases = run?.originalUriBaseIds;
+    if (!bases || typeof bases !== 'object') continue;
+    for (const base of Object.values(bases)) {
+      const uri = (base as { uri?: unknown } | null)?.uri;
+      if (typeof uri !== 'string' || !uri.startsWith('file:')) continue;
+      let at: string;
+      try {
+        at = fileURLToPath(uri);
+      } catch {
+        continue;
+      }
+      for (let depth = 0; depth < 64; depth++, at = dirname(at)) {
+        try {
+          if (repoId(at) === id) return at;
+        } catch {
+          // Not present on this machine; try the parent.
+        }
+        if (dirname(at) === at) break;
+      }
+    }
+  }
+  return undefined;
+}
 async function scanner(args: string[], sarif = false) {
   const { dir } = run(args);
   if (
@@ -1604,7 +1642,10 @@ async function scanner(args: string[], sarif = false) {
       const file = callerPath(args[0]);
       try {
         const data = readBoundedStable(file, 1024 * 1024, 'SARIF file'),
-          out = importSarif(data.toString('utf8'), { sourceRoot: '/source' });
+          out = importSarif(data.toString('utf8'), {
+            sourceRoot: '/source',
+            checkoutRoot: sarifCheckoutRoot(data.toString('utf8'), report.repoId),
+          });
         record = {
           outcome: out,
           coverage: scannerCoverage(out, report.policy.scope),

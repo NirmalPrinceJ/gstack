@@ -556,8 +556,8 @@ function extractGbrainBlock(frontmatter: string): GbrainManifest | null {
  *
  * Each sub-key sits one indent level deeper than `filter:`. Surrounding quotes
  * are stripped and template vars ({repo_slug}, now-7d, ...) are left intact for
- * downstream substitution, matching how dispatchList stringifies each value
- * into a `--filter k=v` argument. Returns undefined when there is no `filter:`
+ * downstream substitution; dispatchList maps each key onto a `gbrain list`
+ * flag. Returns undefined when there is no `filter:`
  * block or it is empty.
  */
 function parseFilterMap(body: string): Record<string, string> | undefined {
