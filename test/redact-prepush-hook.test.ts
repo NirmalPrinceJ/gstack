@@ -18,6 +18,7 @@ const PREPUSH = path.resolve(import.meta.dir, "..", "bin", "gstack-redact-prepus
 const REDACT = path.resolve(import.meta.dir, "..", "bin", "gstack-redact");
 
 let repo: string;
+let stateHome: string;
 
 function git(args: string[], cwd = repo): string {
   const r = spawnSync("git", args, { cwd, encoding: "utf8", timeout: 30_000 });
@@ -73,6 +74,7 @@ const FAKE_AWS_KEY = ['AKIA', '1234567890ABCDEF'].join('');
 
 beforeEach(() => {
   repo = fs.mkdtempSync(path.join(os.tmpdir(), "prepush-"));
+  stateHome = fs.mkdtempSync(path.join(os.tmpdir(), "prepush-state-"));
   git(["init", "-q", "-b", "main"]);
   git(["config", "user.email", "t@example.com"]);
   git(["config", "user.name", "T"]);
@@ -81,6 +83,7 @@ beforeEach(() => {
 
 afterEach(() => {
   fs.rmSync(repo, { recursive: true, force: true });
+  fs.rmSync(stateHome, { recursive: true, force: true });
 });
 
 describe("pre-push hook gating", () => {
@@ -405,10 +408,11 @@ describe("install / chaining", () => {
       cwd: repo,
       input: Buffer.from(line),
       encoding: "utf8",
-      env: { ...process.env, GSTACK_REDACT_PREPUSH: "skip" },
+      env: { ...process.env, GSTACK_REDACT_PREPUSH: "skip", GSTACK_HOME: stateHome },
       timeout: 30_000,
     });
     expect(r.status).toBe(0);
+    expect(fs.readFileSync(path.join(stateHome, "security", "prepush-skip.jsonl"), "utf8")).toContain("env-skip");
     expect(fs.existsSync(seen)).toBe(true);
     expect(fs.readFileSync(seen, "utf8").trim()).toBe(
       `refs/heads/main ${sha} refs/heads/main ${ZERO}`,
@@ -428,7 +432,7 @@ describe("install / chaining", () => {
       cwd: repo,
       input: Buffer.from(`refs/heads/main ${"b".repeat(40)} refs/heads/main ${ZERO}\n`),
       encoding: "utf8",
-      env: { ...process.env, GSTACK_REDACT_PREPUSH: "skip" },
+      env: { ...process.env, GSTACK_REDACT_PREPUSH: "skip", GSTACK_HOME: stateHome },
       timeout: 30_000,
     });
     expect(r.status).toBe(1);
@@ -491,9 +495,10 @@ describe("install / chaining", () => {
       cwd: repo,
       input: Buffer.from(`refs/heads/main ${sha} refs/heads/main ${ZERO}\n`),
       encoding: "utf8",
-      env: { ...process.env, GSTACK_REDACT_PREPUSH: "skip" },
+      env: { ...process.env, GSTACK_REDACT_PREPUSH: "skip", GSTACK_HOME: stateHome },
     });
     expect(run.status).toBe(0);
+    expect(fs.readFileSync(path.join(stateHome, "security", "prepush-skip.jsonl"), "utf8")).toContain("env-skip");
     expect(fs.readFileSync(seen, "utf8").trim()).toBe("refs/heads/main");
   });
 

@@ -145,9 +145,9 @@ export function fixtureDocs(scenario: DocsScenario, generatedRoot = process.env.
   };
 }
 
-export function preserveDocsEvidence(fixture: ReturnType<typeof fixtureDocs>, result: Pick<SkillTestResult, 'output' | 'toolCalls'>, runId: string, name: string, extra: Record<string, unknown> = {}): string {
+export function preserveDocsEvidence(fixture: ReturnType<typeof fixtureDocs>, result: Pick<SkillTestResult, 'output' | 'toolCalls'>, runId: string, name: string, extra: Record<string, unknown> = {}, projectDir?: string): string {
   if (!runId) throw new Error('EVALS_RUN_ID is required to retain docs evidence');
-  const dir = path.join(path.dirname(getProjectEvalDir()), 'e2e-runs', runId, `${name}-${path.basename(fixture.home)}-fixture`);
+  const dir = path.join(projectDir ?? path.dirname(getProjectEvalDir()), 'e2e-runs', runId, `${name}-${path.basename(fixture.home)}-fixture`);
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   fs.chmodSync(dir, 0o700);
   const file = path.join(dir, 'state.json');

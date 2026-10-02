@@ -340,7 +340,7 @@ describe('terminal-agent owned lifecycle regression', () => {
     const stateFile = path.join(stateDir, 'browse.json');
     const daemon = Bun.spawn(['bun', 'run', path.join(sourceDir, 'server.ts')], {
       env: { ...process.env, BROWSE_STATE_FILE: stateFile, BROWSE_HEADLESS_SKIP: '1', BROWSE_PARENT_PID: '0',
-        GSTACK_AGENT_WATCHDOG_TICK_MS: '50', GSTACK_STATE_WATCH_MS: '50' },
+        GSTACK_AGENT_WATCHDOG_TICK_MS: '50', GSTACK_STATE_WATCH_MS: '50', GSTACK_TERMINAL_OWNER_WATCHDOG_MS: '25' },
       stdio: ['ignore', 'ignore', 'ignore'],
     });
     try {

@@ -14,6 +14,9 @@ import { __testInternals__, fetchHandler, idleCheckTick } from "../src/daemon";
 
 const { markMeaningfulActivity } = __testInternals__;
 import { makeBoardHtml, makeTmpDir, req, resetDaemon } from "./daemon-tests-fixtures";
+import { usePrivateStateRoot } from "../../test/helpers/private-state-root";
+
+usePrivateStateRoot();
 
 let tmpDir: string;
 

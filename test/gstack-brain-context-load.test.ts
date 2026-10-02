@@ -10,6 +10,9 @@ import { describe, it, expect } from "bun:test";
 import { chmodSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { delimiter, join } from "path";
+import { usePrivateStateRoot } from "./helpers/private-state-root";
+
+usePrivateStateRoot();
 import { spawnSync } from "child_process";
 import { parseSkillManifest } from "../lib/gstack-memory-helpers";
 

@@ -15,6 +15,7 @@ import { selectTests, detectBaseBranch, getChangedFiles, E2E_TOUCHFILES, E2E_TIE
 import { WorktreeManager } from '../../lib/worktree';
 import type { HarvestResult } from '../../lib/worktree';
 import { preflightAnthropicApi } from './anthropic-preflight';
+import { isHermeticEnabled } from './hermetic-env';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -342,7 +343,7 @@ export async function finalizeEvalCollector(evalCollector: EvalCollector | null)
 // NOTE: since gstack-skill-start honors GSTACK_HOME (EOV7), hermetic children read the
 // temp GSTACK_HOME that hermetic-env.ts seeds (the canonical marker list lives there);
 // this operator-HOME seeding only serves EVALS_HERMETIC=0 debug runs.
-if (evalsEnabled) {
+if (evalsEnabled && !isHermeticEnabled()) {
   const gstackDir = path.join(os.homedir(), '.gstack');
   fs.mkdirSync(gstackDir, { recursive: true });
   // Marker list kept at parity with hermetic-env.ts's child-GSTACK_HOME seed

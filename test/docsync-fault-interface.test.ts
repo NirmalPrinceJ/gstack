@@ -693,8 +693,11 @@ for (const [name, mutation] of [
   expect(fs.existsSync(fixture.home)).toBe(false);
 });
 `);
+    const home = path.join(dir, 'home');
+    fs.mkdirSync(home);
     const result = Bun.spawnSync([process.execPath, 'test', script], {
       env: { ...process.env, EVALS: '', EVALS_TIER: '', EVALS_ALL: '', EVALS_RUN_ID: 'free-docsync-faults',
+        HOME: home, USERPROFILE: home,
         GSTACK_EVAL_DIR: path.join(dir, 'evidence'), GSTACK_HOME: path.join(dir, 'state') },
       stdout: 'pipe', stderr: 'pipe', timeout: 120_000,
     });

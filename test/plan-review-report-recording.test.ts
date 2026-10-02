@@ -265,9 +265,12 @@ function runnerResult(exitReason: string, turnsUsed = 0, transcript: any[] = [{ 
     costEstimate: { inputChars: 1, outputChars: 0, estimatedTokens: 0, estimatedCost: 0, turnsUsed } };
 }
 function recordedClass(result: any, extra?: Partial<EvalTestEntry>) {
-  const collector = new EvalCollector('e2e');
-  recordE2E(collector, 'infra-probe', 'Infra probe', result, extra);
-  return (collector as any).tests.at(-1)?.failure_class;
+  const evalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'report-recording-class-'));
+  try {
+    const collector = new EvalCollector('e2e', evalDir);
+    recordE2E(collector, 'infra-probe', 'Infra probe', result, extra);
+    return (collector as any).tests.at(-1)?.failure_class;
+  } finally { fs.rmSync(evalDir, { recursive: true, force: true }); }
 }
 
 test.each(['error_api', 'timeout_startup', 'error_output_stream', 'exit_code_1'])(

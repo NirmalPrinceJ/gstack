@@ -34,7 +34,7 @@ function git(cwd: string, ...args: string[]) {
 }
 
 beforeAll(() => {
-  SANDBOX = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-design-detect-'));
+  SANDBOX = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-design-detect-')));
   REPO = path.join(SANDBOX, 'repo');
   fs.mkdirSync(REPO);
   git(REPO, 'init', '-q', '-b', 'main');
@@ -1520,7 +1520,7 @@ describe('install: the one download gstack makes, after consent', () => {
   const PLATFORM = ENGINE_ASSETS[`${process.platform}-${process.arch}`];
   const VERSION = TESTED_ENGINE_VERSIONS[TESTED_ENGINE_VERSIONS.length - 1];
   const ASSET = PLATFORM ? `impeccable-${PLATFORM}${PLATFORM.startsWith('windows') ? '.exe' : ''}` : '';
-  const freshHome = () => fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-impeccable-home-'));
+  const freshHome = () => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-impeccable-home-')));
   const mirror = (body: Uint8Array, hits: string[]) => Bun.serve({
     port: 0, hostname: '127.0.0.1',
     fetch(req) {

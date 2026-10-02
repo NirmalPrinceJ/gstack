@@ -17,6 +17,9 @@ import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtempSync, existsSync, writeFileSync, utimesSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
+import { usePrivateStateRoot } from "./helpers/private-state-root";
+
+usePrivateStateRoot();
 import { spawnSync } from "child_process";
 
 import {

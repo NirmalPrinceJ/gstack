@@ -87,7 +87,7 @@ let shuttingDown = false;
 let serverRef: ReturnType<typeof Bun.serve> | null = null;
 let idleInterval: ReturnType<typeof setInterval> | null = null;
 const startTime = Date.now();
-const daemonLog = openDaemonLog();
+let daemonLog: fs.WriteStream | null | undefined;
 
 function openDaemonLog(): fs.WriteStream | null {
   try {
@@ -101,6 +101,7 @@ function openDaemonLog(): fs.WriteStream | null {
 
 function dlog(...args: unknown[]): void {
   const line = `[${new Date().toISOString()}] ${args.map(String).join(" ")}\n`;
+  if (daemonLog === undefined) daemonLog = openDaemonLog();
   if (daemonLog) daemonLog.write(line);
   process.stderr.write(line);
 }

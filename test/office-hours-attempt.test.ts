@@ -422,6 +422,7 @@ await import(join(root, 'test/skill-e2e-office-hours-brain-writeback.test.ts'));
         EVALS: mode === 'disabled' ? '' : '1', EVALS_ALL: '', EVALS_TIER: 'periodic',
         EVALS_SELECTION_JSON: JSON.stringify({ selected: mode === 'unselected' ? [] : null, reason: 'free fixture' }),
         EVALS_PREFLIGHT_OK: '1', GSTACK_EVAL_DIR: evalDir, GSTACK_CLAUDE_CLI_VERSION: 'free fixture',
+        GSTACK_HOME: path.join(dir, 'state'),
       },
       stdout: 'pipe', stderr: 'pipe',
     });
@@ -629,7 +630,7 @@ await import(path.join(root, 'test', ${JSON.stringify(file)}));
       env: {
         ...process.env, EVALS: '1', EVALS_ALL: '', EVALS_TIER: 'periodic', EVALS_PREFLIGHT_OK: '1',
         EVALS_SELECTION_JSON: JSON.stringify({ selected: [id], reason: 'free format lifecycle' }),
-        GSTACK_EVAL_DIR: evalDir, GSTACK_CLAUDE_CLI_VERSION: 'free fixture',
+        GSTACK_EVAL_DIR: evalDir, GSTACK_CLAUDE_CLI_VERSION: 'free fixture', GSTACK_HOME: path.join(dir, 'state'),
         ANTHROPIC_API_KEY: 'free-fixture', ANTHROPIC_AUTH_TOKEN: '', ANTHROPIC_BASE_URL: 'http://127.0.0.1:1',
       },
     });

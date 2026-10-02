@@ -86,6 +86,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { createHash, randomUUID } from 'node:crypto';
 import { isPaidTestFile } from '../test/helpers/paid-test-set';
 import { resolveStateRoot } from '../lib/state-root';
+import { guardFreeHome } from './lib/free-home-guard';
 import {
   BunTestOutputClassifier,
   createShardSandbox,
@@ -107,7 +108,6 @@ import {
   type LanePolicy,
   type ShardChildResult,
 } from './lib/shard-engine';
-
 export { normalizeRelativePath } from './lib/shard-engine';
 
 /**
@@ -354,6 +354,7 @@ export const KNOWN_WINDOWS_INCOMPATIBLE: Array<{ file: string; reason: string }>
 // pattern hit is a false positive — the point of these files is Windows
 // coverage, so auto-excluding them defeats the regression tests they carry.
 const KNOWN_WINDOWS_SAFE: Array<{ file: string; reason: string }> = [
+  { file: 'test/ship-hook-windows-paths.test.ts', reason: 'runs bin/ helpers through explicit bash and Bun argv with forward-slash paths; never executes a shebang; the path-spelling simulation is skipIf win32' },
   {
     file: 'test/state-root-parity.test.ts',
     reason: 'runs the bash twin and lib/state-root.ts over an env table with PATH empty; no shebang execution, raw-string comparison is platform-neutral',
@@ -384,8 +385,7 @@ const KNOWN_WINDOWS_SAFE: Array<{ file: string; reason: string }> = [
   },
   {
     file: 'test/claude-code-runner.test.ts',
-    // The bin/ path is launched through process.execPath (Bun), never as a
-    // shebang executable. Keep taskkill tree supervision in the Windows lane.
+    // The bin/ path is launched through process.execPath (Bun), never as a shebang; keep taskkill supervision in the Windows lane.
     reason: 'invokes the runner via Bun argv; fake CLI and timeout descendant assertions cover native Windows taskkill',
   },
   {
@@ -1810,7 +1810,7 @@ function explainFreeVerdict(label: string, status: FreeShardStatus, facts: {
   summary: ReturnType<BunTestOutputClassifier['end']>; expectedFiles: number; wallTimeoutMs: number;
 }): void {
   const { summary, exitCode } = facts;
-  if (facts.cleanupError) console.error(`${label} browser cleanup failed: ${facts.cleanupError}; retained ${facts.stateDir}`);
+  if (facts.cleanupError) console.error(`${label} shard cleanup or home containment failed: ${facts.cleanupError}; retained ${facts.stateDir}`);
   if (status === 'timed-out') {
     console.error(
       `${label} exceeded the ${Math.round(facts.wallTimeoutMs / 1000)}s wall-clock deadline — `
@@ -1832,7 +1832,7 @@ function explainFreeVerdict(label: string, status: FreeShardStatus, facts: {
 function logFreeRecovery(log: (line: string) => void, outcome: FreeShardOutcome, facts: {
   cleanupError: string | null; logWriteFailed: boolean; captureIncomplete: boolean; rootDir: string;
 }): void {
-  const problem = facts.cleanupError ? 'Owned-process cleanup is unconfirmed; inspect the retained state before another run.'
+  const problem = facts.cleanupError ? 'Owned-process cleanup or home containment is unconfirmed; inspect the reported paths and retained state before another run.'
     : facts.logWriteFailed ? 'The evidence log could not be retained; repair the log destination before another run.'
       : facts.captureIncomplete ? 'Evidence capture is incomplete; repair the stream or early exit before another run.'
         : outcome.status === 'timed-out' ? 'Execution exceeded its deadline; inspect the last completed step before changing code or rerunning.'
@@ -1952,8 +1952,8 @@ export async function runFreeShard(
     child = await runShardChild({
       command, args, cwd: rootDir, env, timeoutMs: wallTimeoutMs,
       attach: () => {
-        const browser = trackShardBrowser(stateDir, env);
-        return { signal: (force) => browser.signal(force), settle: async () => { cleanupError = await browser.settle(); } };
+        const browser = trackShardBrowser(stateDir, env), home = guardFreeHome(files, env);
+        return { signal: (force) => browser.signal(force), settle: async () => { cleanupError = await browser.settle() ?? home.verify(); } };
       },
       hookStreams: (spawned) => [consumeStream(spawned.stdout, 'stdout'), consumeStream(spawned.stderr, 'stderr')],
     });

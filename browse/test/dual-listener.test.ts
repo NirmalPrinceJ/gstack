@@ -19,10 +19,13 @@ import * as path from 'path';
 import { TUNNEL_COMMANDS } from '../src/server';
 import { __resetConnectRateLimit } from '../src/token-registry';
 import { makeServer, stubRouteContext, callRoute, fakeTunnel, type TestServer } from './route-test-harness';
+import { usePrivateStateRoot } from '../../test/helpers/private-state-root';
+import { __resetTunnelDenialLog, logTunnelDenial } from '../src/tunnel-denial-log';
 
 const SERVER_SRC = fs.readFileSync(path.join(import.meta.dir, '../src/server.ts'), 'utf-8');
 const TABLE_SRC = fs.readFileSync(path.join(import.meta.dir, '../src/routes/table.ts'), 'utf-8');
 
+const stateRoot = usePrivateStateRoot();
 let server: TestServer;
 let scoped = '';
 const overlayCalls: string[] = [];
@@ -359,6 +362,16 @@ describe('Rate limit + denial log wiring', () => {
     expect(SERVER_SRC).toContain("logTunnelDenial(req, url, 'missing_scoped_token')");
   });
 
+  test('a denial is logged under the state root current at write time (#2895)', async () => {
+    __resetTunnelDenialLog();
+    const url = new URL('http://127.0.0.1/command');
+    logTunnelDenial(new Request(url), url, 'missing_scoped_token');
+    const log = path.join(stateRoot.dir, 'security', 'attempts.jsonl');
+    const deadline = Date.now() + 2000;
+    while (!fs.existsSync(log) && Date.now() < deadline) await Bun.sleep(10);
+    expect(fs.readFileSync(log, 'utf8')).toContain('missing_scoped_token');
+  });
+
   test('/connect rate limit was loosened from 3/min to 300/min', () => {
     const registrySrc = fs.readFileSync(
       path.join(import.meta.dir, '../src/token-registry.ts'),
@@ -377,9 +390,10 @@ describe('E3: /welcome GSTACK_SLUG path traversal gate', () => {
       fs.mkdirSync(path.dirname(page(slug)), { recursive: true });
       fs.writeFileSync(page(slug), body);
     }
-    const saved = { HOME: process.env.HOME, GSTACK_SLUG: process.env.GSTACK_SLUG };
+    const saved = { HOME: process.env.HOME, GSTACK_SLUG: process.env.GSTACK_SLUG, GSTACK_HOME: process.env.GSTACK_HOME };
     try {
       process.env.HOME = home;
+      delete process.env.GSTACK_HOME;
       process.env.GSTACK_SLUG = 'good-slug_1';
       expect(await (await server.local('/welcome')).text()).toBe('GOOD-SLUG-PAGE');
       // A traversal slug (and any slug outside the charset) falls back to 'unknown'.

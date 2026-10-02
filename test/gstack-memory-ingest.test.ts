@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, mkdirSync, statSync, chmodSync, readdirSync, symlinkSync, utimesSync, copyFileSync } from "fs";
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync, mkdirSync, statSync, chmodSync, readdirSync, symlinkSync, utimesSync, copyFileSync, realpathSync } from "fs";
 import { tmpdir } from "os";
 import { basename, dirname, join } from "path";
 import { spawnSync } from "child_process";
@@ -30,7 +30,7 @@ describe("requested secret scanning at the import boundary", () => {
   const realScanner = process.env.GSTACK_TEST_GITLEAKS;
 
   beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), "gstack-scan-"));
+    home = realpathSync(mkdtempSync(join(tmpdir(), "gstack-scan-")));
     bin = join(home, "bin");
     mkdirSync(bin);
     mkdirSync(join(home, "tmp"));

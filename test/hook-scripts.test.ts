@@ -3,9 +3,11 @@ import { spawnSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import { usePrivateStateRoot } from './helpers/private-state-root';
 import { gitArgvIn } from './helpers/scratch-repo';
 
 const ROOT = path.resolve(import.meta.dir, '..');
+usePrivateStateRoot();
 const CAREFUL_SCRIPT = path.join(ROOT, 'careful', 'bin', 'check-careful.sh');
 const FREEZE_SCRIPT = path.join(ROOT, 'freeze', 'bin', 'check-freeze.sh');
 

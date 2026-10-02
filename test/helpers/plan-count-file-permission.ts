@@ -17,8 +17,11 @@ const scoped = (file: unknown, config: string, session: string) => {
   return rel.length === 2 && rel[0] !== '..' && rel[0] !== '.' && rel[1] === `${session}.jsonl`;
 };
 export function createFilePermissionRecorder(cwd: string, config: string, expected: string) {
-  const relative = path.relative(os.tmpdir(), expected);
-  if (!path.isAbsolute(expected) || !relative || relative === '..' || relative.startsWith('..' + path.sep) || path.isAbsolute(relative)) return undefined;
+  const inside = (root: string) => {
+    const relative = path.relative(root, expected);
+    return !!relative && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+  };
+  if (!path.isAbsolute(expected) || !(inside(os.tmpdir()) || inside(fs.realpathSync(os.tmpdir())))) return undefined;
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-file-permission-'));
   const file = path.join(dir, 'state.json');
   const command = [process.execPath, import.meta.path, '--record', file, cwd, config, expected].map(quote).join(' ');
