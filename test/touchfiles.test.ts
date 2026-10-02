@@ -685,7 +685,7 @@ describe('derived touchfile closure', () => {
   const maps = [['E2E_TOUCHFILES', E2E_TOUCHFILES], ['LLM_JUDGE_TOUCHFILES', LLM_JUDGE_TOUCHFILES]] as const;
   /** Paid files no key selects; they run only by tier or census. */
   const KEYLESS_PAID: Record<string, string> = {
-    'test/codex-e2e-recommendation-substance.test.ts': 'census-only Codex case; PERIODIC_CI_EXCLUDE (no codex CLI in CI)',
+    'test/codex-e2e-recommendation-substance.test.ts': 'census-only Codex case; periodic tier only',
     'test/skill-e2e-auq-consistency.test.ts': 'periodic tier gate only (describeE2ETier), never diff-selected',
     'test/skill-e2e-auq-verbose-vs-carved-ab.test.ts': 'periodic tier gate only (describeE2ETier), never diff-selected',
   };

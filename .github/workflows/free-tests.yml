@@ -147,6 +147,14 @@ jobs:
         run: bun run test:cso:windows
         env:
           GSTACK_CSO_WINDOWS_TESTS: "1"
+      - name: Upload #2894 lease diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: cso-lease-diagnostics-a${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cso-lease-diagnostics
+          if-no-files-found: ignore
+          retention-days: 14
 
   cso-docker-integration:
     runs-on: ubuntu-24.04

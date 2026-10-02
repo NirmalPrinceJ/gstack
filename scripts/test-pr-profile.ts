@@ -114,6 +114,7 @@ function matches(file: string, patterns: readonly string[]): boolean {
 
 export const FREE_ONLY_PR_FILES = [
   'scripts/test-free-shards.ts',
+  'scripts/lib/free-home-guard.ts', // Imported only by the free shard runner.
   'test/helpers/auq-parallel-worker.ts',
   // Read only by free tests (context-budget ratchet, host-config goldens), never by a paid case.
   'test/fixtures/context-budget.json',

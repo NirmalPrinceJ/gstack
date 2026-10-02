@@ -286,7 +286,9 @@ test.each(['disabled','missing-cli','missing-ack','failed-ack','foreign-ack','ch
 
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 function capturedGuardFixture(attempt:typeof captured.sourceBoundB176.attempts[number]){
- const f=fixture(attempt.plan),old=attempt.snapshot;
+ const f=fixture(attempt.plan),old=attempt.snapshot,{probe,outside}=captured.sourceBoundB176.commandContract;
+ // Judge each capture against the delivered blocks it executed, not today's render.
+ f.options.commands={probe,outside};
  // Authenticate the original public payload before adapting only fixture paths
  // and the native prompt's path-derived byte count/hash to real owned artifacts.
  expect(hash(attempt.plan)).toBe(old.sha256);

@@ -276,11 +276,11 @@ describe('completed parent phase-instruction Reads require an earlier published 
 });
 
 describe('owned installed phase aliases use the actual chain registration', () => {
-  function aliasFixture(phase: AutoplanPhaseInstruction['phase'] = 'design') {
+  function aliasFixture(phase: AutoplanPhaseInstruction['phase'] = 'design',
+    content = readFileSync(join(ROOT, 'autoplan', 'sections', `${phase}-phase.md`), 'utf8')) {
     const dir = realpathSync(mkdtempSync(join(tmpdir(), 'gstack-phase-alias-'))); owned.push(dir);
     const source = join(dir, 'source', 'autoplan'), config = join(dir, '.claude');
     const canonical = join(source, 'sections', `${phase}-phase.md`);
-    const content = readFileSync(join(ROOT, 'autoplan', 'sections', `${phase}-phase.md`), 'utf8');
     // Populate the owned source before installing links; never write through a registration.
     mkdirSync(join(source, 'sections'), { recursive: true }); writeFileSync(canonical, content);
     mkdirSync(join(config, 'skills', 'gstack'), { recursive: true });
@@ -302,7 +302,8 @@ describe('owned installed phase aliases use the actual chain registration', () =
     return { dir, source, config, canonical, short, legacy, instruction, events, transcript, startedAt, register, usePath, audit };
   }
   test('the retained f359 short alias Read/ACK establishes the missed premature Design entry', () => {
-    const f = aliasFixture();
+    // The retained Read carries the section bytes installed at capture time.
+    const f = aliasFixture('design', (aliasEntry.events[1]!.file as { content: string }).content);
     expect(createHash('sha256').update(f.instruction.content).digest('hex')).toBe(aliasEntry.sourceSha256);
     expect(f.instruction.content).toBe((aliasEntry.events[1]!.file as { content: string }).content);
     expect(f.transcript.assistantMessages).toHaveLength(34);
@@ -374,13 +375,13 @@ describe('owned installed phase aliases use the actual chain registration', () =
 });
 
 describe('the seeded launcher HOME registry preserves the phase publication boundary', () => {
-  function fixture(phase: AutoplanPhaseInstruction['phase'] = 'design') {
+  function fixture(phase: AutoplanPhaseInstruction['phase'] = 'design',
+    content = readFileSync(join(ROOT, 'autoplan', 'sections', `${phase}-phase.md`), 'utf8')) {
     const dir = realpathSync(mkdtempSync(join(tmpdir(), 'gstack-phase-home-'))); owned.push(dir);
     const runRoot = join(dir, 'run'), config = join(runRoot, 'with-skills', '.claude');
     const home = join(runRoot, 'skill-home-owned'), stateRoot = join(home, '.gstack');
     const registry = join(home, '.claude', 'skills'), source = join(dir, 'source');
     const canonical = join(source, 'autoplan', 'sections', `${phase}-phase.md`);
-    const content = readFileSync(join(ROOT, 'autoplan', 'sections', `${phase}-phase.md`), 'utf8');
     // Populate canonical files before creating links. All fixture writes stay in dir.
     for (const path of [config, stateRoot, registry, join(source, 'autoplan', 'sections')]) mkdirSync(path, { recursive: true });
     writeFileSync(canonical, content);
@@ -406,7 +407,8 @@ describe('the seeded launcher HOME registry preserves the phase publication boun
       events, transcript, usePath, register, audit };
   }
   test('actual fb10 HOME Read was missed despite exact canonical bytes and no parent publication', () => {
-    const f = fixture();
+    const f = fixture('design', homeEntry.events[1]!.file!.content);
+    expect(createHash('sha256').update(f.instruction.content).digest('hex')).toBe(homeEntry.sourceSha256);
     expect(homeEntry.observedPrematurePhaseEntry).toBeNull();
     expect(homeEntry.events[1]!.file!.content).toBe(f.instruction.content);
     expect(homeEntry.assistantMessages).toHaveLength(35);

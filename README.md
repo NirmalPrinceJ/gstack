@@ -165,14 +165,29 @@ override applies to that run only; set `model` in your Codex `config.toml` to
 make it stick across upgrades. After changing your Codex model, rerun
 `./setup --host codex` to regenerate the skills.
 
-gstack-owned Codex invocations and evals default to `gpt-6-astra`. Set
-`GSTACK_CODEX_MODEL=<model>` to override that runtime default; an explicitly
-requested model takes precedence. Runtime model selection is separate from
-the setup-time behavioral profile above. `/claude-code` (`gstack-claude-code`
+**Which Codex model gstack uses.** For every Codex call (outside voices,
+`/codex`, review and ship adversarial passes), gstack picks the model in this
+order: a model you name for that request, then `GSTACK_CODEX_MODEL`, then
+`model` in your Codex `config.toml` (for native `codex review`, `review_model`
+first; a custom `CODEX_HOME` is honored), and only then gstack's default,
+`gpt-6-astra`. Before spending anything, it prints the choice and where it came
+from, for example `CODEX_MODEL: gpt-5.6-terra (exec; source: ~/.codex/config.toml model)`.
+If your choice is invalid or your account cannot use it, gstack stops with a
+repair message and reports the outside review as unavailable. It never silently
+switches to its default. Nested Codex reviews also run with installed skills
+hidden (`-c skills.include_instructions=false`), so a review cannot turn into a
+whole nested skill run. Runtime model selection is separate from the setup-time
+behavioral profile above. `/claude-code` (`gstack-claude-code`
 on Codex) preserves Claude's configured model. Set `GSTACK_CLAUDE_MODEL=<model>`
 or name a model in your request to override it for the invocation, including
 resumed consultations. See [eval defaults and overrides](CONTRIBUTING.md#testing--evals)
 for capture, judge, and benchmark model selection.
+
+The design binary (`$D`) uses OpenAI's `gpt-5.5` by default, with image
+generation through `gpt-image-2`. Set `GSTACK_DESIGN_MODEL=<model>` to use
+another gpt-5-class model for both image generation and screenshot analysis;
+if OpenAI rejects it, the error names `GSTACK_DESIGN_MODEL`. Check a key
+against the defaults with `bun run design/scripts/live-model-check.ts`.
 
 **Want to add support for another agent?** See [docs/ADDING_A_HOST.md](docs/ADDING_A_HOST.md).
 Rendering a new agent is one TypeScript config file; installing it also needs a

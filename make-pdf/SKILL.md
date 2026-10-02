@@ -86,7 +86,7 @@ Core commands:
 Output contract:
 - `stdout`: ONLY the output path on success. One line.
 - `stderr`: progress (`Rendering HTML... Generating PDF...`) unless `--quiet`.
-- Exit 0 success / 1 bad args / 2 render error / 3 Paged.js timeout / 4 no browser available (open the Aside app, or run `./setup` to build gstack's own browser).
+- Exit 0 success / 1 bad args / 2 render error / 3 TOC page numbers failed / 4 no browser available (open the Aside app, or run `./setup` to build gstack's own browser).
 
 PDFs print through Aside when it is running and through gstack's own headless browser otherwise; the stderr progress line says which (`Rendering PDF through Aside` / `through gstack's browser`).
 
@@ -400,7 +400,7 @@ If the user has a `.md` file open and says "make it look nice", propose
 - Fragmented text on copy-paste → highlight.js output (Phase 4). Retry with
   `--no-syntax` once that flag exists. For now, remove fenced code blocks
   and regenerate.
-- Paged.js timeout → probably no headings in the markdown. Drop `--toc`.
+- Exit 3 (`$P: --toc: …`) → TOC page numbers could not be verified against the printed PDF; the message says why. Drop `--toc`, or shorten very long TOC headings if it says the numbers did not settle.
 - "[remote image blocked]" placeholder in the output → add `--allow-network`
   (understand you're giving the markdown file permission to fetch from its
   image URLs).
@@ -414,7 +414,7 @@ stderr: Rendering HTML...        ← progress spinner (unless --quiet)
         Rendering PDF through Aside...   ← or "through gstack's browser"
         Done in 11.2s. 43 words · 22KB · /tmp/letter.pdf
 
-exit code: 0 success / 1 bad args / 2 render error / 3 Paged.js timeout
+exit code: 0 success / 1 bad args / 2 render error / 3 TOC page numbers failed
            / 4 no browser available (Aside not open, fallback not built)
 ```
 

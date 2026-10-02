@@ -153,8 +153,10 @@ applied per run and never cached.
 Skill blocks resolve the root with
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 ```
+
+(No `eval`: worktree-isolated Claude Code sessions refuse it.)
 
 The second half stops the block instead of writing under `/` if the resolver
 is broken. If you see `gstack-paths failed` or
