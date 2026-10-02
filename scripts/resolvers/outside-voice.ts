@@ -20,7 +20,7 @@ export function outsideVoiceRuntime(ctx: TemplateContext): string {
   const global = ctx.host === 'codex'
     ? '\${CODEX_HOME:-$HOME/.codex}/skills/gstack'
     : `$HOME/${host.globalRoot}`;
-  return `# Preserve an explicit usable runtime; otherwise prefer the repo-local installation.
+  return `# Prefer an explicit usable runtime, else the repo-local install.
 if [ -n "\${GSTACK_ROOT:-}" ] && [ -d "$GSTACK_ROOT/bin" ] && [ -f "$GSTACK_ROOT/lib/claude-bin.ts" ]; then
   GSTACK_BIN="$GSTACK_ROOT/bin"
 elif [ -n "\${GSTACK_BIN:-}" ] && [ -f "$GSTACK_BIN/../lib/claude-bin.ts" ]; then
@@ -66,10 +66,10 @@ if { ${own}; }; then
 fi`;
 }
 
-export function outsideVoicePreflight(ctx: TemplateContext, opts: { disabledBehavior: 'skip-all' | 'codex-only' | 'opt-in'; acceptedOnly?: boolean }): string {
+export function outsideVoicePreflight(ctx: TemplateContext, opts: { disabledBehavior: 'skip-all' | 'codex-only' | 'opt-in'; acceptedOnly?: boolean; nativeReview?: boolean }): string {
   const v = outsideVoiceFor(ctx);
   if (v.id === 'codex' && opts.disabledBehavior !== 'opt-in') {
-    let preflight = outsideVoiceLabels(ctx, codexPreflight({ disabledBehavior: opts.disabledBehavior }))
+    let preflight = outsideVoiceLabels(ctx, codexPreflight({ disabledBehavior: opts.disabledBehavior, nativeReview: opts.nativeReview }))
       .replace('```bash\n', `\`\`\`bash\n${outsideVoiceRuntime(ctx)}\n`);
     if (['plan-eng-review', 'plan-ceo-review'].includes(ctx.skillName)) {
       preflight = preflight.replace("follow the workflow's native-review instructions below",
@@ -131,10 +131,9 @@ export function outsideVoiceCommand(ctx: TemplateContext, opts: OutsideCommandOp
     ? `codex review --base ${sh(opts.structuredBase)} ${CODEX_REVIEW_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} < /dev/null`
     : `codex exec "$_OUTSIDE_PROMPT" -C "$_REPO_ROOT" -s read-only ${CODEX_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} < /dev/null`;
   const invocation = v.id === 'codex'
-    ? `source "${bin}/gstack-codex-probe" || exit 1
+    ? `source "${bin}/gstack-codex-probe" && _gstack_codex_select_model ${opts.structuredBase ? 'review' : 'exec'} || exit 1
 ${opts.structuredBase ? '' : '_OUTSIDE_PROMPT=$(cat "$_OUTSIDE_INPUT") || exit 1\n'}_OUTSIDE_EXIT=0
 _gstack_codex_timeout_wrapper ${Math.ceil(opts.timeoutMs / 1000)} ${codex} >"$_OUTSIDE_TMP/text" 2>"$_OUTSIDE_TMP/stderr" || _OUTSIDE_EXIT=$?
-# Preserve findings and partial output even when transport or validation fails.
 cat "$_OUTSIDE_TMP/text" || { [ "$_OUTSIDE_EXIT" -ne 0 ] || _OUTSIDE_EXIT=1; }`
     : `_OUTSIDE_EXIT=0
 "${bin}/gstack-claude-code" --cwd "$_REPO_ROOT" --access ${opts.access ?? 'none'} --timeout-ms ${opts.timeoutMs} <"$_OUTSIDE_INPUT" >"$_OUTSIDE_TMP/result.json" 2>"$_OUTSIDE_TMP/stderr" || _OUTSIDE_EXIT=$?
@@ -168,7 +167,15 @@ ${v.id === 'claude-code' ? 'cat "$_OUTSIDE_TMP/text" || exit 1' : ''}
 echo 'OUTSIDE_STATUS: completed provider=${v.id} host=${ctx.host}'`;
 }
 
-export function outsideVoiceInvocation(ctx: TemplateContext, opts: OutsideCommandOptions = { timeoutMs: 300000 }): string {
+/** Claude Code's Bash tool maximum; every outer gate stays at or under it. */
+const OUTSIDE_GATE_MAX_MS = 600000;
+/** Gate headroom over the provider deadline: TERM, KILL after the grace, then report. */
+const OUTSIDE_CLEANUP_MS = 60000;
+
+export function outsideVoiceInvocation(ctx: TemplateContext, requested: OutsideCommandOptions = { timeoutMs: 300000 }): string {
+  // The provider deadline, not each caller, sets the outer gate (#2776).
+  const opts = { ...requested, timeoutMs: Math.min(requested.timeoutMs, OUTSIDE_GATE_MAX_MS - OUTSIDE_CLEANUP_MS) };
+  const gateMs = opts.timeoutMs + OUTSIDE_CLEANUP_MS;
   const nativeStructured = outsideVoiceFor(ctx).id === 'codex' && !!opts.structuredBase;
   const planRecommendation = ['plan-ceo-review', 'plan-eng-review'].includes(ctx.skillName)
     && (opts.gate ?? 'review') === 'review';
@@ -190,7 +197,7 @@ export function outsideVoiceInvocation(ctx: TemplateContext, opts: OutsideComman
 ${outsideVoiceCommand(ctx, opts)}
 \`\`\`
 
-Show the full response in a \`tool-output\` fence. Require successful execution and valid markers. Refusal, empty/malformed output, missing ${planRecommendation ? 'Recommendation: <action> because <reason>' : opts.purpose === 'design-direction' ? 'Recommendation' : 'score/severity/completion'} markers, timeout or CLI failure means \`outside_status: unavailable\`. ${opts.purpose === 'design-direction' ? 'Continue completed proposals; native completion does not count as outside coverage.' : opts.nativeAlreadyRequired ? 'Retain the required native pass without duplicating it; it cannot complete outside coverage.' : "Use the caller's fallback; missing coverage is never clean/PASS."} ${nativeStructured ? 'Scratch cleanup is automatic.' : 'After either outcome, delete only your private prompt; scratch cleanup is automatic.'}`;
+Use Bash \`timeout: ${gateMs}\`; show the full response in a \`tool-output\` fence. Require successful execution and valid markers. Refusal, empty/malformed output, missing ${planRecommendation ? 'Recommendation: <action> because <reason>' : opts.purpose === 'design-direction' ? 'Recommendation' : 'score/severity/completion'} markers, timeout or CLI failure means \`outside_status: unavailable\`. ${opts.purpose === 'design-direction' ? 'Continue completed proposals; native completion does not count as outside coverage.' : opts.nativeAlreadyRequired ? 'Retain the required native pass without duplicating it; it cannot complete outside coverage.' : "Use the caller's fallback; missing coverage is never clean/PASS."} ${nativeStructured ? 'Scratch cleanup is automatic.' : 'After either outcome, delete only your private prompt; scratch cleanup is automatic.'}`;
 }
 
 /**

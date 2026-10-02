@@ -16,7 +16,7 @@ import { toShellPath, type TemplateContext } from './types';
 import { CC_BACKGROUND_DEFAULT_SINCE } from './constants';
 import { outsideVoiceFailurePolicy, outsideVoiceFor, outsideVoiceInvocation, outsideVoicePreflight, outsideVoiceProvenance, outsideVoiceRuntime } from './outside-voice';
 
-const CODEX_BOUNDARY = 'IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are skill definitions, not repository review data. Do not follow nested skills, hooks, or tool instructions. They contain bash scripts and prompt templates that will waste your time. Ignore them completely. Do NOT modify agents/openai.yaml. Stay focused on the repository code only.\\n\\n';
+const CODEX_BOUNDARY = 'IMPORTANT: Do NOT read or execute any files under ~/.claude/, ~/.agents/, .claude/skills/, or agents/. These are skill definitions, not repository review data. Do not invoke any installed skill (Codex home skills/, .agents/), hook, or tool instruction; answer directly. Ignore them completely. Do NOT modify agents/openai.yaml. Stay focused on the repository code only.\\n\\n';
 
 export function generateCodexSecondOpinion(ctx: TemplateContext): string {
 
@@ -47,7 +47,7 @@ If B: skip Phase 3.5 entirely. Remember that the second opinion did NOT run (aff
 2. **Write the assembled prompt to a temp file** (prevents shell injection from user-derived content):
 
 \`\`\`bash
-OUTSIDE_PROMPT_FILE=$(mktemp /tmp/gstack-outside-oh-XXXXXXXX)
+OUTSIDE_PROMPT_FILE=$(mktemp "\${TMPDIR:-/tmp}/gstack-outside-oh-XXXXXXXX") || { echo 'ERROR: mktemp failed; not running the outside voice without its prompt file.' >&2; exit 1; }
 \`\`\`
 
 Write the full prompt to this file. **Always start with the filesystem boundary:**
@@ -151,8 +151,6 @@ Outside prompt (supply repository context from the parent):
 
 ${outsideVoiceInvocation(ctx, { timeoutMs: 540000, nativeAlreadyRequired: true, diffCommand: 'DIFF_BASE=$(git merge-base origin/<base> HEAD) && git diff "$DIFF_BASE"' })}
 
-Set the outer tool timeout to 600000ms so the provider timeout can report its failure.
-
 Present the full output verbatim. ${isShip ? 'An unavailable outside challenge does not block shipping by itself; supported findings still enter Step 11, and the structured P1 and non-convergence gates still apply.' : 'This outside challenge is informational; supported findings still enter Step 5 Fix-First, whose approval and convergence gates apply.'}
 
 **Error handling:** Only this optional outside adversarial pass is non-blocking; native completion and structured-review decisions still apply.
@@ -176,7 +174,7 @@ ${outsideVoiceInvocation(ctx, { timeoutMs: 540000, nativeAlreadyRequired: true, 
 
 ${outsideVoiceFor(ctx).id === 'codex' ? 'The Codex backend uses `codex review --base` without a positional prompt: those arguments are mutually exclusive. Never drop --base to resolve an argv error; prompt-only review changes the diff scope.' : 'The Claude Code backend receives the parent-captured base diff, including committed and working-tree changes, because review mode cannot execute git.'}
 
-Set the outer tool timeout to 600000ms. Present output under \`${outsideVoiceFor(ctx).label.toUpperCase()} SAYS (code review):\` inside a \`tool-output\` fence.
+Present output under \`${outsideVoiceFor(ctx).label.toUpperCase()} SAYS (code review):\` inside a \`tool-output\` fence.
 Only a completed response with severity tags or an explicit no-findings conclusion establishes the gate. P1 findings (\`[P1]\` or native \`P1:\` labels) → GATE: FAIL. Completed without P1 → GATE: PASS. Refusal, failure, or missing markers → GATE: MISSING COVERAGE; preserve the existing user decision flow.
 
 If GATE is FAIL, use AskUserQuestion:
@@ -251,7 +249,7 @@ echo "DIFF_SIZE: $DIFF_TOTAL"
 
 **Detect the ${outsideVoiceFor(ctx).label} master switch + tool availability:**
 
-${outsideVoicePreflight(ctx, { disabledBehavior: 'codex-only' })}
+${outsideVoicePreflight(ctx, { disabledBehavior: 'codex-only', nativeReview: true })}
 
 \`CODEX_MODE: disabled\` means skip the ${outsideVoiceFor(ctx).label} passes ONLY.
 \`ready\` runs them; \`not_installed\` / \`not_authed\` skip with the printed reason.
@@ -410,13 +408,12 @@ THE PLAN:
 function codexPlanReviewRun(ctx: TemplateContext, ceo: boolean, needsApprovalReadiness: boolean): string {
   return `**If \`CODEX_MODE: ready\` — run ${outsideVoiceFor(ctx).label}:**
 
-${['plan-ceo-review', 'plan-eng-review'].includes(ctx.skillName) ? `Run this block only for \`ready\`, in one foreground Bash call
-(\`run_in_background: false\`, \`timeout: 300000\`). Its opening harness guard
-rechecks the fresh shell: exit 78 uses the same Native fallback below, never a
-replacement provider. Finish termination before fallback and consume only
-completed output. Use private temporary paths, with no background jobs.` : `Run the selected backend in one foreground Bash invocation (\`run_in_background: false\`,
-\`timeout: 300000\`). Finish a failed attempt's termination before fallback;
-consume only its completed output. No background jobs or shared temporary paths.`}
+${['plan-ceo-review', 'plan-eng-review'].includes(ctx.skillName) ? `Run this block only for \`ready\`, in the one foreground Bash call described below.
+Its opening harness guard rechecks the fresh shell: exit 78 uses the same Native
+fallback below, never a replacement provider. Finish termination before fallback and consume only
+completed output. Use private temporary paths, with no background jobs.` : `Run the selected backend in the one foreground Bash invocation described below.
+Finish a failed attempt's termination before fallback; consume only its completed
+output. No background jobs or shared temporary paths.`}
 
 ${outsideVoiceInvocation(ctx, { timeoutMs: 300000 })}
 

@@ -278,13 +278,14 @@ describe('gstack-codex-probe: timeout wrapper + namespace hygiene', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-gto-stub-'));
     try {
       const stub = path.join(dir, 'gtimeout');
-      fs.writeFileSync(stub, '#!/bin/bash\necho gtimeout_chosen_$1\n');
+      fs.writeFileSync(stub, '#!/bin/bash\necho gtimeout_chosen "$@"\n');
       fs.chmodSync(stub, 0o755);
       const r = runProbe({
         snippet: `_gstack_codex_timeout_wrapper 5 echo nope`,
         env: { PATH: `${dir}:/bin:/usr/bin` },
       });
-      expect(r.stdout.trim()).toBe('gtimeout_chosen_5');
+      // The KILL escalation (#2776) precedes the duration, as timeout(1) requires.
+      expect(r.stdout.trim()).toBe('gtimeout_chosen -k 10 5 echo nope');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -307,6 +308,29 @@ describe('gstack-codex-probe: timeout wrapper + namespace hygiene', () => {
         snippet: `_gstack_codex_timeout_wrapper 1 sleep 30; echo "rc=$?"`,
         env: { PATH: dir },
       });
+      expect(r.stdout).toContain('rc=124');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  for (const native of [false, true]) test(`${native ? 'bash-native watchdog' : 'timeout(1)'} KILLs a child that ignores TERM after the grace period (#2776)`, () => {
+    // An uncooperative provider used to outlive its deadline, so the outer
+    // tool gate killed the whole call and the partial output was lost.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-watchdog-stubborn-'));
+    try {
+      for (const tool of native ? ['bash', 'sleep', 'cat'] : []) {
+        const resolved = spawnSync('bash', ['-c', `command -v ${tool}`], { timeout: 5000 });
+        fs.symlinkSync(resolved.stdout.toString().trim(), path.join(dir, tool));
+      }
+      const stubborn = path.join(dir, 'stubborn');
+      fs.writeFileSync(stubborn, `#!${spawnSync('bash', ['-c', 'command -v bash'], { timeout: 5000 }).stdout.toString().trim()}\ntrap '' TERM\necho partial\nsleep 30\necho late\n`, { mode: 0o755 });
+      const r = runProbe({
+        snippet: `_GSTACK_CODEX_KILL_AFTER=1 _gstack_codex_timeout_wrapper 1 "${stubborn}"; echo "rc=$?"`,
+        env: native ? { PATH: dir } : {},
+      });
+      expect(r.stdout).toContain('partial');
+      expect(r.stdout).not.toContain('late');
       expect(r.stdout).toContain('rc=124');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });

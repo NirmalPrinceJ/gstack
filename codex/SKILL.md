@@ -783,7 +783,7 @@ must be the file's terminal heading.
 ## Model & Reasoning
 
 **Model:** gstack defaults Codex invocations to the current frontier agentic coding
-model via `-c "model=\"${GSTACK_CODEX_MODEL:-gpt-6-astra}\""` (currently `gpt-6-astra`). A user can override
+model via `-c "model=\"${_GSTACK_CODEX_SEL:?}\"" -c skills.include_instructions=false` (currently `gpt-6-astra`). A user can override
 the default for a shell with `GSTACK_CODEX_MODEL=<model>`, or for one request by naming a
 model in the `/codex` prompt.
 Native `codex review` also sets `review_model` to the selected model so a separate

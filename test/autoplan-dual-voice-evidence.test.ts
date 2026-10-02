@@ -258,7 +258,7 @@ test.each(['assignment-only','set-config','other-config','foreign-reader','or-co
  if(kind==='inside-body')input.command=input.command.replace(guards+'\n','').replace('_OUTSIDE_EXIT=0','_OUTSIDE_EXIT=0\n'+guards);
  if(kind==='before-cd')input.command=guards+'\ncd '+f.dir+'\n'+f.options.commands.outside.replace("'<prepared-prompt-file>'","'"+f.file+"'");
  if(kind==='changed-harness')input.command=input.command.replace('exit 78','exit 0');
- if(kind==='changed-timeout')input.command=input.command.replace('_gstack_codex_timeout_wrapper 600','_gstack_codex_timeout_wrapper 1');
+ if(kind==='changed-timeout')input.command=input.command.replace('_gstack_codex_timeout_wrapper 540','_gstack_codex_timeout_wrapper 1');
  if(kind==='changed-sandbox')input.command=input.command.replace('-s read-only','-s danger-full-access');
  if(kind==='changed-prompt')input.command=input.command.replace('codex exec "$_OUTSIDE_PROMPT"','codex exec "Different plan"');
  if(kind==='skipped-validator')input.command=input.command.replace(/^bun .*outside-review-result.*\n/m,'');

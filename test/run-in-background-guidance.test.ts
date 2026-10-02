@@ -75,14 +75,16 @@ exec ${quote(Bun.which('cat')!)} "$@"
       const env = { PATH: `${bin}${path.delimiter}${process.env.PATH}`, FAKE_REPO: dir,
         FAKE_CREATED: created, FAKE_CALLS: calls, FAKE_REVIEW_ID: id,
         FAKE_CODEX_STATUS: String(code), FAKE_MKTEMP_FAIL: mktempFailure ? '1' : '0',
-        FAKE_CAT_FAIL: catFailure ? '1' : '0', TMPDIR: dir,
+        FAKE_CAT_FAIL: catFailure ? '1' : '0', TMPDIR: dir, CODEX_HOME: dir, GSTACK_CODEX_MODEL: '',
         CODEX_THREAD_ID: '', CODEX_SANDBOX: '', CLAUDECODE: '1', GSTACK_ACTIVE_HOST: 'claude' };
       // Each displayed block gets a fresh shell, as separate Bash tool calls do.
       return blocks.map(block => spawnSync('bash', ['-c', (errexit ? 'set -e\n' : '') + block.replace("'<prepared-prompt-file>'", quote(prompt))], {
         cwd: dir, env, encoding: 'utf8', timeout: 3_000,
       }));
     };
-    return { dir, run, stale, staleError, calls,
+    // #2914: the selected model and its source are printed before the paid call.
+    const selected = `CODEX_MODEL: gpt-6-astra (exec; source: gstack default (no ${path.join(dir, 'config.toml')}))\n`;
+    return { dir, run, stale, staleError, calls, selected,
       created: () => fs.existsSync(created) ? fs.readFileSync(created, 'utf8').trim().split('\n') : [],
       cleanup: () => fs.rmSync(dir, { recursive: true, force: true }) };
   }
@@ -96,7 +98,7 @@ exec ${quote(Bun.which('cat')!)} "$@"
       const results = f.run('current');
       expect(results.map(result => result.status)).toEqual([0]);
       expect(results[0]!.stdout).toBe(completed('current'));
-      expect(results[0]!.stderr).toBe('current: current stderr\n');
+      expect(results[0]!.stderr).toBe(`${f.selected}current: current stderr\n`);
       expect(f.created()).toHaveLength(1);
       expect(f.created().every(file => !fs.existsSync(file))).toBe(true);
     } finally { f.cleanup(); }
@@ -131,7 +133,7 @@ exec ${quote(Bun.which('cat')!)} "$@"
         const results = f.run(id);
         expect(results.map(result => result.status)).toEqual([0]);
         expect(results[0]!.stdout).toBe(completed(id));
-        expect(results[0]!.stderr).toBe(`${id}: current stderr\n`);
+        expect(results[0]!.stderr).toBe(`${f.selected}${id}: current stderr\n`);
       }
       expect(new Set(f.created()).size).toBe(2);
       expect(f.created().every(file => !fs.existsSync(file))).toBe(true);
