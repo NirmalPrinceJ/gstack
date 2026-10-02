@@ -13,8 +13,14 @@ function killDaemonGroup(pid: number): void {
     process.kill(-pid, 'SIGKILL');
   } catch (err: any) {
     if (err?.code === 'ESRCH') return;
-    if (err?.code === 'EPERM' && !isProcessAlive(pid)) return;
-    throw err;
+    if (err?.code !== 'EPERM') throw err;
+    if (!isProcessAlive(pid)) return;
+    try {
+      process.kill(pid, 'SIGKILL');
+    } catch (leaderErr: any) {
+      if (leaderErr?.code === 'ESRCH') return;
+      throw err;
+    }
   }
 }
 
