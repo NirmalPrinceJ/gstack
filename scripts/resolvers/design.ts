@@ -362,7 +362,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Only \`transform\` and \`opacity\` animated (not layout properties like width, height, top, left)
 - One authored motion moment per page: not the same entrance on every section, not a hover effect on everything. Ease-out from an already-visible default; content never hides behind animation timing
 
-**8. Content & Microcopy** (8 items)
+**8. Content & Microcopy** (11 items)
 - Empty states designed with warmth (message + action + illustration/icon)
 - Error messages specific: what happened + why + what to do next
 - Button labels specific ("Save API Key" not "Continue" or "Submit")
@@ -1204,11 +1204,15 @@ create and serve the comparison board:
 $D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
 \`\`\`
 
-This opens the board in the user's default browser and blocks until feedback is
-received. Read stdout for the structured JSON result. No polling needed.
+This publishes the board to the design daemon, opens it in the user's default
+browser, and exits; it does not wait for feedback. Read captured stderr for the
+\`BOARD_URL: http://127.0.0.1:N/boards/<id>/\` line, then wait with AskUserQuestion:
+"Review <BOARD_URL>, click Submit or Regenerate, then tell me (or paste your
+preferences here)." After the answer, read \`feedback.json\` or
+\`feedback-pending.json\` next to the board HTML.
 
-If \`$D serve\` is not available or fails, fall back to AskUserQuestion:
-"I've opened the design board. Which variant do you prefer? Any feedback?"
+If the command exits nonzero or prints no \`BOARD_URL\`, show each variant inline
+with Read and fall back to AskUserQuestion: "Which variant do you prefer? Any feedback?"
 
 **Step 5: Handle feedback**
 
@@ -1220,7 +1224,7 @@ If the JSON contains \`"regenerated": true\`:
    (\`BOARD_URL: http://127.0.0.1:N/boards/<id>/\` — the daemon path) or fall
    back to the legacy port (\`SERVE_STARTED: port=N\` — only emitted under
    \`--no-daemon\`, hits \`/api/reload\` root). Daemon path:
-   \`curl -X POST "\${BOARD_URL}api/reload" -H 'Content-Type: application/json' -d '{"html":"$_DESIGN_DIR/design-board.html"}'\`
+   \`jq -nc --arg html "$_DESIGN_DIR/design-board.html" '{html: $html}' | curl -sS -X POST "\${BOARD_URL}api/reload" -H 'Content-Type: application/json' --data-binary @-\`
 5. Board auto-refreshes in the same tab
 
 If \`"regenerated": false\`: proceed with the approved variant.
