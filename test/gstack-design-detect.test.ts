@@ -1455,16 +1455,16 @@ describe('scan: option-like bases and page-controlled inline ignores', () => {
     fs.mkdirSync(many, { recursive: true });
     for (let i = 0; i < 1100; i++) fs.writeFileSync(path.join(many, `f${i}.css`), 'a{}');
     try {
-      const r = run(['scan', '--format', 'gstack', 'src/many'], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_SLEEP_MS: '250', GSTACK_DESIGN_DETECT_TIMEOUT_MS: '400' } });
+      const r = run(['scan', '--format', 'gstack', 'src/many'], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_SLEEP_MS: '1000', GSTACK_DESIGN_DETECT_TIMEOUT_MS: '1500' } });
       expect(r.code).toBe(2); // a directory target is one batch (the fake reports findings): the budget test needs files
       const files = fs.readdirSync(many).map(f => path.join('src', 'many', f));
-      const r2 = run(['scan', '--format', 'gstack', ...files], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_SLEEP_MS: '250', GSTACK_DESIGN_DETECT_TIMEOUT_MS: '400' } });
-      expect(r2.err).toMatch(/DETECT_TIMEOUT: whole-scan budget 2000ms exceeded, \d+ of 11 batches not run/);
+      const r2 = run(['scan', '--format', 'gstack', ...files], { env: { IMPECCABLE_BIN: FAKE, IMPECCABLE_FAKE_SLEEP_MS: '1000', GSTACK_DESIGN_DETECT_TIMEOUT_MS: '1500' } });
+      expect(r2.err).toMatch(/DETECT_TIMEOUT: whole-scan budget 7500ms exceeded, \d+ of 11 batches not run/);
       expect(r2.code).toBe(1);
     } finally {
       fs.rmSync(many, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 
   test.skipIf(!POSIX)('detector.ignoreValues from the project config are surfaced on their own line', () => {
     const dir = path.join(REPO, '.impeccable');
