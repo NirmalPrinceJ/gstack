@@ -219,7 +219,9 @@ console.log(JSON.stringify({attempts,total:clock,fileWall:1800000}));
   } finally { fs.rmSync(a.dir, { recursive: true, force: true }); }
 }, 25_000);
 
-test('the PTY state judge leaves the event loop to concurrent sessions while it waits', () => {
+// The fake judge binary is a #! shell script, which Windows cannot exec; the PTY judge itself only
+// runs inside the POSIX PTY eval harness, so this case is POSIX-only like the harness it covers.
+test.skipIf(process.platform === 'win32')('the PTY state judge leaves the event loop to concurrent sessions while it waits', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pty-judge-'));
   const claude = path.join(dir, 'claude');
   const worker = path.join(dir, 'worker.ts');
