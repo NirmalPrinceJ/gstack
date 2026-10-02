@@ -13,7 +13,7 @@ import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 export const ROOT = resolve(import.meta.dir, '../..');
 const listed = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], { cwd: ROOT, encoding: 'utf8', timeout: 10_000 });
@@ -25,13 +25,18 @@ export interface Fixture { dir: string; home: string; commands: string; env: Rec
 
 const roots: string[] = [];
 
+/** `target` is `base` or below it, compared by the platform's own path rules (separators, Windows drive case). */
+const within = (base: string, target: string) => {
+  const rel = relative(base, target);
+  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+};
+
 /** Write inside the fixture only (never through a link out of it). */
 export function put(file: string, content: string | Buffer, mode = 0o644) {
-  const root = roots.find(r => file.startsWith(r + '/'));
+  const root = roots.find(r => file !== r && within(r, file));
   if (!root) throw new Error(`fixture write outside a fixture root: ${file}`);
   mkdirSync(dirname(file), { recursive: true });
-  const parent = realpathSync(dirname(file));
-  if (parent !== realpathSync(root) && !parent.startsWith(realpathSync(root) + '/')) throw new Error(`fixture write escapes its root: ${file}`);
+  if (!within(realpathSync(root), realpathSync(dirname(file)))) throw new Error(`fixture write escapes its root: ${file}`);
   writeFileSync(file, content, { mode });
 }
 

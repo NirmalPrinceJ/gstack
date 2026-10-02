@@ -38,7 +38,7 @@ export function freeHomeDir(env: NodeJS.ProcessEnv = process.env): string {
 
 export function snapshotFreeHome(home: string): FreeHomeSnapshot {
   const entries: FreeHomeSnapshot = new Map();
-  const volatile = new Set<string>(FREE_HOME_VOLATILE);
+  const volatile = new Set<string>(FREE_HOME_VOLATILE.map(entry => path.normalize(entry)));
   const visit = (relative: string, depth: number) => {
     if (volatile.has(relative)) return;
     const absolute = path.join(home, relative);

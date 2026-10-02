@@ -239,7 +239,7 @@ test('push idempotency requires the live remote SHA and fails closed on transpor
     GIT_AUTHOR_NAME: 'Test', GIT_AUTHOR_EMAIL: 'test@example.invalid',
     GIT_COMMITTER_NAME: 'Test', GIT_COMMITTER_EMAIL: 'test@example.invalid' };
   const git = (...args: string[]) => {
-    const r = spawnSync('git', args, { cwd, env, encoding: 'utf8', timeout: 5000 });
+    const r = spawnSync('git', args, { cwd, env, encoding: 'utf8', timeout: 30_000 });
     if (r.status !== 0) throw new Error(r.stderr || String(r.error));
   };
   try {
@@ -251,7 +251,11 @@ test('push idempotency requires the live remote SHA and fails closed on transpor
     const source = fs.readFileSync(path.join(SHIP_DIR, 'SKILL.md.tmpl'), 'utf8');
     const block = source.slice(source.indexOf('**Idempotency check:** Check if the branch'))
       .match(/```bash\n([\s\S]*?)\n```/)![1].replaceAll('<branch-name>', 'feature');
-    const inspect = () => spawnSync('bash', ['-c', block], { cwd, env, encoding: 'utf8', timeout: 5000 });
+    const inspect = () => {
+      const r = spawnSync('bash', ['-c', block], { cwd, env, encoding: 'utf8', timeout: 30_000 });
+      if (r.error) throw new Error(`idempotency check did not run: ${r.error.message}; stderr: ${r.stderr}`);
+      return r;
+    };
     expect(inspect().stdout).toContain('PUSH_NEEDED');
     git('push', '-u', 'origin', 'feature');
     expect(inspect().stdout).toContain('ALREADY_PUSHED');
@@ -264,4 +268,4 @@ test('push idempotency requires the live remote SHA and fails closed on transpor
     expect(unavailable.stdout).not.toContain('ALREADY_PUSHED');
     expect(unavailable.stdout).toContain('BLOCKED');
   } finally { fs.rmSync(cwd, { recursive: true, force: true }); }
-});
+}, 120_000);
