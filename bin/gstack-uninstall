@@ -21,6 +21,9 @@
 #   ~/.factory/skills/gstack*     — Factory Droid skill install + per-skill symlinks
 #   ~/.kiro/skills/gstack*        — Kiro skill install + per-skill symlinks
 #   ~/.cursor/skills/gstack*      — Cursor skill install + per-skill symlinks
+#   ~/.config/opencode/skills/gstack* — OpenCode skill install + per-skill symlinks
+#   ~/.copilot/skills/gstack*     — GitHub Copilot CLI skill install + per-skill symlinks
+#   installs.tsv rows             — install registry rows for removed installs
 #   ~/.gstack/                    — global state (config, analytics, sessions, projects,
 #                                   repos, installation-id, browse error logs)
 #   .claude/skills/gstack*        — project-local skill install (--local installs)
@@ -130,6 +133,8 @@ if [ "$FORCE" -eq 0 ]; then
   [ -d "$HOME/.factory/skills" ] && echo "  ~/.factory/skills/gstack*"
   [ -d "$HOME/.kiro/skills" ] && echo "  ~/.kiro/skills/gstack*"
   [ -d "$HOME/.cursor/skills" ] && echo "  ~/.cursor/skills/gstack*"
+  [ -d "$HOME/.config/opencode/skills" ] && echo "  ~/.config/opencode/skills/gstack*"
+  [ -d "$HOME/.copilot/skills" ] && echo "  ~/.copilot/skills/gstack*"
   [ "$KEEP_STATE" -eq 0 ] && [ -d "$STATE_DIR" ] && echo "  $STATE_DIR"
   [ -n "$_LEAVE_ROOT" ] && echo "  (kept) $_LEAVE_ROOT: state root selected by $RESOLVED_VAR; left in place"
 
@@ -386,6 +391,20 @@ _cursor_item_is_gstack_managed() {
   grep -q '<!-- AUTO-GENERATED from' "$1/SKILL.md" 2>/dev/null
 }
 
+# ─── Remove OpenCode skills (same provenance gate as Cursor) ────────────────
+OPENCODE_SKILLS="$HOME/.config/opencode/skills"
+if [ -d "$OPENCODE_SKILLS" ]; then
+  for _ITEM in "$OPENCODE_SKILLS"/gstack*; do
+    [ -e "$_ITEM" ] || [ -L "$_ITEM" ] || continue
+    if _cursor_item_is_gstack_managed "$_ITEM"; then
+      rm -rf "$_ITEM"
+      REMOVED+=("opencode/$(basename "$_ITEM")")
+    else
+      _SKIPPED_DIRS+=("$_ITEM")
+    fi
+  done
+fi
+
 CURSOR_SKILLS="$HOME/.cursor/skills"
 if [ -d "$CURSOR_SKILLS" ]; then
   for _ITEM in "$CURSOR_SKILLS"/gstack*; do
@@ -465,6 +484,45 @@ for _TMP in /tmp/gstack-latest-version /tmp/gstack-sketch-*.html /tmp/gstack-ske
     REMOVED+=("$(basename "$_TMP")")
   fi
 done
+
+# OpenCode slash commands setup wrote (#2629): only files with the managed marker.
+if [ -d "$HOME/.config/opencode/commands" ]; then
+  for _ITEM in "$HOME/.config/opencode/commands"/gstack-*.md; do
+    [ -f "$_ITEM" ] || continue
+    if grep -qF '<!-- gstack-managed command' "$_ITEM" 2>/dev/null; then
+      rm -f "$_ITEM"
+      REMOVED+=("opencode/commands/$(basename "$_ITEM")")
+    fi
+  done
+fi
+
+# ─── Remove GitHub Copilot skills ───────────────────────────
+# Same provenance gate as Cursor: ~/.copilot/skills is Copilot's personal
+# skill namespace, so a real gstack* dir goes only when it carries the banner.
+COPILOT_SKILLS="$HOME/.copilot/skills"
+if [ -d "$COPILOT_SKILLS" ]; then
+  for _ITEM in "$COPILOT_SKILLS"/gstack*; do
+    [ -e "$_ITEM" ] || [ -L "$_ITEM" ] || continue
+    if _cursor_item_is_gstack_managed "$_ITEM"; then
+      rm -rf "$_ITEM"
+      REMOVED+=("copilot/$(basename "$_ITEM")")
+    else
+      _SKIPPED_DIRS+=("$_ITEM")
+    fi
+  done
+fi
+
+# ─── Reconcile the install registry ─────────────────────────
+# A registry that survives (--keep-state, or a state root selected by an env
+# var and left in place) must forget the installs removed above, or the next
+# upgrade would refresh — resurrect — them (docs/ADDING_A_HOST.md).
+if [ -f "$RESOLVED_ROOT/installs.tsv" ] && [ -f "$(dirname "$0")/gstack-install-registry.sh" ]; then
+  if ( GSTACK_STATE_ROOT="$RESOLVED_ROOT"; . "$(dirname "$0")/gstack-install-registry.sh" && gstack_install_registry_reconcile >/dev/null ); then
+    REMOVED+=("registry rows for removed installs")
+  else
+    echo "warning: could not update $RESOLVED_ROOT/installs.tsv; remove the rows for uninstalled hosts by hand (or delete the file)" >&2
+  fi
+fi
 
 _report_left_root
 

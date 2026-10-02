@@ -543,7 +543,9 @@ describe('installed QA pointers', () => {
     '_gstack_generated_header', '_claude_entry_owned_strongly', '_claude_entry_is_ours', '_write_owned_marker',
     '_backup_skill_md', '_cleanup_weak_dir', '_gstack_dir_only_links', '_cleanup_linked_dir',
     '_owned_for_windows_refresh', '_sidecar_root_user_owned', '_prune_stale_generated', '_skill_source_exists',
-  ].map(setupFunction).join('\n');
+  ].map(setupFunction).join('\n')
+    // Install-registry rows (setup's _setup_arm_* / _setup_row) are not under test here.
+    + '\n_setup_arm_begin() { :; }\n_setup_arm_publish() { :; }\n_setup_row() { :; }';
   const kiroStart = setup.indexOf('# 6. Install for Kiro CLI');
   const kiroBlock = setup.slice(kiroStart, setup.indexOf('# 6b.', kiroStart));
 

@@ -67,6 +67,8 @@ CONFIG_HEADER='# gstack configuration — edit freely, changes take effect on ne
 # ─── Skill naming ────────────────────────────────────────────────────
 # skill_prefix: false       # true = namespace skills as /gstack-qa, /gstack-ship
 #                           # false = short names /qa, /ship
+# disabled_skills:          # comma-separated skills to leave unregistered,
+#                           # e.g. make-pdf,pair-agent ("" = all enabled)
 #
 # ─── Writing style (V1) ──────────────────────────────────────────────
 # explain_level: default    # default = jargon-glossed, outcome-framed prose
@@ -390,7 +392,11 @@ case "${1:-}" in
     ;;
   set)
     KEY="${2:?Usage: gstack-config set <key> <value>}"
-    VALUE="${3:?Usage: gstack-config set <key> <value>}"
+    if [ "$KEY" = "disabled_skills" ] && [ "$#" -ge 3 ]; then
+      VALUE="$3"
+    else
+      VALUE="${3:?Usage: gstack-config set <key> <value>}"
+    fi
     # Validate key (alphanumeric + underscore + optional @<endpoint-id> suffix).
     # Accepts hex hashes and the literal "local" from endpoint_hash.
     if ! printf '%s' "$KEY" | LC_ALL=C grep -qE '^[a-zA-Z0-9_]+(@[a-zA-Z0-9]+)?$'; then
@@ -474,6 +480,65 @@ case "${1:-}" in
       echo "Error: memorable_recall '$VALUE' not recognized. Valid values: on, off. Existing value left unchanged." >&2
       exit 1
     fi
+    # disabled_skills (#1206): comma-separated skill names, one value for the
+    # key. Every name must be a real skill (typos get the closest name);
+    # gstack and gstack-upgrade can never be disabled; "" re-enables all.
+    # Rejected values leave the existing setting unchanged.
+    if [ "$KEY" = "disabled_skills" ]; then
+      _GSTACK_ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+      _known=" "
+      for _md in "$_GSTACK_ROOT_DIR"/*/SKILL.md.tmpl "$_GSTACK_ROOT_DIR"/*/SKILL.md; do
+        [ -f "$_md" ] || continue
+        _d="$(basename "$(dirname "$_md")")"
+        _n="$(sed -n '2,/^---$/ s/^name:[[:space:]]*//p' "$_md" | head -1 | tr -d '[:space:]')"
+        for _x in "$_d" "${_n:-$_d}"; do
+          case "$_known" in *" $_x "*) ;; *) _known="$_known$_x " ;; esac
+        done
+      done
+      _clean=""
+      for _x in $(printf '%s' "$VALUE" | tr ',' ' ' | tr -d "\"'"); do
+        _x="${_x#/}"
+        case "$_x" in
+          gstack|gstack-upgrade)
+            echo "Error: $_x cannot be disabled (it is how gstack upgrades and routes). Existing value left unchanged." >&2
+            exit 1 ;;
+        esac
+        _bare="${_x#gstack-}"
+        case "$_known" in
+          *" $_bare "*|*" $_x "*) ;;
+          *)
+            _best="$(for _k in $_known; do printf '%s\n' "$_k"; done | awk -v a="$_bare" '
+              function lev(s, t,   i, j, n, m, c, d, v) {
+                n = length(s); m = length(t)
+                for (i = 0; i <= n; i++) d[i, 0] = i
+                for (j = 0; j <= m; j++) d[0, j] = j
+                for (i = 1; i <= n; i++) for (j = 1; j <= m; j++) {
+                  c = (substr(s, i, 1) == substr(t, j, 1)) ? 0 : 1
+                  v = d[i-1, j] + 1; if (d[i, j-1] + 1 < v) v = d[i, j-1] + 1; if (d[i-1, j-1] + c < v) v = d[i-1, j-1] + c
+                  d[i, j] = v
+                }
+                return d[n, m]
+              }
+              { x = lev(a, $0); if (best == "" || x < bd) { bd = x; best = $0 } }
+              END { print best }')"
+            echo "Error: unknown skill '$_x' in disabled_skills. Did you mean '$_best'? Existing value left unchanged." >&2
+            exit 1 ;;
+        esac
+        case ",$_clean," in *",$_bare,"*) ;; *) _clean="${_clean:+$_clean,}$_bare" ;; esac
+      done
+      VALUE="$_clean"
+      for _x in $(printf '%s' "$_clean" | tr ',' ' '); do
+        for _tmpl in "$_GSTACK_ROOT_DIR"/*/SKILL.md.tmpl; do
+          [ -f "$_tmpl" ] || continue
+          _caller="$(basename "$(dirname "$_tmpl")")"
+          [ "$_caller" = "$_x" ] && continue
+          case ",$_clean," in *",$_caller,"*) continue ;; esac
+          if grep -qE "INVOKE_SKILL:$_x([^a-z-]|\$)|skills/gstack/$_x/(SKILL\.md|sections)" "$_tmpl" 2>/dev/null; then
+            echo "Warning: /$_caller uses /$_x. /$_x is no longer registered as a skill, but its files stay installed so /$_caller keeps working." >&2
+          fi
+        done
+      done
+    fi
     mkdir -p "$STATE_DIR"
     # Write annotated header on first creation
     if [ ! -f "$CONFIG_FILE" ]; then
@@ -496,9 +561,17 @@ case "${1:-}" in
       echo "fix: GSTACK_STATE_ROOT='$_gstack_cfg_root' $_SELF set $KEY $SAFE_VALUE ($_STATE_DOC)" >&2
     fi
     # Auto-relink skills when prefix setting changes (skip during setup to avoid recursive call)
-    if [ "$KEY" = "skill_prefix" ] && [ -z "${GSTACK_SETUP_RUNNING:-}" ]; then
+    if { [ "$KEY" = "skill_prefix" ] || [ "$KEY" = "disabled_skills" ]; } && [ -z "${GSTACK_SETUP_RUNNING:-}" ]; then
       GSTACK_RELINK="$(dirname "$0")/gstack-relink"
-      [ -x "$GSTACK_RELINK" ] && "$GSTACK_RELINK" || true
+      if [ -x "$GSTACK_RELINK" ] && ! "$GSTACK_RELINK"; then
+        echo "gstack-config: $KEY saved, but relinking the installed skills failed (see above), so skill names may not match yet. Retry: $GSTACK_RELINK" >&2
+      fi
+      # gstack-relink covers Claude installs; every other registered host
+      # applies the change on its next setup run.
+      if [ "$KEY" = "disabled_skills" ] && [ -f "$(dirname "$0")/gstack-install-registry.sh" ]; then
+        ( GSTACK_STATE_ROOT="$STATE_DIR"; . "$(dirname "$0")/gstack-install-registry.sh"
+          gstack_install_registry_rows | awk -F '\t' '$1 != "claude" { print "  apply to " $1 " (" $4 "): cd " $6 " && ./setup --host " $1 }' )
+      fi
     fi
     ;;
   list)

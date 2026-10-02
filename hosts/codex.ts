@@ -3,6 +3,8 @@ import { defineHost, GBRAIN_RESOLVERS } from './define-host';
 const codex = defineHost({
   name: 'codex',
   displayName: 'OpenAI Codex CLI',
+  tier: 'experimental',
+  capabilities: { toolExecution: true, questions: 'prose', planMode: false, delegation: false, browser: true, safetyHooks: 'advisory' },
   cliAliases: ['agents'],
   defaultModel: 'gpt',
 

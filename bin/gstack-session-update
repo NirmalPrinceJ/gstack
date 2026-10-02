@@ -184,7 +184,7 @@ fi
 
     # bun must be available for setup
     if command -v bun >/dev/null 2>&1; then
-      ( cd "$GSTACK_DIR" && ./setup -q ) >/dev/null 2>&1 || {
+      ( cd "$GSTACK_DIR" && ./setup -q --refresh-registered ) >/dev/null 2>&1 || {
         log_entry "SETUP_FAILED"
       }
       # Heartbeat: setup done (either way) — refresh the TTL clock.

@@ -3,6 +3,8 @@ import { defineHost } from './define-host';
 const claude = defineHost({
   name: 'claude',
   displayName: 'Claude Code',
+  tier: 'full',
+  capabilities: { toolExecution: true, questions: 'native', planMode: true, delegation: true, browser: true, safetyHooks: 'enforced' },
 
   usesEnvVars: false,  // primary host — literal ~ paths, no $GSTACK_ROOT env vars
 

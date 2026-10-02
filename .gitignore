@@ -32,6 +32,7 @@ lib/cso/images/gstack-cso-preparation
 .opencode/
 .slate/
 .cursor/
+.copilot/
 .openclaw/
 .hermes/
 .gbrain/

@@ -675,13 +675,19 @@ bun run skill:check
 
 See [docs/ADDING_A_HOST.md](docs/ADDING_A_HOST.md) for the full guide. Short version:
 
-1. Create `hosts/myhost.ts` (copy from `hosts/opencode.ts`)
+1. Create `hosts/myhost.ts` (copy from `hosts/opencode.ts`), including its
+   `tier` and `capabilities`
 2. Add to `hosts/index.ts`
 3. Add `.myhost/` to `.gitignore`
 4. Run `bun run gen:skill-docs --host myhost`
 5. Run `bun run test` (parameterized tests auto-cover it)
 
-Zero generator, setup, or tooling code changes needed.
+Rendering needs no generator code. Installing does: an installable host also
+needs a setup install arm, a row in `gstack_host_tier`
+(`bin/gstack-install-registry.sh`), a README host-matrix row, and the
+conformance kit (`test/host-conformance.test.ts`). It ships as `experimental`
+until a dated certification record exists; see "Certify your host" and the
+install ownership rules in the guide.
 
 ### Adding a new skill
 

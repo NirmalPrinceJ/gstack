@@ -33,14 +33,16 @@ Fork it. Improve it. Make it yours. And if you want to hate on free open source 
 
 ## Quick start
 
-1. Install gstack (30 seconds — see below)
+1. Install gstack (about 30 seconds of setup — see below)
 2. Run `/office-hours` — describe what you're building
 3. Run `/plan-ceo-review` on any feature idea
 4. Run `/review` on any branch with changes
 5. Run `/qa` on your staging URL or an isolated local API, CLI, job or webhook
 6. Stop there. You'll know if this is for you.
 
-## Install — 30 seconds
+## Install — about 30 seconds
+
+`./setup` took 31 seconds after the clone on a 4-vCPU Linux cloud machine (v1.91.13.0, clean HOME, including the binary build and the Chromium download). Slower networks and laptops take longer.
 
 **Requirements:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Git](https://git-scm.com/), [Bun](https://bun.sh/) v1.0+, [Node.js](https://nodejs.org/) (Windows only). **Recommended on macOS:** the [Aside](https://aside.com) browser (macOS 15+) — browser skills, `/make-pdf`, and `/diagram` drive it first, with your real logged-in sessions. Without it, `./setup` builds gstack's own bundled browser and the same skills use that. `/cso` additionally needs a Bun release with all four `--no-compile-autoload-*` build flags plus a native toolchain: a static-capable C compiler on Linux, Xcode command-line tools on macOS, or Visual Studio 2022 Build Tools with Desktop development with C++ on Windows. If those are absent, setup installs everything else, removes stale CSO helpers, and `/cso` reports `not assessed` with the prerequisite.
 
@@ -103,27 +105,43 @@ These are conversational skills. Your OpenClaw agent runs them directly via chat
 
 ### Other AI Agents
 
-gstack works on 10 AI coding agents, not just Claude. Setup auto-detects which
-agents you have installed:
+gstack runs on more agents than Claude. Bare `./setup` installs for Claude
+Code only. Pick another agent with `--host <name>`, or install for every agent
+setup detects on this machine with `--host auto`:
 
 ```bash
 git clone --single-branch --depth 1 https://github.com/garrytan/gstack.git ~/gstack
-cd ~/gstack && ./setup
+cd ~/gstack && ./setup --host auto      # or: ./setup --host codex
+./setup --status                         # one row per install: host, tier, scope, version, path
 ```
 
-Or target a specific agent with `./setup --host <name>`:
+An explicit `--host X` installs for X only and never changes another agent's
+install. `/gstack-upgrade` refreshes every install it registered, one row per
+host, and says which ones failed.
 
-| Agent | Flag | What you get |
-|-------|------|--------------|
-| OpenAI Codex CLI | `--host codex` | Full install → `${CODEX_HOME:-~/.codex}/skills/gstack-*/` |
-| OpenCode | `--host opencode` | Full install → `~/.config/opencode/skills/gstack-*/` |
-| Cursor | `--host cursor` | Full install → `~/.cursor/skills/gstack-*/` |
-| Factory Droid | `--host factory` | Full install → `~/.factory/skills/gstack-*/` |
-| Kiro | `--host kiro` | Full install → `~/.kiro/skills/gstack-*/` |
-| Slate | `--host slate` | Pointer to the Claude install (Slate reads `.claude/skills` as a fallback) |
-| OpenClaw | `--host openclaw` | ACP spawn pointers + methodology artifacts via `gen:skill-docs --host openclaw` + the instruction-only digest below (full guide: [docs/OPENCLAW.md](docs/OPENCLAW.md)) |
-| Hermes | `--host hermes` | Methodology artifacts via `gen:skill-docs --host hermes` + the instruction-only digest below |
-| GBrain (mod) | `--host gbrain` | Brain-aware skill variants, shipped from the GBrain repo |
+Tiers: **full** is certified by a real workflow run (see
+[Certify your host](docs/ADDING_A_HOST.md#certify-your-host)); **experimental**
+installs and passes the conformance tests but has no certification run yet;
+**instruction-only** installs nothing: setup prints what to copy.
+
+| Agent | Tier | Install | First invocation | Safety skills | Outside review needs | Repair |
+|-------|------|---------|------------------|---------------|----------------------|--------|
+| Claude Code | full | `--host claude` (default) | `/office-hours` | enforced (hooks block) | Codex CLI, signed in | `./setup --host claude` |
+| OpenAI Codex CLI | experimental | `--host codex` → `${CODEX_HOME:-~/.codex}/skills/gstack-*/` | ask for `gstack-office-hours` | advisory, not blocked | Claude Code CLI, signed in | `./setup --host codex` |
+| OpenCode | experimental | `--host opencode` → `~/.config/opencode/skills/gstack-*/` + `/gstack-*` commands | `/gstack-office-hours` | advisory, not blocked | Codex CLI, signed in | `./setup --host opencode` |
+| Cursor | experimental | `--host cursor` → `~/.cursor/skills/gstack-*/` | ask for `gstack-office-hours` | advisory, not blocked | Codex CLI, signed in | `./setup --host cursor` |
+| Factory Droid | experimental | `--host factory` → `~/.factory/skills/gstack-*/` | ask for `gstack-office-hours` | advisory, not blocked | Codex CLI, signed in | `./setup --host factory` |
+| Kiro | experimental | `--host kiro` → `~/.kiro/skills/gstack-*/` | ask for `gstack-office-hours` | advisory, not blocked | Codex CLI, signed in | `./setup --host kiro` |
+| GitHub Copilot CLI | experimental | `--host copilot` → `~/.copilot/skills/gstack-*/` | `/gstack-office-hours` | advisory, not blocked | Codex CLI, signed in | `./setup --host copilot` |
+| Slate | instruction-only | `--host slate` (points at the Claude install; Slate reads `.claude/skills`) | `/office-hours` via the Claude install | advisory, not blocked | — | `./setup --host claude` |
+| OpenClaw | instruction-only | `--host openclaw` (prints the digest path; ACP spawns Claude Code — [docs/OPENCLAW.md](docs/OPENCLAW.md)) | "Load gstack. Run /review" | advisory, not blocked | — | re-copy the digest after upgrades |
+| Hermes | instruction-only | `--host hermes` (prints the digest path and `gen:skill-docs --host hermes`) | copy the digest, or render skills yourself | advisory, not blocked | — | re-copy the digest after upgrades |
+| GBrain (mod) | instruction-only | `--host gbrain` (brain-aware variants ship from the GBrain repo) | — | advisory, not blocked | — | — |
+
+Copilot invokes gstack skills by their prefixed names (`/gstack-review`) because
+`/review` is a Copilot built-in. Copilot ignores skill hooks, so `/careful` and
+`/freeze` only advise there, and `COPILOT_HOME` other than `~/.copilot` is not
+supported yet (setup refuses and changes nothing).
 
 Outside reviews require the selected CLI to be installed and authenticated: Claude Code when using gstack in Codex, or Codex on other harnesses. External harnesses discover these commands as `/gstack-claude-code` and `/gstack-codex`; each harness omits its own wrapper. Explicit provider requests keep that provider. The existing `codex_reviews` setting controls automatic outside reviews where supported, regardless of the provider selected.
 
@@ -157,7 +175,8 @@ resumed consultations. See [eval defaults and overrides](CONTRIBUTING.md#testing
 for capture, judge, and benchmark model selection.
 
 **Want to add support for another agent?** See [docs/ADDING_A_HOST.md](docs/ADDING_A_HOST.md).
-It's one TypeScript config file, zero code changes.
+Rendering a new agent is one TypeScript config file; installing it also needs a
+setup arm and the conformance kit, and it starts as experimental.
 
 ## See it work
 
@@ -611,7 +630,13 @@ Data is stored in [Supabase](https://supabase.com) (open source Firebase alterna
 
 ## Troubleshooting
 
-**Skill not showing up?** `cd ~/.claude/skills/gstack && ./setup`
+**Skill not showing up?** Run `./setup --status` from your gstack checkout. It
+prints every install (host, scope, version, skills directory, source checkout)
+and, for a `stale`, `missing` or `unregistered` row, the exact command that fixes
+it. The usual fix is to re-run setup from that row's source for that host, e.g.
+`cd ~/.claude/skills/gstack && ./setup` (Claude) or `cd ~/gstack && ./setup --host codex`.
+A project install lives in the project's `.claude/skills/gstack` or
+`.agents/skills/gstack`; run its `setup` from inside the project.
 
 **`/browse` (or `/qa`, `/design-review`) says `NEEDS_ASIDE` or `ASIDE_NOT_RUNNING`?** That's the probe telling you it's about to use the fallback browser. Want Aside? Open the app and sign in — `aside --version` should print a version and `aside repl 'console.log("ok")'` should print `ok` — then re-run. gstack never installs it for you. Want the fallback on purpose while Aside is open? `GSTACK_SKIP_ASIDE=1` makes every skill, the renderer, and `./setup` treat Aside as absent.
 
@@ -625,9 +650,11 @@ Data is stored in [Supabase](https://supabase.com) (open source Firebase alterna
 
 **Want shorter commands?** `cd ~/.claude/skills/gstack && ./setup --no-prefix` — switches from `/gstack-qa` to `/qa`. Your choice is remembered for future upgrades.
 
+**Don't use some skills?** `gstack-config set disabled_skills make-pdf,pair-agent` stops registering them on every host, so their descriptions stop loading into each session. Claude Code updates right away; other hosts on their next `./setup --host <name>` or `/gstack-upgrade`. Their files stay installed, so a skill that calls a disabled one still works (you get a warning). Typos are rejected with the closest skill name, `gstack-upgrade` can't be disabled, and `gstack-config set disabled_skills ""` re-enables everything.
+
 **Want namespaced commands?** `cd ~/.claude/skills/gstack && ./setup --prefix` — switches from `/qa` to `/gstack-qa`. Useful if you run other skill packs alongside gstack.
 
-**Codex says "Skipped loading skill(s) due to invalid SKILL.md"?** Your Codex skill descriptions are stale. Fix: `cd "${CODEX_HOME:-$HOME/.codex}/skills/gstack" && git pull && ./setup --host codex` — or for repo-local installs: `cd "$(readlink -f .agents/skills/gstack)" && git pull && ./setup --host codex`
+**Codex says "Skipped loading skill(s) due to invalid SKILL.md"?** Your Codex skill descriptions are stale. `${CODEX_HOME:-~/.codex}/skills/gstack` is a runtime directory, not the checkout: `./setup --status` shows the Codex row's source checkout. Fix: `cd <that source> && git pull && ./setup --host codex` — for a repo-local install, run it from inside the project.
 
 **Windows users:** gstack works on Windows 11 via Git Bash or WSL. Aside is macOS-only, so on Windows (and Linux) the browser skills, `/make-pdf`, and `/diagram` always use gstack's bundled browser. Node.js is required in addition to Bun — Bun has a known bug with Playwright's pipe transport on Windows ([bun#4253](https://github.com/oven-sh/bun/issues/4253)). The browse server automatically falls back to Node.js. Make sure both `bun` and `node` are on your PATH. Native `/cso` additionally requires Windows PowerShell and Visual Studio 2022 Build Tools with the Desktop development with C++ workload; setup leaves that skill explicitly unavailable when they are absent.
 

@@ -38,6 +38,8 @@ export interface GenerationOptions {
   dryRun?: boolean;
   outputRoot?: string;
   contentLinkRoot?: string | null;
+  /** Install-context render contract: absolute install root this render serves. */
+  installRoot?: string | null;
   model?: Model | null;
   catalogMode?: 'trim' | 'full';
   explainLevel?: 'default' | 'terse';
@@ -48,6 +50,7 @@ export interface GenerationOptions {
 interface RenderOptions {
   outputRoot: string;
   contentLinkRoot: string | null;
+  installRoot: string | null;
   model: Model | null;
   catalogMode: 'trim' | 'full';
   explainLevel: 'default' | 'terse';
@@ -121,6 +124,10 @@ function parseGenerationArgs(args: string[]): GenerationOptions {
   }
   const outDir = value('--out-dir');
   const linkRoot = value('--link-root');
+  const installRoot = value('--install-root');
+  if (installRoot !== undefined && !INSTALL_ROOT_PATTERN.test(installRoot)) {
+    throw new Error(`--install-root must be an absolute path of letters, digits and . _ - + @ / (got ${JSON.stringify(installRoot)})`);
+  }
   // Swap-in callers use --link-root for the FINAL serving path (#2692).
   // Direct --out-dir callers retain their existing links into the render.
   return {
@@ -130,7 +137,25 @@ function parseGenerationArgs(args: string[]): GenerationOptions {
     outputRoot: outDir === undefined ? ROOT : path.resolve(outDir),
     contentLinkRoot: linkRoot !== undefined ? path.resolve(linkRoot)
       : outDir !== undefined ? path.resolve(outDir) : null,
+    installRoot: installRoot ?? null,
   };
+}
+
+/** Install roots are spliced into shell lines unquoted, so only plain absolute paths. */
+const INSTALL_ROOT_PATTERN = /^\/[A-Za-z0-9_.@+\/-]*$/;
+
+/**
+ * Install-context render contract (docs/ADDING_A_HOST.md): a per-install render
+ * names its own install root instead of the host's default global root. Null
+ * keeps the committed bytes.
+ */
+function rewriteInstallRoot(content: string, hostConfig: HostConfig, installRoot: string | null): string {
+  if (!installRoot) return content;
+  const root = installRoot.replace(/\/+$/, '');
+  const defaults = hostConfig.usesEnvVars
+    ? [`$HOME/${hostConfig.globalRoot}`, `~/${hostConfig.globalRoot}`]
+    : ['$HOME/.claude/skills/gstack', '~/.claude/skills/gstack'];
+  return defaults.reduce((text, from) => text.split(from).join(root), content);
 }
 
 /** Repoint only Claude section links, retaining global bin/browse/doc paths. */
@@ -473,7 +498,8 @@ function transformFrontmatter(content: string, host: Host): string {
 
   // Build frontmatter with allowed fields
   const indentedDesc = description.split('\n').map(l => `  ${l}`).join('\n');
-  let newFm = `---\nname: ${name}\ndescription: |\n${indentedDesc}\n`;
+  const fmName = fm.nameMatchesDirectory && name !== 'gstack' && !name.startsWith('gstack-') ? `gstack-${name}` : name;
+  let newFm = `---\nname: ${fmName}\ndescription: |\n${indentedDesc}\n`;
 
   // Add extra fields (host-wide)
   if (fm.extraFields) {
@@ -528,8 +554,9 @@ function transformFrontmatter(content: string, host: Host): string {
  * Extract hook descriptions from frontmatter for inline safety prose.
  * Returns a description of what the hooks do, or null if no hooks.
  */
-function extractHookSafetyProse(tmplContent: string): string | null {
+function extractHookSafetyProse(tmplContent: string, hostConfig: HostConfig): string | null {
   if (!tmplContent.match(/^hooks:/m)) return null;
+  if (hostConfig.capabilities.safetyHooks === 'enforced') return null;
 
   // Parse the hook matchers to build a human-readable safety description
   const matchers: string[] = [];
@@ -552,7 +579,7 @@ function extractHookSafetyProse(tmplContent: string): string | null {
     .map(t => toolDescriptions[t] || `check ${t} operations for safety`)
     .join(', and ');
 
-  return `> **Safety Advisory:** This skill includes safety checks that ${safetyChecks}. When using this skill, always pause and verify before executing potentially destructive operations. If uncertain about a command's safety, ask the user for confirmation before proceeding.`;
+  return `> **Safety Advisory — not enforced on ${hostConfig.displayName}:** advisory, not blocked. ${hostConfig.displayName} runs no gstack safety hooks, so nothing stops a command automatically. On Claude Code this skill's hooks ${safetyChecks}; here, do those checks yourself: always pause and verify before executing potentially destructive operations. If uncertain about a command's safety, ask the user for confirmation before proceeding.`;
 }
 
 // ─── External Host Config (now derived from hosts/*.ts) ──────
@@ -674,7 +701,7 @@ function buildContext(
   const interactive = interactiveMatch ? interactiveMatch[1] === 'true' : undefined;
   return {
     skillName, tmplPath, benefitsFrom, host, paths: HOST_PATHS[host],
-    preambleTier, model: options.model ?? getHostConfig(host).defaultModel, interactive, explainLevel: options.explainLevel,
+    preambleTier, model: options.model ?? getHostConfig(host).defaultModel, interactive, explainLevel: options.explainLevel, installRoot: options.installRoot,
   };
 }
 
@@ -713,7 +740,7 @@ function processExternalHost(
   }
 
   // Extract hook safety prose BEFORE transforming frontmatter (which strips hooks)
-  const safetyProse = extractHookSafetyProse(tmplContent);
+  const safetyProse = extractHookSafetyProse(tmplContent, hostConfig);
 
   // Transform frontmatter (host-aware)
   let result = transformFrontmatter(content, host);
@@ -812,6 +839,7 @@ function processTemplate(tmplPath: string, host: Host, options: RenderOptions): 
 
   // --out-dir: repoint section-base paths to the out-dir (no-op otherwise).
   if (host === 'claude') content = rewriteSectionBase(content, options.contentLinkRoot);
+  content = rewriteInstallRoot(content, currentHostConfig, options.installRoot);
 
   return { outputPath, content, symlinkLoop, metadata };
 }
@@ -857,6 +885,7 @@ function processSectionTemplate(
     // repoint those to the out-dir too (no-op when --out-dir is unset).
     content = rewriteSectionBase(content, options.contentLinkRoot);
   }
+  content = rewriteInstallRoot(content, hostConfig, options.installRoot);
 
   // Plain generated header (no frontmatter to insert after).
   content = GENERATED_HEADER.replace('{{SOURCE}}', path.basename(sectionTmplPath)) + content;
@@ -889,6 +918,7 @@ export async function runGeneration(settings: GenerationOptions = {}): Promise<G
   const options: RenderOptions = {
     outputRoot: path.resolve(settings.outputRoot ?? ROOT),
     contentLinkRoot: settings.contentLinkRoot ?? null,
+    installRoot: settings.installRoot ?? null,
     model: settings.model ?? null,
     catalogMode: settings.catalogMode ?? 'trim',
     explainLevel: settings.explainLevel ?? 'default',

@@ -141,11 +141,18 @@ git fetch origin
 PRE_UPGRADE_COMMIT=$(git rev-parse HEAD)
 echo "PRE_UPGRADE_COMMIT=$PRE_UPGRADE_COMMIT"
 if git pull --ff-only --autostash origin main; then
-  if ./setup; then echo "FF_OK"; else echo "SETUP_FAILED: git update succeeded; stop and inspect setup output (previous commit: $PRE_UPGRADE_COMMIT)" >&2; exit 1; fi
+  if {{SETUP_COMMAND}} --refresh-registered; then echo "FF_OK"; else echo "SETUP_FAILED: git update succeeded; stop and inspect setup output (previous commit: $PRE_UPGRADE_COMMIT)" >&2; exit 1; fi
 else
   echo "FF_REFUSED"
 fi
 ```
+
+Setup's `--refresh-registered` refreshes every install this checkout
+registered (each host, global and this project's), prints the source first,
+and ends with an `Upgrade summary` of one row per install. Relay those rows
+as printed. A `failed` row means that host kept its previous install; give
+its retry command and never say every host was refreshed. A `skipped` row
+belongs to another checkout or project; pass on its command, do not run it.
 
 If the output ends with `FF_OK`, the upgrade is done — skip the fallback
 below entirely.
@@ -170,7 +177,7 @@ those commits. Gate it (#2517):
 cd "$INSTALL_DIR"
 STASH_OUTPUT=$(git stash 2>&1)
 git reset --hard origin/main
-{{SETUP_COMMAND}}
+{{SETUP_COMMAND}} --refresh-registered
 ```
 If `$STASH_OUTPUT` contains "Saved working directory", warn the user: "Note: local changes were stashed (any modified generated SKILL.md/sections files were discarded first — they regenerate on setup). Run `git stash pop` in the skill directory to restore your own changes."
 
@@ -186,7 +193,7 @@ TMP_DIR=$(mktemp -d) || { echo "ERROR: mktemp failed — aborting upgrade (insta
 git clone --depth 1 https://github.com/garrytan/gstack.git "$TMP_DIR/gstack" || { echo "ERROR: clone failed — aborting upgrade (install untouched)." >&2; rm -rf "$TMP_DIR"; exit 1; }
 mv "$INSTALL_DIR" "$INSTALL_DIR.bak" || { rm -rf "$TMP_DIR"; exit 1; }
 if mv "$TMP_DIR/gstack" "$INSTALL_DIR"; then
-  if (cd "$INSTALL_DIR" && {{SETUP_COMMAND}}); then
+  if (cd "$INSTALL_DIR" && {{SETUP_COMMAND}} --refresh-registered); then
     rm -rf "$INSTALL_DIR.bak" "$TMP_DIR"
   else
     rm -rf "$INSTALL_DIR"
@@ -238,7 +245,7 @@ Tell user: "Removed vendored copy at `$LOCAL_GSTACK` (team mode active — globa
 ```bash
 [ -e "$LOCAL_GSTACK.bak" ] && { echo "ERROR: stale vendored backup; inspect it before retrying." >&2; exit 1; }
 mv "$LOCAL_GSTACK" "$LOCAL_GSTACK.bak" || exit 1
-if cp -Rf "$INSTALL_DIR" "$LOCAL_GSTACK" && rm -rf "$LOCAL_GSTACK/.git" && (cd "$LOCAL_GSTACK" && {{SETUP_COMMAND}}); then
+if cp -Rf "$INSTALL_DIR" "$LOCAL_GSTACK" && rm -rf "$LOCAL_GSTACK/.git" && (cd "$LOCAL_GSTACK" && {{SETUP_COMMAND}} --refresh-registered); then
   rm -rf "$LOCAL_GSTACK.bak"
   echo "LOCAL_SYNC_OK"
 else
