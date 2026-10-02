@@ -77,7 +77,13 @@ DISABLED_COUNT=0
 # out-dir instead of the tracked install checkout. When a render exists for a
 # skill, relink serves it — otherwise a config change would silently flip
 # every skill back to the canonical (blockless) source.
-RENDER_DIR="${GSTACK_USER_RENDER_DIR:-$GSTACK_STATE_ROOT/render/claude}"
+RENDER_DIR="${GSTACK_USER_RENDER_DIR:-}"
+# An install outside the default root serves the per-install render setup
+# recorded for it in the registry (render contract, #1882).
+if [ -z "$RENDER_DIR" ] && command -v gstack_install_render_for >/dev/null 2>&1; then
+  RENDER_DIR="$(gstack_install_render_for claude "$SKILLS_DIR")"
+fi
+RENDER_DIR="${RENDER_DIR:-$GSTACK_STATE_ROOT/render/claude}"
 
 # ─── Ownership gate ───────────────────────────────────────────────────────────
 # relink runs on every ./setup and used to `rm -rf` any same-name entry with a

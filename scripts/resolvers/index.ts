@@ -15,6 +15,7 @@
  */
 
 import type { TemplateContext, ResolverFn } from './types';
+import { getHostConfig } from '../../hosts/index';
 import { outsideVoiceFor, outsideVoiceGuard, outsideVoiceInvocation, outsideVoicePreflight, outsideVoiceProvenance, generateOutsideVoiceRouting } from './outside-voice';
 
 // Domain modules
@@ -139,6 +140,10 @@ export const RESOLVERS: Record<string, ResolverFn> = {
   DX_FRAMEWORK: generateDxFramework,
   TASTE_PROFILE: generateTasteProfile,
   BIN_DIR: (ctx) => ctx.paths.binDir,
+  // Literal bin dir for skills that skip the shared preamble, where
+  // $GSTACK_BIN is never set (#2906): the per-install root when rendering for
+  // one, else the host's default global root.
+  INSTALLED_BIN_DIR: (ctx) => ctx.installRoot ? `${ctx.installRoot.replace(/\/+$/, '')}/bin` : `~/${getHostConfig(ctx.host).globalRoot}/bin`,
   FOREGROUND_DISPATCH_NOTE: () => FOREGROUND_DISPATCH_NOTE,
   GBRAIN_CONTEXT_LOAD: generateGBrainContextLoad,
   GBRAIN_SAVE_RESULTS: generateGBrainSaveResults,

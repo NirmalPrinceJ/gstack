@@ -3447,7 +3447,8 @@ describe('setup script validation', () => {
     expect(setupContent).toContain('SOURCE_GSTACK_DIR=');
     expect(setupContent).toContain('INSTALL_SKILLS_DIR=');
     expect(setupContent).toContain('CODEX_GSTACK="$INSTALL_GSTACK_DIR"');
-    expect(setupContent).toContain('link_codex_skill_dirs "$SOURCE_GSTACK_DIR" "$CODEX_SKILLS"');
+    // Links come from the source checkout, or its per-install render (#1882).
+    expect(setupContent).toContain('link_codex_skill_dirs "${_CODEX_RENDER_ROOT:-$SOURCE_GSTACK_DIR}" "$CODEX_SKILLS"');
   });
 
   test('Codex installs always create sidecar runtime assets for the real skill target', () => {

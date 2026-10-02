@@ -139,6 +139,22 @@ EOF
   return "$rc"
 }
 
+# gstack_install_render_dir HOST ROOT — the per-install render directory for an
+# install whose root is not the host's default (render contract,
+# docs/ADDING_A_HOST.md): keyed by the root's realpath, so two installs never
+# share or overwrite a render.
+gstack_install_render_dir() {
+  local real
+  real="$(cd "$2" 2>/dev/null && pwd -P)" || real="$2"
+  printf '%s/render/installs/%s-%s\n' "${GSTACK_STATE_ROOT:?gstack-install-registry: GSTACK_STATE_ROOT is not set}" "$1" "$(printf '%s' "$real" | cksum | awk '{print $1}')"
+}
+
+# gstack_install_render_for HOST DESTINATION — the render directory the
+# registry recorded for that install, or nothing when it serves committed files.
+gstack_install_render_for() {
+  gstack_install_registry_rows | awk -F '\t' -v h="$1" -v d="$2" '$1 == h && $4 == d && $9 != "committed" && $9 != "-" { r = $9 } END { if (r != "") print r }'
+}
+
 # gstack_host_tier HOST — the support tier declared in hosts/<host>.ts.
 # test/host-config.test.ts keeps this table equal to hosts/index.ts.
 gstack_host_tier() {

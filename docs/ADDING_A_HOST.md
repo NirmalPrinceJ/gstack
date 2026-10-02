@@ -104,8 +104,15 @@ other root (project install, `CLAUDE_CONFIG_DIR`, renamed checkout) is made
 with `gen-skill-docs --host <h> --install-root <abs path> --out-dir <tmp>
 --link-root <dir>`: every default-root path becomes the given root, and
 resolvers see it as `TemplateContext.installRoot` (null keeps committed bytes).
-Per-install renders live in `$GSTACK_STATE_ROOT/render/installs/<host>-<id>/`.
-Setup does not yet render per install; preambles resolve the root at run time.
+Per-install renders live in `$GSTACK_STATE_ROOT/render/installs/<host>-<id>/`
+(`<id>` keyed by the root's realpath) and are recorded in the registry's render
+column. Setup makes one for a Claude install outside `~/.claude/skills/gstack`
+(renamed checkout, project-vendored copy, `CLAUDE_CONFIG_DIR`) and a global Codex
+install outside `~/.codex/skills/gstack` (`CODEX_HOME`); repo-local Codex installs
+resolve their root at run time. A root that is not a plain path (whitespace,
+shell metacharacters) is named through a `<host>-<id>.root` alias symlink:
+worktree-isolated Claude Code refuses a command path containing a space in any
+quoting.
 
 ## Host tiers and capabilities
 

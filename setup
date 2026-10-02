@@ -781,6 +781,80 @@ _swap_in_render() {
   rm -rf "$render_old"
 }
 
+# ─── Per-install render (install-context render contract, #1882) ────────────
+# Committed skills call the host's default install (~/.claude/skills/gstack,
+# ~/.codex/skills/gstack). An install anywhere else (a renamed checkout, a
+# project-vendored Claude copy, CLAUDE_CONFIG_DIR, CODEX_HOME) serves skills
+# rendered for ITS root, out of tree in $GSTACK_STATE_ROOT/render/installs/
+# <host>-<id>/, so each skill's literal paths call this install and two
+# installs never overwrite each other. Built in a temp dir, validated, swapped
+# in; callers link to it only after success (a failed render keeps the previous
+# one). Worktree-isolated Claude Code refuses a command path containing
+# whitespace or shell metacharacters in any quoting, so such a root is named
+# through a plain alias symlink beside the render.
+# _render_install HOST ROOT — sets _INSTALL_RENDER (empty = committed render).
+_INSTALL_RENDER=""
+_render_install() {
+  local host="$1" root="$2" default render named tmp out rc want got
+  _INSTALL_RENDER=""
+  case "$host" in
+    claude) default="$HOME/.claude/skills/gstack" ;;
+    codex) default="$HOME/.codex/skills/gstack" ;;
+    *) return 0 ;;
+  esac
+  [ "$root" = "$default" ] && return 0
+  # The default reached through another spelling (a symlinked parent) is the default.
+  got="$(cd "$(dirname "$root")" 2>/dev/null && pwd -P)" || got=""
+  [ -n "$got" ] && [ "$(basename "$root")" = gstack ] \
+    && [ "$got" = "$(cd "$(dirname "$default")" 2>/dev/null && pwd -P)" ] && return 0
+  render="$(gstack_install_render_dir "$host" "$root")"
+  named="$root"
+  if ! printf '%s' "$named" | grep -Eq '^/[A-Za-z0-9_.@+/-]*$'; then
+    named="$render.root"
+    if [ "$IS_WINDOWS" -eq 1 ] || ! printf '%s' "$named" | grep -Eq '^/[A-Za-z0-9_.@+/-]*$'; then
+      echo "  warning: the $host install root ($root) is not a plain path and no plain alias is available here (state root: $GSTACK_STATE_ROOT); its skills keep the default-install paths" >&2
+      return 1
+    fi
+    mkdir -p "$(dirname "$named")" && _link_or_copy "$root" "$named" || return 1
+  fi
+  tmp="$render.tmp.$$"
+  rm -rf "$tmp"
+  rc=0
+  if [ "$host" = claude ]; then
+    out="$(cd "$SOURCE_GSTACK_DIR" && bun_cmd run gen:skill-docs:user --host claude --out-dir "$tmp" --link-root "$render" --install-root "$named" 2>&1)" || rc=$?
+    want="$(find "$SOURCE_GSTACK_DIR" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)"
+    got="$(find "$tmp" -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | wc -l)"
+    [ "$rc" -ne 0 ] || { [ "$want" -eq "$got" ] && grep -qF "$named/bin/gstack-skill-start --skill" "$tmp/SKILL.md" 2>/dev/null; } \
+      || { rc=1; out="render incomplete: $got of $want skills, or a start line that does not name $named"; }
+    [ "$rc" -ne 0 ] || "$SOURCE_GSTACK_DIR/bin/gstack-patch-names" "$tmp" "$SKILL_PREFIX" >/dev/null || rc=$?
+  else
+    out="$(cd "$SOURCE_GSTACK_DIR" && bun_cmd run gen:skill-docs --host codex --model "$CODEX_GENERATION_MODEL" --install-root "$named" --out-dir "$tmp" --link-root "$render" 2>&1)" || rc=$?
+    want="$(find "$SOURCE_GSTACK_DIR/.agents/skills" -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | wc -l)"
+    got="$(find "$tmp/.agents/skills" -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | wc -l)"
+    [ "$rc" -ne 0 ] || { [ "$got" -gt 0 ] && { [ "$want" -eq 0 ] || [ "$want" -eq "$got" ]; } && grep -qF "GSTACK_ROOT=\"$named\"" "$tmp/.agents/skills/gstack-review/SKILL.md" 2>/dev/null; } \
+      || { rc=1; out="render incomplete: $got of $want skills, or a runtime root that does not name $named"; }
+  fi
+  if [ "$rc" -ne 0 ]; then
+    rm -rf "$tmp"
+    echo "  warning: could not render $host skills for the install at $root (exit $rc); $( [ -d "$render" ] && echo 'the previous render stays in use' || echo 'they keep the default-install paths')" >&2
+    printf '%s\n' "$out" | tail -3 | sed 's/^/    /' >&2
+    [ -d "$render" ] || return 1
+  else
+    _swap_in_render "$render" "$tmp"
+  fi
+  _INSTALL_RENDER="$render"
+}
+# Claude: the arm serves the render through GSTACK_USER_RENDER_DIR, which
+# linking, relink and the ownership checks read.
+_CLAUDE_INSTALL_RENDER=""
+_render_claude_install() {
+  _CLAUDE_INSTALL_RENDER=""
+  _render_install claude "$1" || return 1
+  [ -n "$_INSTALL_RENDER" ] || return 0
+  _CLAUDE_INSTALL_RENDER="$_INSTALL_RENDER"
+  export GSTACK_USER_RENDER_DIR="$_INSTALL_RENDER"
+}
+
 _WINDOWS_COPY_NOTE_PRINTED=0
 _print_windows_copy_note_once() {
   if [ "$IS_WINDOWS" -eq 1 ] && [ "$_WINDOWS_COPY_NOTE_PRINTED" -eq 0 ]; then
@@ -808,10 +882,10 @@ _setup_retry_command() {
 }
 _setup_arm_begin() { _SETUP_ARM="$1	$2	$3"; }
 _setup_arm_publish() {
-  local host="$1" scope="$2" project="$3" dest="$4" root="$5" prefix="$6" old
+  local host="$1" scope="$2" project="$3" dest="$4" root="$5" prefix="$6" render="${7:-committed}" old
   old="$(gstack_install_registry_rows | awk -F '\t' -v h="$host" -v d="$dest" '$1 == h && $4 == d { v = $7 } END { print v }')"
   _SETUP_ARM=""
-  if ! gstack_install_registry_upsert "$host" "$scope" "$project" "$dest" "$root" "$SOURCE_GSTACK_DIR" "$SETUP_VERSION" "$prefix" committed; then
+  if ! gstack_install_registry_upsert "$host" "$scope" "$project" "$dest" "$root" "$SOURCE_GSTACK_DIR" "$SETUP_VERSION" "$prefix" "$render"; then
     _setup_row "$host" "$scope" "$dest" "${old:--}" "$SETUP_VERSION" failed "installed, but the registry write failed, so upgrades will not refresh it; retry: $(_setup_retry_command "$host")"
     return 0
   fi
@@ -2297,7 +2371,7 @@ _activate_runtime_root() {
 create_codex_runtime_root() {
   local gstack_dir="$1"
   local codex_gstack="$2"
-  local agents_dir="$gstack_dir/.agents/skills"
+  local agents_dir="${_CODEX_RENDER_ROOT:-$gstack_dir}/.agents/skills"
 
   if [ -L "$codex_gstack" ]; then
     rm -f "$codex_gstack"
@@ -2849,6 +2923,7 @@ EOF
     # Patch name: fields BEFORE creating symlinks so link_claude_skill_dirs
     # reads the correct (patched) name: values for symlink naming
     "$SOURCE_GSTACK_DIR/bin/gstack-patch-names" "$SOURCE_GSTACK_DIR" "$SKILL_PREFIX"
+    _render_claude_install "$INSTALL_GSTACK_DIR" || true
     link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
     link_claude_root_skill_alias "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR"
     _CLAUDE_SKILLS_LINKED=1
@@ -2870,7 +2945,7 @@ EOF
       _OGB_ALIAS_NAME="gstack-connect-chrome"
     fi
     _install_alias_skill_md "$SOURCE_GSTACK_DIR/open-gstack-browser/SKILL.md" "$_OGB_LINK" "$_OGB_ALIAS_NAME"
-    _setup_arm_publish claude "$_CL_SCOPE" "$_CL_PROJECT" "$INSTALL_SKILLS_DIR" "$INSTALL_GSTACK_DIR" "$(_claude_prefix_setting)"
+    _setup_arm_publish claude "$_CL_SCOPE" "$_CL_PROJECT" "$INSTALL_SKILLS_DIR" "$INSTALL_GSTACK_DIR" "$(_claude_prefix_setting)" "${_CLAUDE_INSTALL_RENDER:-committed}"
     if [ "$LOCAL_INSTALL" -eq 1 ]; then
       log "gstack ready (project-local)."
       log "  skills: $INSTALL_SKILLS_DIR"
@@ -2997,6 +3072,13 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
       CODEX_RUNTIME_IN_PLACE=1
     fi
   fi
+  # CODEX_HOME (a global root other than ~/.codex/skills/gstack): serve a
+  # per-install render whose runtime root names this install. Repo-local
+  # installs resolve their root at run time and keep the committed render.
+  _CODEX_RENDER_ROOT=""
+  if [ "$CODEX_REPO_LOCAL" -eq 0 ] && _render_install codex "$CODEX_GSTACK" && [ -n "$_INSTALL_RENDER" ]; then
+    _CODEX_RENDER_ROOT="$_INSTALL_RENDER"
+  fi
   if [ "$CODEX_RUNTIME_IN_PLACE" -eq 0 ]; then
     if [ "$CODEX_REPO_LOCAL" -eq 1 ] && _sidecar_root_user_owned "$CODEX_GSTACK"; then
       echo "  left in place (existing dir not gstack-managed — no generated banner): $CODEX_GSTACK" >&2
@@ -3005,8 +3087,8 @@ if [ "$INSTALL_CODEX" -eq 1 ]; then
     fi
   fi
   # Install generated Codex-format skills (not Claude source dirs)
-  _prune_stale_generated "$SOURCE_GSTACK_DIR" "$SOURCE_GSTACK_DIR/.agents/skills" "$CODEX_SKILLS"
-  link_codex_skill_dirs "$SOURCE_GSTACK_DIR" "$CODEX_SKILLS"
+  _prune_stale_generated "$SOURCE_GSTACK_DIR" "${_CODEX_RENDER_ROOT:-$SOURCE_GSTACK_DIR}/.agents/skills" "$CODEX_SKILLS"
+  link_codex_skill_dirs "${_CODEX_RENDER_ROOT:-$SOURCE_GSTACK_DIR}" "$CODEX_SKILLS"
   _SETUP_ARM=""
 
   log "gstack ready (codex)."
@@ -3212,7 +3294,7 @@ fi
 if [ "$INSTALL_CODEX" -eq 1 ]; then
   _setup_arm_begin codex "$_CX_SCOPE" "$CODEX_SKILLS"
   create_agents_sidecar "$SOURCE_GSTACK_DIR"
-  _setup_arm_publish codex "$_CX_SCOPE" "$_CX_PROJECT" "$CODEX_SKILLS" "$CODEX_GSTACK" -
+  _setup_arm_publish codex "$_CX_SCOPE" "$_CX_PROJECT" "$CODEX_SKILLS" "$CODEX_GSTACK" - "${_CODEX_RENDER_ROOT:-committed}"
 fi
 
 # 8. Run pending version migrations
@@ -3448,7 +3530,14 @@ if [ -x "$DETECT_BIN" ]; then
     # Single source of truth for "is gbrain usable" — `--is-ok` runs live
     # detection (exit 0 iff ok), so setup, bin/dev-setup, and gstack-config
     # all gate on the same check instead of re-grepping the JSON.
-    if "$DETECT_BIN" --is-ok 2>/dev/null; then
+    if [ -n "$_CLAUDE_INSTALL_RENDER" ] && [ "$INSTALL_CLAUDE" -eq 1 ]; then
+      # This install serves its own per-install render (:user, so gbrain
+      # detection decides the brain-aware blocks); refresh it with the
+      # detection just written.
+      if _render_claude_install "$INSTALL_GSTACK_DIR" && [ "${_CLAUDE_SKILLS_LINKED:-0}" -eq 1 ]; then
+        link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR" >/dev/null
+      fi
+    elif "$DETECT_BIN" --is-ok 2>/dev/null; then
       if [ -n "${GSTACK_SKIP_GBRAIN_REGEN:-}" ]; then
         # Dev/source tree (set by bin/dev-setup): detection is persisted
         # above; the dev workspace renders the :user variant into its own

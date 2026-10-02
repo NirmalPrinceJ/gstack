@@ -11,7 +11,7 @@
  * namespace (#2879). Instruction-only hosts must change nothing.
  */
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { ALL_HOST_CONFIGS } from '../hosts/index';
 import { cleanupFixtures, makeFixture, makeSource, put, registryRows, runSetup, setVersion, tree } from './helpers/install-fixture';
@@ -70,6 +70,13 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
           if (existsSync(md)) expect(readFileSync(md, 'utf8'), `${host}/${name} carries Claude paths`).not.toContain('~/.claude/skills/gstack');
         }
       }
+      // #2906: /cso skips the shared preamble, so it names its launcher by the
+      // host's literal install path; that path must reach this install's bin/.
+      const cso = ['cso', 'gstack-cso'].find(n => existsSync(join(dest, n, 'SKILL.md')));
+      expect(cso, `${host} cso skill`).toBeDefined();
+      const launcher = readFileSync(join(dest, cso!, 'SKILL.md'), 'utf8').match(/Use `([^`]+)\/gstack-cso-launcher\[\.exe\]`/);
+      expect(launcher, `${host} cso names its launcher`).not.toBeNull();
+      expect(realpathSync(launcher![1].replace(/^~(?=\/)/, f.home)), `${host} cso launcher dir`).toBe(realpathSync(join(src, 'bin')));
       const rows = registryRows(f);
       expect(rows.map(row => [row[0], row[1], row[3], row[5], row[6]])).toEqual([[host, 'global', dest, realpathSync(src), readFileSync(join(src, 'VERSION'), 'utf8').trim()]]);
       expect(r.stdout + r.stderr).toMatch(new RegExp(`Install summary:[\\s\\S]*\\b${host}\\s+\\S+\\s+global\\s+installed`));
@@ -201,5 +208,78 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
     expect(out, start.stderr.toString()).toContain('SKILL_START_PROTO: 1');
     expect(out).not.toContain('SKILL_START: unavailable');
     expect(readdirSync(work)).toEqual([]);
+    // The default root serves the committed render.
+    expect(registryRows(f).map(row => row[8])).toEqual(['committed']);
+    expect(existsSync(join(f.home, '.gstack/render/installs'))).toBe(false);
   }, 90_000);
+
+  // #1882 / #2763: an install outside ~/.claude/skills/gstack serves skills
+  // rendered for its own root, with the one literal start line worktree-
+  // isolated Claude Code runs (a plain path: a root with a space is named
+  // through an alias), and never touches another install or the tracked render.
+  test('renamed, vendored and space-in-path installs start skills from their own root (#1882)', () => {
+    const f = makeFixture();
+    const renamed = makeSource(f, join(f.home, '.claude/skills/gstack-dev'));
+    const project = join(f.dir, 'my proj');
+    mkdirSync(join(project, '.git'), { recursive: true });
+    const vendored = makeSource(f, join(project, '.claude/skills/gstack'));
+    for (const [src, cwd] of [[renamed, renamed], [vendored, project]]) {
+      const r = runSetup(f, join(src, 'setup'), [], { cwd });
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      expect(r.stderr).not.toContain('could not render skills');
+    }
+    const fence = (text: string, heading: string) => text.slice(text.indexOf(heading)).match(/```bash\n([\s\S]*?)\n```/)![1];
+    const renders = new Set<string>();
+    for (const [skills, root] of [[join(f.home, '.claude/skills'), renamed], [join(project, '.claude/skills'), vendored]]) {
+      const row = registryRows(f).find(r => r[0] === 'claude' && r[3] === skills)!;
+      expect(row[4]).toBe(root);
+      const render = row[8];
+      expect(render).toStartWith(join(f.home, '.gstack/render/installs/claude-'));
+      renders.add(render);
+      const md = join(skills, 'review/SKILL.md');
+      expect(realpathSync(md)).toBe(join(realpathSync(render), 'review/SKILL.md'));
+      const text = readFileSync(md, 'utf8');
+      expect(text).not.toContain('~/.claude/skills/gstack/');
+      const start = fence(text, '## Preamble');
+      const named = start.slice(0, start.indexOf('/bin/gstack-skill-start'));
+      expect(start).toBe(`${named}/bin/gstack-skill-start --skill "review" --model "claude"`);
+      expect(named).toMatch(/^\/[A-Za-z0-9_.@+\/-]+$/);
+      expect(realpathSync(named)).toBe(realpathSync(root));
+      expect(named === root).toBe(!/\s/.test(root));
+      expect(fence(text, '## Context Recovery')).toBe(`${named}/bin/gstack-context-recovery`);
+      const work = mkdtempSync(join(f.dir, 'work-'));
+      const run = Bun.spawnSync(['bash', '-c', start], { cwd: work, env: f.env, timeout: 30_000 });
+      expect(run.stdout.toString(), run.stderr.toString()).toContain('SKILL_START_PROTO: 1');
+      expect(Bun.spawnSync(['bash', '-c', fence(text, '## Context Recovery')], { cwd: work, env: f.env, timeout: 30_000 }).exitCode).toBe(0);
+    }
+    expect(renders.size).toBe(2);
+    // The tracked render stays portable; no default install was created.
+    expect(readFileSync(join(renamed, 'review/SKILL.md'), 'utf8')).toContain('~/.claude/skills/gstack/bin/gstack-skill-start --skill "review"');
+    expect(existsSync(join(f.home, '.claude/skills/gstack'))).toBe(false);
+    // A later relink keeps serving the recorded render.
+    const relink = Bun.spawnSync(['bash', join(renamed, 'bin/gstack-relink')], { cwd: f.home, env: f.env, timeout: 60_000 });
+    expect(relink.exitCode, relink.stderr.toString()).toBe(0);
+    expect(realpathSync(join(f.home, '.claude/skills/review/SKILL.md')).startsWith(realpathSync(join(f.home, '.gstack/render/installs')))).toBe(true);
+  }, 120_000);
+
+  test('CLAUDE_CONFIG_DIR and CODEX_HOME installs name their own roots (#1882, #2906)', () => {
+    const f = makeFixture();
+    const config = join(f.dir, 'claude-config');
+    const codexHome = join(f.dir, 'codex-home');
+    const env = { CLAUDE_CONFIG_DIR: config, CODEX_HOME: codexHome };
+    const src = makeSource(f, join(config, 'skills/gstack'));
+    for (const host of ['claude', 'codex']) {
+      const r = runSetup(f, join(src, 'setup'), ['--host', host], { cwd: src, env });
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+    }
+    const claude = readFileSync(join(config, 'skills/review/SKILL.md'), 'utf8');
+    expect(claude).toContain(`\n${src}/bin/gstack-skill-start --skill "review" --model "claude"\n`);
+    const codex = readFileSync(join(codexHome, 'skills/gstack-review/SKILL.md'), 'utf8');
+    expect(codex).toContain(`GSTACK_ROOT="${codexHome}/skills/gstack"`);
+    expect(readFileSync(join(codexHome, 'skills/gstack-cso/SKILL.md'), 'utf8')).toContain(`Use \`${codexHome}/skills/gstack/bin/gstack-cso-launcher[.exe]\``);
+    expect(realpathSync(join(codexHome, 'skills/gstack/bin'))).toBe(realpathSync(join(src, 'bin')));
+    const rows = registryRows(f);
+    expect(rows.map(r => [r[0], r[8].startsWith(join(f.home, '.gstack/render/installs/'))]).sort()).toEqual([['claude', true], ['codex', true]]);
+    for (const dir of ['.claude', '.codex']) expect(existsSync(join(f.home, dir)), dir).toBe(false);
+  }, 120_000);
 });
