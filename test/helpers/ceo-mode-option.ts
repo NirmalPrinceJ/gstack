@@ -404,6 +404,8 @@ function singleScopeBrief(text: string, descriptions: readonly string[], compari
     : /^[^.!?\n]+\.$/.test(net.replace(/\bvs\./gi, 'vs')));
 }
 
+const KEEP_LABEL_WORDS = new Set(['keep', 'retain', 'include', 'the', 'and', 'all', 'scope', 'plan', 'planned', 'current', 'now', 'its']);
+
 /** Fixture-owned baseline for a completed scope-preservation decision. */
 export interface CeoPostureSource { path: string; content: string }
 
@@ -419,25 +421,27 @@ function hasCompletedScopePreservation(transcript: PlanCountTranscript, selected
   if (selectedPlans.length !== 1 || selectedPlans[0] !== name || plans.length !== 1 || plans[0] !== name ||
       !/\bHOLD SCOPE\b/.test(context) || /\b(?:SCOPE EXPANSION|SELECTIVE EXPANSION|SCOPE REDUCTION|historical|previous|example|hypothetical|withdrawn)\b/i.test(context)) return false;
   if (q.multiSelect || q.options.length !== 2 || !singleScopeBrief(q.question, q.options.map(o => o.description ?? ''), false)) return false;
-  const labels = q.options.map(o => o.label.replace(/\s*\(recommended\)\s*$/i, '').trim());
-  const kept = labels.map(label => /^Keep ([a-z][a-z -]{0,70}) in scope$/i.exec(label));
-  const index = kept.findIndex(Boolean);
-  if (index < 0 || kept.filter(Boolean).length !== 1 || call.answers?.[q.question] !== q.options[index]!.label) return false;
-  const subject = kept[index]![1]!.trim();
+  // One option keeps an item and the other defers it; the answer selects the
+  // keep option. Label and question wording are free.
+  const labels = q.options.map(o => o.label.replace(/\s*\(recommended\)\s*$/i, '').replace(/^[A-B][):.]\s*/i, '').trim());
+  const keeps = labels.map(label => /\b(?:keep|retain|include)\b/i.test(label) && !/\b(?:defer|todos?|drop|cut)\b/i.test(label));
+  const index = keeps.indexOf(true);
+  if (index < 0 || keeps.filter(Boolean).length !== 1 || !/\b(?:defer|todos?|later|drop|cut)\b/i.test(labels[1 - index]!) ||
+      call.answers?.[q.question] !== q.options[index]!.label) return false;
   const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  if (!new RegExp(`^Defer ${escape(subject)} to TODOS(?:\\.md)?$`, 'i').test(labels[1-index]!) ||
-      !new RegExp(`^D\\d+\\s*[—–-]\\s*Keep (?:the )?${escape(subject)}\\b[^?\\n]* in scope, or defer`, 'i').test(q.question)) return false;
   const body = q.question + '\n' + q.options[index]!.description;
   if (!q.options.every(o => typeof o.description === 'string' && o.description.trim()) ||
-      /\b(?:also|additionally|separately|expand(?:ing)? scope|outside (?:the )?(?:plan|scope)|and add|plus new|withdrawn|cancelled|canceled|retracted|revoked|hypothetical)\b/i.test(body)) return false;
-  // The choice retains an actual baseline requirement and names concrete
-  // failure/proof consequences, rather than merely repeating the mode label.
+      /\b(?:also|additionally|separately|expand(?:ing)? scope|outside (?:the )?(?:plan|scope)|and add|plus new|withdrawn|cancelled|canceled|retracted|revoked|hypothetical|historical)\b/i.test(body) ||
+      /^\s*(?:for )?example\b/i.test(q.question)) return false;
+  // The kept item is an actual baseline requirement of the plan, and the brief
+  // explains its consequences rather than merely repeating the mode label.
   const required = source.content.split('\n').filter(line => /^\s*-\s+/.test(line));
-  if (!required.some(line => new RegExp(`\\b${escape(subject)}\\b`, 'i').test(line)) ||
-      !new RegExp(`(?:${escape(name)} lists|the plan already states)\\b`, 'i').test(q.question)) return false;
-  if ([/\btests?\b/i, /\bauthz\b|\baccess\b/i, /\b(?:concurrent|duplicate|stale)\b/i,
-       /\b(?:delete.and.recreate|delete\+recreate|re-save)\b/i, /\b(?:pilot|reuse) metric\b/i]
-      .filter(pattern => pattern.test(body)).length < 2) return false;
+  const subjectWords = (labels[index]!.toLowerCase().match(/[a-z][a-z_-]{2,}/g) ?? [])
+    .filter(word => !KEEP_LABEL_WORDS.has(word));
+  if (!subjectWords.some(word => required.some(line => new RegExp(`\\b${escape(word)}\\b`, 'i').test(line)))) return false;
+  const rationale = [/ELI10:([\s\S]*?)(?=Stakes if (?:we pick )?wrong:)/i, /Stakes if (?:we pick )?wrong:([\s\S]*?)(?=Recommendation:)/i]
+    .map(part => part.exec(q.question)?.[1] ?? '').join(' ');
+  if ((rationale.match(/\S+/g) ?? []).length < 20) return false;
   const times = completedQuestionTimes(call, events); if (!times || times.answeredAt > Date.now()) return false;
   const own = events.filter(e => e.sessionId === selected.sessionId);
   const loaded = own.some(use => {
