@@ -68,10 +68,12 @@ Parse the user's input:
 
 ```bash
 {{SLUG_SETUP}}
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 CHECKPOINT_DIR="$GSTACK_STATE_ROOT/projects/$SLUG/checkpoints"
 # Project identity: canonical remote (root only when there is no remote).
-eval "$(~/.claude/skills/gstack/bin/gstack-slug --identity 2>/dev/null)" || true
+PROJECT_REMOTE=$(~/.claude/skills/gstack/bin/gstack-slug --get PROJECT_REMOTE 2>/dev/null) || true
+PROJECT_ROOT=$(~/.claude/skills/gstack/bin/gstack-slug --get PROJECT_ROOT 2>/dev/null) || true
+LEGACY_SLUG=$(~/.claude/skills/gstack/bin/gstack-slug --get LEGACY_SLUG 2>/dev/null) || true
 echo "PROJECT_IDENTITY: ${PROJECT_REMOTE:-${PROJECT_ROOT:-unknown}}"
 echo "PROJECT_ROOT: ${PROJECT_ROOT:-unknown}"
 if [ -n "${LEGACY_SLUG:-}" ] && [ -d "$GSTACK_STATE_ROOT/projects/$LEGACY_SLUG/checkpoints" ]; then
@@ -128,12 +130,12 @@ EOF
       FOREIGN_N=$(printf '%s\n' "$CLASSIFIED" | grep -c '^foreign' || true)
       # Cap at 20: a user with 10k saved files shouldn't blow the context window.
       FILES=$(printf '%s\n' "$CLASSIFIED" | awk -F '\t' -v f="$FOREIGN_N" \
-        '$1 == "match" || $1 == "match-root" || ($1 == "unstamped" && f == 0) { print $2 }' | head -20)
+        '$(1) == "match" || $(1) == "match-root" || ($(1) == "unstamped" && f == 0) { print $(2) }' | head -20)
       if [ -n "$FILES" ]; then echo "$FILES"; else echo "NO_VERIFIED_CHECKPOINTS"; fi
       printf '%s\n' "$CLASSIFIED" | awk -F '\t' -v f="$FOREIGN_N" \
-        '$1 == "match-root" { print "ROOT_DIFFERS " $2 }
-         $1 == "foreign" { print "FOREIGN " $2 }
-         $1 == "unstamped" && f > 0 { print "UNVERIFIED " $2 }' | head -40
+        '$(1) == "match-root" { print "ROOT_DIFFERS " $(2) }
+         $(1) == "foreign" { print "FOREIGN " $(2) }
+         $(1) == "unstamped" && f > 0 { print "UNVERIFIED " $(2) }' | head -40
       if [ "$FOREIGN_N" -gt 0 ]; then
         echo "SHARED_BUCKET: $FOREIGN_N checkpoint(s) here were saved by another project"
       fi

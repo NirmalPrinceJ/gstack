@@ -525,7 +525,7 @@ skip Review Log, success telemetry and the next-skill handoff.
 After producing the Completion Summary, remove this branch's handoff notes only if the storage policy permits cleanup. Otherwise retain them and report that cleanup was not performed.
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 setopt +o nomatch 2>/dev/null || true  # zsh compat
 # gstack-slug prints both SLUG and BRANCH; eval sets them in this shell.
 {{SLUG_EVAL}}

@@ -13,10 +13,10 @@ import { resolveStateRoot } from '../lib/state-root';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
-/** The first ```bash block of a generated SKILL.md that evals gstack-paths. */
-function contextRecoveryBlock(): string {
+/** The Eureka ```bash block of a generated SKILL.md: it resolves the state root through gstack-paths. */
+function eurekaBlock(): string {
   const md = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
-  const start = md.indexOf('## Context Recovery');
+  const start = md.indexOf('**Eureka:**');
   const open = md.indexOf('```bash\n', start) + '```bash\n'.length;
   return md.slice(open, md.indexOf('\n```', open));
 }
@@ -42,7 +42,7 @@ describe('state-root resolver failure', () => {
       const cwd = path.join(tmp, 'cwd');
       fs.mkdirSync(bin, { recursive: true });
       fs.mkdirSync(cwd);
-      for (const b of ['gstack-paths', 'gstack-slug', 'gstack-config']) {
+      for (const b of ['gstack-paths', 'gstack-slug', 'gstack-config', 'gstack-context-recovery']) {
         fs.copyFileSync(path.join(ROOT, 'bin', b), path.join(bin, b));
         fs.chmodSync(path.join(bin, b), 0o755);
       }
@@ -53,12 +53,17 @@ describe('state-root resolver failure', () => {
       expect(resolveStateRoot(env)).toBe(`${home}/.gstack`);
       const before = listTree(tmp).sort();
 
-      const block = contextRecoveryBlock();
-      expect(block).toContain('gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"');
+      const block = eurekaBlock();
+      expect(block).toContain('GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"');
       const skill = spawnSync('bash', ['-c', block + '\necho REACHED_END'], { cwd, env, encoding: 'utf-8', timeout: 30_000 });
       expect(skill.status).not.toBe(0);
       expect(skill.stderr).toContain('gstack-paths failed; reinstall with ./setup or /gstack-upgrade');
       expect(skill.stdout).not.toContain('REACHED_END');
+
+      const recovery = spawnSync('bash', [path.join(bin, 'gstack-context-recovery')], { cwd, env, encoding: 'utf-8', timeout: 30_000 });
+      expect(recovery.status).toBe(1);
+      expect(recovery.stdout).toBe('');
+      expect(recovery.stderr).toContain('reinstall with ./setup or /gstack-upgrade');
 
       const config = spawnSync('bash', [path.join(bin, 'gstack-config'), 'set', 'telemetry', 'off'], { cwd, env, encoding: 'utf-8', timeout: 30_000 });
       expect(config.status).toBe(1);

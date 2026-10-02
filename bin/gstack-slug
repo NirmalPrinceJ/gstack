@@ -2,6 +2,10 @@
 # gstack-slug — output project slug and sanitized branch name
 # Usage: eval "$(gstack-slug)"  → sets SLUG and BRANCH variables
 # Or:    gstack-slug            → prints SLUG=... and BRANCH=... lines
+#        gstack-slug --get NAME → print one raw value (SLUG, BRANCH or an
+#                                  --identity field); skill bash blocks
+#                                  use this form (#2763: worktree-isolated Claude
+#                                  Code sessions refuse eval/source)
 # Modes (not on the hot path; see `gstack-slug --help`):
 #   --identity                 also print PROJECT_REMOTE, PROJECT_ROOT, LEGACY_SLUG
 #   --stamp-checkpoint <file>  write remote:/project_root: into a checkpoint's frontmatter
@@ -86,6 +90,10 @@ COPY_PATHS=()
 case "${1:-}" in
   "") ;;
   --identity) MODE=identity ;;
+  --get) MODE=get; MODE_ARG="${2:-}"
+    case "$MODE_ARG" in SLUG|BRANCH|PROJECT_REMOTE|PROJECT_ROOT|LEGACY_SLUG) ;;
+      *) echo "usage: gstack-slug --get SLUG|BRANCH|PROJECT_REMOTE|PROJECT_ROOT|LEGACY_SLUG" >&2; exit 2 ;;
+    esac ;;
   --stamp-checkpoint) MODE=stamp; MODE_ARG="${2:-}"
     [[ -n "$MODE_ARG" ]] || { echo "usage: gstack-slug --stamp-checkpoint <file>" >&2; exit 2; } ;;
   --classify-checkpoints) MODE=classify ;;
@@ -101,6 +109,8 @@ case "${1:-}" in
     cat <<'USAGE'
 gstack-slug — print SLUG=<project slug> and BRANCH=<branch> for the current directory.
   eval "$(gstack-slug)"                 set SLUG and BRANCH
+  SLUG=$(gstack-slug --get SLUG)        print one raw value (SLUG, BRANCH, or an --identity
+                                        field); no eval needed
   gstack-slug --identity                also print PROJECT_REMOTE (canonical, credential-free),
                                         PROJECT_ROOT and LEGACY_SLUG (pre-#3003 bucket, if different)
   gstack-slug --stamp-checkpoint FILE   write remote:/project_root: into FILE's frontmatter
@@ -371,6 +381,10 @@ RAW_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null) || RAW_BRANCH=""
 BRANCH=$(printf '%s' "${RAW_BRANCH:-}" | tr '/' '-' | tr -cd 'a-zA-Z0-9._-')
 BRANCH="${BRANCH:-unknown}"
 
+if [[ "$MODE" == "get" && ( "$MODE_ARG" == SLUG || "$MODE_ARG" == BRANCH ) ]]; then
+  if [[ "$MODE_ARG" == SLUG ]]; then printf '%s\n' "$SLUG"; else printf '%s\n' "$BRANCH"; fi
+  exit 0
+fi
 if [[ "$MODE" == "default" ]]; then
   echo "SLUG=$SLUG"
   echo "BRANCH=$BRANCH"
@@ -432,6 +446,14 @@ _classify_checkpoint() {
 _resolve_identity
 
 case "$MODE" in
+  get)
+    case "$MODE_ARG" in
+      PROJECT_REMOTE) printf '%s\n' "$ID_REMOTE" ;;
+      PROJECT_ROOT) printf '%s\n' "$ID_ROOT" ;;
+      LEGACY_SLUG) printf '%s\n' "$ID_LEGACY" ;;
+    esac
+    ;;
+
   identity)
     echo "SLUG=$SLUG"
     echo "BRANCH=$BRANCH"

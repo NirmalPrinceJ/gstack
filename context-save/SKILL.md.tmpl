@@ -118,7 +118,7 @@ allowlist: only `a-z 0-9 - .` survive.
 
 ```bash
 {{SLUG_SETUP}}
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 CHECKPOINT_DIR="$GSTACK_STATE_ROOT/projects/$SLUG/checkpoints"
 mkdir -p "$CHECKPOINT_DIR"
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
@@ -217,7 +217,7 @@ Restore later with /context-restore.
 
 ```bash
 {{SLUG_SETUP}}
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 CHECKPOINT_DIR="$GSTACK_STATE_ROOT/projects/$SLUG/checkpoints"
 if [ -d "$CHECKPOINT_DIR" ]; then
   echo "CHECKPOINT_DIR=$CHECKPOINT_DIR"

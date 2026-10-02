@@ -310,7 +310,7 @@ Read the last 10 entries from `~/.gstack/projects/$SLUG/health-history.jsonl` (i
 file exists and has prior entries).
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 {{SLUG_SETUP}}
 tail -10 "$GSTACK_STATE_ROOT"/projects/$SLUG/health-history.jsonl 2>/dev/null || echo "NO_HISTORY"
 ```

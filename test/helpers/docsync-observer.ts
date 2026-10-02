@@ -148,7 +148,7 @@ export function docsPreambleCommands(fixture: ReturnType<typeof fixtureDocs>): s
     return /^## Preamble \(run first\)[ \t]*\r?\n(?:[ \t]*\r?\n)*```bash[ \t]*\r?\n([\s\S]*?)\r?\n```[ \t]*$/m.exec(text)?.[1];
   });
   if (!command || command !== expected) return [];
-  return [command, command.replace(/(^|\n)("\$_SS" --skill)/, '$1GSTACK_SESSION_KIND=spawned $2')];
+  return [command, command.replace(/(^|\n)("\$_SS" --skill|[^\s"]*\/gstack-skill-start --skill)/, '$1GSTACK_SESSION_KIND=spawned $2')];
 }
 
 export function docsShipPhase(skeleton: string, prBody: string, scenario: DocsScenario, storePointer: string): string {

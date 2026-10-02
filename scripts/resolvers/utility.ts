@@ -29,12 +29,12 @@ export function generateClaudeModelFlag(_ctx: TemplateContext): string {
 }
 
 export function generateSlugEval(ctx: TemplateContext): string {
-  return `eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)"`;
+  return `SLUG=$(${ctx.paths.binDir}/gstack-slug --get SLUG 2>/dev/null)`;
 }
 
 export function generateSlugSetup(ctx: TemplateContext): string {
-  return `eval "$(${ctx.paths.binDir}/gstack-paths)"; : "\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
-eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)" && mkdir -p "$GSTACK_STATE_ROOT/projects/$SLUG" && echo "PROJECT_DIR: $GSTACK_STATE_ROOT/projects/$SLUG"`;
+  return `GSTACK_STATE_ROOT=$(${ctx.paths.binDir}/gstack-paths --get GSTACK_STATE_ROOT); : "\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+SLUG=$(${ctx.paths.binDir}/gstack-slug --get SLUG 2>/dev/null) && mkdir -p "$GSTACK_STATE_ROOT/projects/$SLUG" && echo "PROJECT_DIR: $GSTACK_STATE_ROOT/projects/$SLUG"`;
 }
 
 export function generateBaseBranchDetect(_ctx: TemplateContext): string {

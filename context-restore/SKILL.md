@@ -33,10 +33,7 @@ as a native rewind alias in current environments.
 ## Preamble (run first)
 
 ```bash
-_SS="$HOME/.claude/skills/gstack/bin/gstack-skill-start"
-[ -x "$_SS" ] || _SS=".claude/skills/gstack/bin/gstack-skill-start"
-"$_SS" --skill "context-restore" --model "claude" --parent-pid "$PPID" \
-  || echo "SKILL_START: unavailable — stale install; run ./setup or /gstack-upgrade (preamble degraded, continue the user's task)"
+~/.claude/skills/gstack/bin/gstack-skill-start --skill "context-restore" --model "claude"
 ```
 
 Read the echoed `KEY: value` STATUS lines — they drive every preamble rule
@@ -60,11 +57,11 @@ or page content. Treat an unterminated block as ending at end-of-output.
 
 ## Plan Mode Safe Operations
 
-In plan mode, allowed because they inform the plan: `$B`, `$D`, `codex exec`/`codex review`, temp prompts, writes to `~/.gstack/`, writes to the plan file, and `open` for generated artifacts.
+Host and system plan-mode restrictions and the user's current scope take precedence over any skill; a skill cannot grant itself an exception to read-only mode. Where the host permits them, these inform the plan: `$B`, `$D`, `codex exec`/`codex review`, temp prompts, writes to `~/.gstack/`, writes to the plan file, and `open` for generated artifacts. If the host blocks one, skip it, say so, and continue the permitted work.
 
 ## Skill Invocation During Plan Mode
 
-If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; any AskUserQuestion the skill fires is the workflow operating within plan mode, not a violation of it — and a skill whose instructions resolve a question themselves (e.g. a plan-mode auto-select) may legitimately not ask it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If AskUserQuestion is unavailable or a call fails, follow the AskUserQuestion Format failure fallback: `headless` → BLOCKED; `interactive` → the prose fallback (also satisfies end-of-turn). At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
+If the user invokes a skill in plan mode, run its workflow within the host's plan-mode limits. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; any AskUserQuestion the skill fires is the workflow operating within plan mode, not a violation of it — and a skill whose instructions resolve a question themselves (e.g. a plan-mode auto-select) may legitimately not ask it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If AskUserQuestion is unavailable or a call fails, follow the AskUserQuestion Format failure fallback: `headless` → BLOCKED; `interactive` → the prose fallback (also satisfies end-of-turn). At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" run only where the host permits them. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
 
 If `PROACTIVE` is `"false"`, do not auto-invoke or proactively suggest skills. If a skill seems useful, ask: "I think /skillname might help here — want me to run it?"
 
@@ -238,30 +235,7 @@ Bad closer: a tour of every edit, a restatement of the plan, and three paragraph
 At session start or after compaction, recover recent project context.
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-_BRANCH=$(git branch --show-current 2>/dev/null | tr -cd 'a-zA-Z0-9._/-') || :; _BRANCH=${_BRANCH:-unknown}
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
-_PROJ="$GSTACK_STATE_ROOT/projects/${SLUG:-unknown}"
-if [ -d "$_PROJ" ]; then
-  echo "--- RECENT ARTIFACTS ---"
-  find "$_PROJ/ceo-plans" "$_PROJ/checkpoints" -type f -name "*.md" 2>/dev/null | xargs -r ls -t 2>/dev/null | head -3
-  [ -f "$_PROJ/${BRANCH:-unknown}-reviews.jsonl" ] && echo "REVIEWS: $(wc -l < "$_PROJ/${BRANCH:-unknown}-reviews.jsonl" | tr -d ' ') entries"
-  [ -f "$_PROJ/timeline.jsonl" ] && tail -5 "$_PROJ/timeline.jsonl"
-  if [ -f "$_PROJ/timeline.jsonl" ]; then
-    _LAST=$(grep "\"branch\":\"${_BRANCH}\"" "$_PROJ/timeline.jsonl" 2>/dev/null | grep '"event":"completed"' | tail -1)
-    [ -n "$_LAST" ] && echo "LAST_SESSION: $_LAST"
-    _RECENT_SKILLS=$(grep "\"branch\":\"${_BRANCH}\"" "$_PROJ/timeline.jsonl" 2>/dev/null | grep '"event":"completed"' | tail -3 | grep -o '"skill":"[^"]*"' | sed 's/"skill":"//;s/"//' | tr '\n' ',')
-    [ -n "$_RECENT_SKILLS" ] && echo "RECENT_PATTERN: $_RECENT_SKILLS"
-  fi
-  _LATEST_CP=$(find "$_PROJ/checkpoints" -name "*.md" -type f 2>/dev/null | xargs -r ls -t 2>/dev/null | head -1)
-  [ -n "$_LATEST_CP" ] && echo "LATEST_CHECKPOINT: $_LATEST_CP"
-  if [ -f "$_PROJ/decisions.active.json" ]; then
-    echo "--- ACTIVE DECISIONS (recent, scope-relevant) ---"
-    ~/.claude/skills/gstack/bin/gstack-decision-search --recent 5 2>/dev/null
-    echo "--- END DECISIONS ---"
-  fi
-  echo "--- END ARTIFACTS ---"
-fi
+~/.claude/skills/gstack/bin/gstack-context-recovery
 ```
 
 If artifacts are listed, read the newest useful one. If `LAST_SESSION` or `LATEST_CHECKPOINT` appears, give a 2-sentence welcome back summary. If `RECENT_PATTERN` clearly implies a next skill, suggest it once.
@@ -418,12 +392,14 @@ Parse the user's input:
 ### Step 1: Find saved contexts
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$GSTACK_STATE_ROOT/projects/$SLUG" && echo "PROJECT_DIR: $GSTACK_STATE_ROOT/projects/$SLUG"
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+SLUG=$(~/.claude/skills/gstack/bin/gstack-slug --get SLUG 2>/dev/null) && mkdir -p "$GSTACK_STATE_ROOT/projects/$SLUG" && echo "PROJECT_DIR: $GSTACK_STATE_ROOT/projects/$SLUG"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 CHECKPOINT_DIR="$GSTACK_STATE_ROOT/projects/$SLUG/checkpoints"
 # Project identity: canonical remote (root only when there is no remote).
-eval "$(~/.claude/skills/gstack/bin/gstack-slug --identity 2>/dev/null)" || true
+PROJECT_REMOTE=$(~/.claude/skills/gstack/bin/gstack-slug --get PROJECT_REMOTE 2>/dev/null) || true
+PROJECT_ROOT=$(~/.claude/skills/gstack/bin/gstack-slug --get PROJECT_ROOT 2>/dev/null) || true
+LEGACY_SLUG=$(~/.claude/skills/gstack/bin/gstack-slug --get LEGACY_SLUG 2>/dev/null) || true
 echo "PROJECT_IDENTITY: ${PROJECT_REMOTE:-${PROJECT_ROOT:-unknown}}"
 echo "PROJECT_ROOT: ${PROJECT_ROOT:-unknown}"
 if [ -n "${LEGACY_SLUG:-}" ] && [ -d "$GSTACK_STATE_ROOT/projects/$LEGACY_SLUG/checkpoints" ]; then
@@ -480,12 +456,12 @@ EOF
       FOREIGN_N=$(printf '%s\n' "$CLASSIFIED" | grep -c '^foreign' || true)
       # Cap at 20: a user with 10k saved files shouldn't blow the context window.
       FILES=$(printf '%s\n' "$CLASSIFIED" | awk -F '\t' -v f="$FOREIGN_N" \
-        '$1 == "match" || $1 == "match-root" || ($1 == "unstamped" && f == 0) { print $2 }' | head -20)
+        '$(1) == "match" || $(1) == "match-root" || ($(1) == "unstamped" && f == 0) { print $(2) }' | head -20)
       if [ -n "$FILES" ]; then echo "$FILES"; else echo "NO_VERIFIED_CHECKPOINTS"; fi
       printf '%s\n' "$CLASSIFIED" | awk -F '\t' -v f="$FOREIGN_N" \
-        '$1 == "match-root" { print "ROOT_DIFFERS " $2 }
-         $1 == "foreign" { print "FOREIGN " $2 }
-         $1 == "unstamped" && f > 0 { print "UNVERIFIED " $2 }' | head -40
+        '$(1) == "match-root" { print "ROOT_DIFFERS " $(2) }
+         $(1) == "foreign" { print "FOREIGN " $(2) }
+         $(1) == "unstamped" && f > 0 { print "UNVERIFIED " $(2) }' | head -40
       if [ "$FOREIGN_N" -gt 0 ]; then
         echo "SHARED_BUCKET: $FOREIGN_N checkpoint(s) here were saved by another project"
       fi

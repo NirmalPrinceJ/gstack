@@ -19,6 +19,7 @@ const CHAIN = /\\?\$\{GSTACK_(?:HOME|STATE_ROOT|STATE_DIR):-/;
 const HOMEDIR_GSTACK = /homedir\(\)\s*,\s*['"`]\.gstack['"`]/g;
 const PROSE_ROOT = /(~|\\?\$HOME|\\?\$\{HOME\})\/\.gstack(?![\w-])/;
 const PATHS_EVAL = /eval "\$\(.*gstack-paths"?\)"/;
+const PATHS_GET = /\$\(\S*gstack-paths"? --get GSTACK_STATE_ROOT\)/;
 const GUARD = ': "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"';
 const GUARD_TS = ': "\\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"';
 
@@ -61,8 +62,14 @@ export function scan(files: Map<string, string>): Violation[] {
       });
     }
     if (isProseSource(file) || isExecutable(file, text)) {
+      const guarded = (line: string) => line.includes(GUARD) || line.includes(GUARD_TS);
       lines.forEach((line, i) => {
-        if (code(line) && PATHS_EVAL.test(line) && !line.includes(GUARD) && !line.includes(GUARD_TS)) {
+        if (!code(line)) return;
+        // Skill blocks never eval (#2763): worktree-isolated Claude Code
+        // sessions refuse it, guarded or not. Executables may.
+        if (isProseSource(file) && PATHS_EVAL.test(line)) {
+          v.push({ file, line: i + 1, text: line.trim(), rule: 'gstack-paths eval in a skill block' });
+        } else if ((PATHS_EVAL.test(line) || PATHS_GET.test(line)) && !guarded(line)) {
           v.push({ file, line: i + 1, text: line.trim(), rule: 'unguarded gstack-paths eval' });
         }
       });
@@ -81,7 +88,8 @@ function report(violations: Violation[]): string {
   return [
     ...violations.map((x) => `${x.file}:${x.line}  ${x.text}  (${x.rule})`),
     'Rule: gstack state lives under one root resolved by one chain; a hand-rolled chain drifts (plugin installs and GSTACK_HOME users silently split their state), and an unguarded eval writes under / when the resolver is missing.',
-    'Fix: in prose and executables use eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; ' + GUARD
+    'Fix: in skill prose use GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); ' + GUARD
+      + ' (worktree-isolated Claude Code sessions refuse eval); in executables use eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; ' + GUARD
       + ' (hooks and bins may source bin/gstack-state-root.sh instead); in TS use resolveStateRoot() from lib/state-root.ts.',
     `Allowlist: ${ALLOWLIST_PATH}, keyed on file path plus matched line text, each entry with a reason. Legitimate only for illustrative prose, an install location that is not state, or a named partial-upgrade fallback.`,
   ].join('\n');
@@ -118,7 +126,7 @@ describe('ratchet (a): one state-root rule', () => {
     const planted = new Map<string, string>([
       ['bin/gstack-planted', '#!/usr/bin/env bash\n# a comment "${GSTACK_HOME:-$HOME/.gstack}" is prose\nX="${GSTACK_HOME:-$HOME/.gstack}"\neval "$("$(dirname "$0")/gstack-paths")"\n'],
       ['lib/planted.ts', "import { homedir } from 'os';\nconst r = join(\n  homedir(), '.gstack');\n"],
-      ['planted/SKILL.md.tmpl', 'Prose ~/.gstack is fine.\n```bash\n# comment ~/.gstack is fine\nmkdir -p ~/.gstack/analytics\nexport GSTACK_STATE_ROOT\neval "$(~/.claude/skills/gstack/bin/gstack-paths)"\n```\n'],
+      ['planted/SKILL.md.tmpl', 'Prose ~/.gstack is fine.\n```bash\n# comment ~/.gstack is fine\nmkdir -p ~/.gstack/analytics\nexport GSTACK_STATE_ROOT\neval "$(~/.claude/skills/gstack/bin/gstack-paths)"\neval "$(~/.claude/skills/gstack/bin/gstack-paths)"; ' + GUARD + '\nGSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT)\n```\n'],
     ]);
     const found = scan(planted);
     expect(found.map((x) => `${x.file}:${x.line}:${x.rule}`)).toEqual([
@@ -127,7 +135,9 @@ describe('ratchet (a): one state-root rule', () => {
       'lib/planted.ts:3:homedir() joined with .gstack',
       'planted/SKILL.md.tmpl:4:executable ~/.gstack in a bash block',
       'planted/SKILL.md.tmpl:5:export GSTACK_STATE_ROOT in prose',
-      'planted/SKILL.md.tmpl:6:unguarded gstack-paths eval',
+      'planted/SKILL.md.tmpl:6:gstack-paths eval in a skill block',
+      'planted/SKILL.md.tmpl:7:gstack-paths eval in a skill block',
+      'planted/SKILL.md.tmpl:8:unguarded gstack-paths eval',
     ]);
     const message = report(found);
     expect(message).toContain('planted/SKILL.md.tmpl:4  mkdir -p ~/.gstack/analytics');
@@ -147,7 +157,8 @@ describe('ratchet (a): one state-root rule', () => {
 
   test('guarded evals and the owners pass, and the TS owner resolves the documented default', () => {
     const ok = new Map([
-      ['x/SKILL.md.tmpl', '```bash\neval "$(~/.claude/skills/gstack/bin/gstack-paths)"; ' + GUARD + '\nls "$GSTACK_STATE_ROOT"/projects\n```\n'],
+      ['x/SKILL.md.tmpl', '```bash\nGSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); ' + GUARD + '\nls "$GSTACK_STATE_ROOT"/projects\n```\n'],
+      ['bin/gstack-x', '#!/usr/bin/env bash\neval "$("$(dirname "$0")/gstack-paths")"; ' + GUARD + '\n'],
     ]);
     expect(scan(ok)).toEqual([]);
     expect(resolveStateRoot({ HOME: '/h' }, 'linux')).toBe('/h/.gstack');

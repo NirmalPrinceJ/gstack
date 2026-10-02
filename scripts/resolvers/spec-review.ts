@@ -114,7 +114,7 @@ inventing duplicate counts. Preserve the Assignment, coaching, approval, and Han
 Append the helper's actual metrics to the existing analytics log (telemetry is
 best-effort and must not block approval):
 \`\`\`bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 mkdir -p "$GSTACK_STATE_ROOT/analytics"
 echo '{"skill":"office-hours","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","iterations":ITERATIONS,"issues_found":FOUND,"issues_fixed":FIXED,"remaining":REMAINING,"quality_score":SCORE}' >> "$GSTACK_STATE_ROOT/analytics/spec-review.jsonl" 2>/dev/null || true
 \`\`\`
@@ -210,7 +210,7 @@ if a required save fails, stop before claiming completion.` : `After the loop co
 
 3. Append metrics:`}
 \`\`\`bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 mkdir -p "$GSTACK_STATE_ROOT/analytics"${ceo ? ' || exit 1' : ''}
 echo '{"skill":"${_ctx.skillName}","ts":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","iterations":ITERATIONS,"issues_found":FOUND,"issues_fixed":FIXED,"remaining":REMAINING,"quality_score":SCORE}' >> "$GSTACK_STATE_ROOT/analytics/spec-review.jsonl"${ceo ? ' || exit 1' : ' 2>/dev/null || true'}
 \`\`\`

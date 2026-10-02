@@ -156,7 +156,7 @@ explicit.
 
 3. ALWAYS touch the marker, regardless of choice:
    ```bash
-   eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+   GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
    touch "$GSTACK_STATE_ROOT"/.question-tuning-prompted
    ```
 
@@ -216,7 +216,7 @@ explicit.
    # Ensure profile exists
    ~/.claude/skills/gstack/bin/gstack-developer-profile --read >/dev/null
    # Update declared dimensions atomically
-   eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+   GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
    _PROFILE="$GSTACK_STATE_ROOT/developer-profile.json"
    bun -e "
      const fs = require('fs');
@@ -236,7 +236,7 @@ explicit.
 
 2. Touch the marker so the Setup gate doesn't re-fire:
    ```bash
-   eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+   GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
    touch "$GSTACK_STATE_ROOT"/.declared-setup-prompted
    ```
    Touch it even if the user bails out partway — they were asked; they chose
@@ -292,8 +292,8 @@ Parse the JSON. Present in **plain English**, not raw floats:
 ## Review question log
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+SLUG=$(~/.claude/skills/gstack/bin/gstack-slug --get SLUG 2>/dev/null)
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 _LOG="$GSTACK_STATE_ROOT/projects/$SLUG/question-log.jsonl"
 if [ ! -f "$_LOG" ]; then
   echo "NO_LOG"
@@ -387,7 +387,7 @@ is a trust boundary (Codex #15 in the design doc).
 
 3. After Y, write:
    ```bash
-   eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+   GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
    _PROFILE="$GSTACK_STATE_ROOT/developer-profile.json"
    bun -e "
      const fs = require('fs');
@@ -432,8 +432,8 @@ cycle cost-to-date.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-question-preference --stats
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+SLUG=$(~/.claude/skills/gstack/bin/gstack-slug --get SLUG 2>/dev/null)
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 _LOG="$GSTACK_STATE_ROOT/projects/$SLUG/question-log.jsonl"
 if [ -f "$_LOG" ]; then
   bun -e "
@@ -484,8 +484,8 @@ Show the last 10 questions where the PreToolUse hook auto-decided (source=
 any that misfired via `always-ask`.
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+SLUG=$(~/.claude/skills/gstack/bin/gstack-slug --get SLUG 2>/dev/null)
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 _LOG="$GSTACK_STATE_ROOT/projects/$SLUG/question-log.jsonl"
 [ ! -f "$_LOG" ] && echo 'NO_LOG' || bun -e "
   const lines = require('fs').readFileSync('$_LOG','utf-8').trim().split('\n').filter(Boolean);
@@ -516,8 +516,8 @@ the skill template — D18 progressive markers). Surfacing them drives marker
 adoption: high-traffic unmarked questions are the next candidates to retrofit.
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+SLUG=$(~/.claude/skills/gstack/bin/gstack-slug --get SLUG 2>/dev/null)
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 _LOG="$GSTACK_STATE_ROOT/projects/$SLUG/question-log.jsonl"
 [ ! -f "$_LOG" ] && echo 'NO_LOG' || bun -e "
   const lines = require('fs').readFileSync('$_LOG','utf-8').trim().split('\n').filter(Boolean);

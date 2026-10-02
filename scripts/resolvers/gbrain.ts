@@ -179,7 +179,7 @@ present in the loaded context; ground recommendations in what the brain
 prints for this skill.
 
 \`\`\`bash
-eval "$(${binDir}/gstack-slug 2>/dev/null)" 2>/dev/null || true
+SLUG=$(${binDir}/gstack-slug --get SLUG 2>/dev/null) || true
 {
   printf '## Brain Context\\n\\n'
 ${loadLines}
@@ -218,7 +218,7 @@ This is non-blocking — the user doesn't wait. Next invocation benefits
 from the warm cache.`}
 
 \`\`\`bash
-eval "$(${binDir}/gstack-slug 2>/dev/null)" 2>/dev/null || true
+SLUG=$(${binDir}/gstack-slug --get SLUG 2>/dev/null) || true
 (${binDir}/gstack-brain-cache refresh --project "$SLUG" 2>/dev/null &) || true
 \`\`\`
 `;
@@ -267,7 +267,7 @@ source_skill: ${ctx.skillName}
 After write, invalidate affected digests:
 
 \`\`\`bash
-eval "$(${ctx.paths.binDir}/gstack-slug 2>/dev/null)" 2>/dev/null || true
+SLUG=$(${ctx.paths.binDir}/gstack-slug --get SLUG 2>/dev/null) || true
 ${invalidateBash || '  # (no per-skill invalidation targets configured)'}
 \`\`\``;
 }

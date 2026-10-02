@@ -172,6 +172,46 @@ describe('gstack-paths', () => {
   });
 });
 
+// Skill bash blocks read one value with --get (#2763): worktree-isolated
+// Claude Code sessions refuse eval/source but run NAME=$(literal --get NAME).
+describe('gstack-paths --get', () => {
+  function assignRoundTrip(env: Record<string, string | undefined>, name: string): { status: number | null; value: string; stderr: string } {
+    const result = spawnSync('bash', ['-c', `V=$(bash "$1" --get ${name}); : "\${V:?gstack-paths failed}"; printf '%s' "$V"`, 'sh', BIN], {
+      env: { PATH: process.env.PATH, USERPROFILE: '', ...env } as Record<string, string>,
+      encoding: 'utf-8',
+      timeout: 30_000,
+    });
+    return { status: result.status, value: result.stdout, stderr: result.stderr };
+  }
+  const evalValue = (env: Record<string, string | undefined>, name: string) => spawnSync('bash', ['-c', `eval "$(bash "$1")"; printf '%s' "\${${name}}"`, 'sh', BIN], {
+    env: { PATH: process.env.PATH, USERPROFILE: '', ...env } as Record<string, string>, encoding: 'utf-8', timeout: 30_000,
+  }).stdout;
+
+  test('each name matches the eval output, byte for byte', () => {
+    const env = { GSTACK_HOME: '/tmp/state root', TMPDIR: '/tmp/two words/', HOME: "/tmp/o'brien" };
+    for (const name of ['GSTACK_STATE_ROOT', 'PLAN_ROOT', 'TMP_ROOT']) {
+      const got = assignRoundTrip(env, name);
+      expect(got.status).toBe(0);
+      expect(got.value).toBe(evalValue(env, name));
+    }
+    expect(assignRoundTrip(env, 'GSTACK_STATE_ROOT').value).toBe('/tmp/state root');
+    expect(assignRoundTrip(env, 'TMP_ROOT').value).toBe('/tmp/two words');
+  });
+
+  test('a backslash path needs no quoting round-trip', () => {
+    if (process.platform === 'win32') return; // MSYS rewrites backslashes in env values (see #2374 tests)
+    expect(assignRoundTrip({ TMPDIR: '/tmp/back\\slash/dir', HOME: '/h' }, 'TMP_ROOT').value).toBe('/tmp/back\\slash/dir');
+  });
+
+  test('an unknown name is a usage error with empty stdout, so the caller guard fires', () => {
+    const got = assignRoundTrip({ HOME: '/h' }, 'NOPE');
+    expect(got.status).not.toBe(0);
+    expect(got.value).toBe('');
+    expect(got.stderr).toContain('usage: gstack-paths --get');
+    expect(got.stderr).toContain('gstack-paths failed');
+  });
+});
+
 describe('CEO plan persistence uses the selected state root', () => {
   for (const source of ['SKILL.md.tmpl', 'SKILL.md']) {
     for (const route of ['explicit', 'plugin', 'home'] as const) {

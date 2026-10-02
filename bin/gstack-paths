@@ -3,6 +3,8 @@
 # Usage: eval "$(gstack-paths)"  → sets GSTACK_STATE_ROOT, PLAN_ROOT, TMP_ROOT
 # Or:    gstack-paths            → prints GSTACK_STATE_ROOT=... etc.
 #        gstack-paths --explain  → which variable selected the state root, and why
+#        gstack-paths --get NAME → print one raw value (NAME = GSTACK_STATE_ROOT,
+#                                  PLAN_ROOT or TMP_ROOT); exits 1 on failure
 #
 # Resolves three roots with explicit fallback chains so skills work the same
 # whether installed as a Claude Code plugin (CLAUDE_PLUGIN_DATA / CLAUDE_PLANS_DIR
@@ -22,6 +24,10 @@
 #
 # Callers guard the eval, because eval "$(f)" succeeds even when f fails:
 #   eval "$(gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+# Skill bash blocks use --get instead (#2763): worktree-isolated Claude Code
+# sessions refuse any eval/source, but run a plain assignment from a literal
+# command, guarded the same way:
+#   GSTACK_STATE_ROOT=$(gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 #
 # Output: values are emitted shell-quoted (printf %q) so `eval` round-trips them
 # byte-for-byte. This matters on Windows, where $TMP is a backslash path like
@@ -138,6 +144,16 @@ _tmp_root="${_tmp_root%/}"
 # Best-effort mkdir; if it fails (read-only fs, permission denied), the caller
 # will discover that on their own write attempt. Don't fail the eval here.
 mkdir -p "$_tmp_root" 2>/dev/null || true
+
+if [ "${1:-}" = "--get" ]; then
+  case "${2:-}" in
+    GSTACK_STATE_ROOT) printf '%s\n' "$_state_root" ;;
+    PLAN_ROOT) printf '%s\n' "$_plan_root" ;;
+    TMP_ROOT) printf '%s\n' "$_tmp_root" ;;
+    *) echo "usage: gstack-paths --get GSTACK_STATE_ROOT|PLAN_ROOT|TMP_ROOT" >&2; exit 2 ;;
+  esac
+  exit 0
+fi
 
 printf 'GSTACK_STATE_ROOT=%q\n' "$_state_root"
 printf 'PLAN_ROOT=%q\n' "$_plan_root"

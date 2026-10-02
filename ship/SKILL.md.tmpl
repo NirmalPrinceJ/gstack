@@ -500,7 +500,7 @@ git config --get core.hooksPath >/dev/null 2>&1 || _HOOKS_CONFIG_STATUS=$?
 if [ -n "$_HOOK_PATH" ] && [ -n "$_HOOKS_DIR" ] && [ "$_HOOKS_CONFIG_STATUS" = "1" ] && [ ! -L "$_HOOKS_DIR" ]; then
   _HOOKS_IN_GIT_DIR="yes"
 fi
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 _PREPUSH_PROMPTED=$([ -f "$GSTACK_STATE_ROOT/.redact-prepush-prompted" ] && echo "yes" || echo "no")
 if [ "$_REDACT_PREPUSH" = "true" ] && [ "$_HOOKS_IN_GIT_DIR" = "yes" ] && [ "$_HOOK_STATE" != "unmanaged" ]; then
   ~/.claude/skills/gstack/bin/gstack-redact install-prepush-hook || exit $?
@@ -538,7 +538,7 @@ Branch on the echoed values:
    ALWAYS (after either answer, but NOT if the question itself failed to
    render — a failed AskUserQuestion must re-offer next time):
    ```bash
-   eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+   GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
    touch "$GSTACK_STATE_ROOT/.redact-prepush-prompted"
    ```
 3. **Declined earlier** — continue
@@ -552,7 +552,7 @@ REMOTE_REF=$(git ls-remote --heads origin refs/heads/<branch-name>) || {
   echo "STATUS: BLOCKED — cannot verify remote branch; restore access before pushing"
   exit 1
 }
-REMOTE=$(printf '%s\n' "$REMOTE_REF" | awk '{print $1}')
+REMOTE=$(printf '%s\n' "$REMOTE_REF" | awk '{print $(1)}')
 REMOTE=${REMOTE:-none}
 echo "LOCAL: $LOCAL  REMOTE: $REMOTE"
 [ "$LOCAL" = "$REMOTE" ] && echo "ALREADY_PUSHED" || echo "PUSH_NEEDED"
@@ -624,7 +624,7 @@ The shell supplies the branch. Run this automatically, without confirmation.
 After a successful ship, show the non-blocking /plan-tune nudge once per machine:
 
 ```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 _NUDGE_MARKER="$GSTACK_STATE_ROOT/.plan-tune-nudge-shown"
 _QT=$(~/.claude/skills/gstack/bin/gstack-config get question_tuning 2>/dev/null || echo "false")
 if [ ! -f "$_NUDGE_MARKER" ] && [ "$_QT" = "false" ]; then
