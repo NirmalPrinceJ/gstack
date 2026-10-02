@@ -59,7 +59,7 @@ function setupWorkdir(suffix: string): { workDir: string; gstackHome: string; sl
   const binDir = path.join(workDir, 'bin');
   fs.mkdirSync(binDir, { recursive: true });
   for (const script of [
-    'gstack-timeline-log', 'gstack-timeline-read', 'gstack-slug', 'gstack-state-root.sh',
+    'gstack-timeline-log', 'gstack-timeline-read', 'gstack-slug', 'gstack-state-root.sh', 'gstack-remote-identity.sh',
     'gstack-learnings-log', 'gstack-learnings-search',
     'gstack-update-check', 'gstack-config', 'gstack-repo-mode', 'gstack-paths',
   ]) {

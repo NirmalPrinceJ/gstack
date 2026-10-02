@@ -1938,6 +1938,7 @@ describe('BENEFITS_FROM resolver', () => {
       fs.copyFileSync(path.join(ROOT, 'bin/gstack-slug'), helper);
       fs.chmodSync(helper, 0o755);
       fs.copyFileSync(path.join(ROOT, 'bin/gstack-state-root.sh'), path.join(path.dirname(helper), 'gstack-state-root.sh'));
+      fs.copyFileSync(path.join(ROOT, 'bin/gstack-remote-identity.sh'), path.join(path.dirname(helper), 'gstack-remote-identity.sh'));
       const expected = path.join(home, '.gstack/projects/canonical-override/session-unknown-design-current.md');
       const wrong = path.join(home, '.gstack/projects/project/session-unknown-design-wrong.md');
       for (const file of [expected, wrong]) {

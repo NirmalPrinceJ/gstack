@@ -90,6 +90,50 @@ Trust-policy deny tiers merge the same way: a `deny` or `read-only` entry in
 `~/.gstack/gbrain-repo-policy.json` still applies when your resolved root is
 elsewhere. Nothing is ever written to the other root.
 
+## Project buckets
+
+Per-project state (checkpoints, learnings, timeline, question preferences)
+lives in `projects/<slug>/`. `bin/gstack-slug` picks the slug from the git
+`origin` remote:
+
+- A 2-segment remote (`github.com/owner/repo`) files under `owner-repo`.
+- A remote with 3 or more path segments (GitLab nested groups such as
+  `gitlab.com/customer-a/product/repo`, Azure DevOps) files under
+  `product-repo-<16 hex>`. The hex is a digest of the canonical remote, so
+  `customer-a/product/repo` and `customer-b/product/repo` get separate buckets,
+  and the ssh, https and ssh-with-port spellings of one repository share one.
+- Without a remote, the project root's directory name is used.
+
+The first slug gstack resolves in a directory sticks (it is cached under
+`slug-cache/`), so a project keeps its bucket when it adds a remote later.
+
+**Upgrading from a version that used one bucket for nested groups.** Earlier
+versions filed every `<group>/product/repo` under `product-repo`. That bucket
+stays where it is; gstack neither moves nor deletes it. The first time gstack
+resolves the new slug it prints one notice naming both buckets, and
+`/context-restore` reports the old bucket while it still holds checkpoints. To
+bring earlier files across, run this in the project:
+
+```bash
+~/.claude/skills/gstack/bin/gstack-slug --adopt-legacy
+```
+
+It lists every file in the old bucket. Checkpoints are marked as matching this
+project, another project (never copied), or unknown (saved before checkpoints
+recorded their project). Files with no project identity (question
+preferences, learnings, timeline) may belong to any project that shared the
+bucket, so they are listed for you to decide. On a terminal it asks per file;
+otherwise copy chosen files with
+`gstack-slug --adopt-legacy --copy <path> [<path>...]`. Nothing is copied
+without your confirmation, and nothing in the new bucket is overwritten.
+
+**Pinning a slug.** Set `GSTACK_PROJECT_SLUG=<name>` to choose the bucket
+yourself, for example in the project's `.claude/settings.local.json`
+(`"env": {"GSTACK_PROJECT_SLUG": "<name>"}`). Use it when an ssh host alias
+(`git@work-gitlab:group/sub/repo`) gives a different host than the https
+remote, or for a vendored sub-repo that should be its own project. The pin is
+applied per run and never cached.
+
 ## Uninstall
 
 `gstack-uninstall` deletes state only at `~/.gstack`.

@@ -219,7 +219,7 @@ Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
     // identically on main).
     const binDir = path.join(opDir, 'bin');
     fs.mkdirSync(binDir, { recursive: true });
-    for (const script of ['gstack-learnings-log', 'gstack-slug', 'gstack-state-root.sh']) {
+    for (const script of ['gstack-learnings-log', 'gstack-slug', 'gstack-state-root.sh', 'gstack-remote-identity.sh']) {
       fs.copyFileSync(path.join(ROOT, 'bin', script), path.join(binDir, script));
       fs.chmodSync(path.join(binDir, script), 0o755);
     }

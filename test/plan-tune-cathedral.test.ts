@@ -44,6 +44,7 @@ function scaffoldFixture(workDir: string): { workDir: string; stateRoot: string;
     'gstack-distill-free-text',
     'gstack-distill-apply',
     'gstack-state-root.sh',
+    'gstack-remote-identity.sh',
   ]) {
     const src = path.join(ROOT, 'bin', script);
     if (fs.existsSync(src)) {
@@ -69,7 +70,7 @@ function scaffoldFixture(workDir: string): { workDir: string; stateRoot: string;
   // These imports are resolved relative to the copied install, not the source checkout.
   const libDir = path.join(workDir, 'lib');
   fs.mkdirSync(libDir, { recursive: true });
-  for (const file of ['jsonl-store.ts', 'is-conductor.ts', 'state-root.ts']) {
+  for (const file of ['jsonl-store.ts', 'is-conductor.ts', 'state-root.ts', 'bin-context.ts', 'remote-identity.ts']) {
     fs.copyFileSync(path.join(ROOT, 'lib', file), path.join(libDir, file));
   }
 
@@ -169,6 +170,15 @@ describe('PlanTune cathedral E2E: enforcement', () => {
       path.join(fixture.stateRoot, 'projects', fixture.slug, 'question-preferences.json'),
       JSON.stringify({ 'ship-changelog-voice-polish': 'never-ask' }),
     );
+    // The skill preamble runs gstack-slug before any question; the hook reads
+    // the project bucket from the versioned slug-cache entry it writes (#2901).
+    const slugRun = spawnSync(path.join(fixture.workDir, 'bin', 'gstack-slug'), [], {
+      cwd: fixture.workDir,
+      env: { ...fixture.env, GSTACK_STATE_ROOT: fixture.stateRoot },
+      encoding: 'utf-8',
+      timeout: 30_000,
+    });
+    expect(slugRun.stdout).toContain(`SLUG=${fixture.slug}`);
     const hookPath = path.join(
       fixture.workDir,
       'hosts',

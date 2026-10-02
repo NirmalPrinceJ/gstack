@@ -15,6 +15,7 @@ import * as path from 'path';
 import { mkdirSecure } from './file-permissions';
 import { safeUnlinkQuiet } from './error-handling';
 import { readConfigKey, resolveStateRoot } from '../../lib/state-root';
+import { remoteSlug } from '../../lib/remote-identity';
 
 export interface BrowseConfig {
   projectDir: string;
@@ -156,7 +157,9 @@ export function ensureStateDir(config: BrowseConfig): void {
 }
 
 /**
- * Derive a slug from the git remote origin URL (owner-repo format).
+ * Derive a slug from the git remote origin URL via the shared rule in
+ * lib/remote-identity.ts (owner-repo; "<last-two>-<16 hex>" for 3+-segment
+ * nested-group remotes, #3003), so browse files state where gstack-slug does.
  * Falls back to the directory basename if no remote is configured.
  */
 export function getRemoteSlug(): string {
@@ -168,11 +171,8 @@ export function getRemoteSlug(): string {
       timeout: 2_000,
     });
     if (proc.exitCode !== 0) throw new Error('no remote');
-    const url = proc.stdout.toString().trim();
-    // SSH:   git@github.com:owner/repo.git → owner-repo
-    // HTTPS: https://github.com/owner/repo.git → owner-repo
-    const match = url.match(/[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
-    if (match) return `${match[1]}-${match[2]}`;
+    const slug = remoteSlug(proc.stdout.toString().trim());
+    if (slug) return slug;
     throw new Error('unparseable');
   } catch {
     const root = getGitRoot();
