@@ -192,7 +192,7 @@ test('current detach supervision covers the live-census floor', () => {
   expect(floorFor('gate')).toBe(21_725);
   expect(gateTimeout).toBe(49_320);
   expect(gateTimeout).toBeGreaterThanOrEqual(floorFor('gate'));
-  expect(floorFor('periodic')).toBe(33_821);
+  expect(floorFor('periodic')).toBe(35_711);
   expect(periodicTimeout).toBeGreaterThanOrEqual(floorFor('periodic'));
 });
 

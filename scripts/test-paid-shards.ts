@@ -105,7 +105,7 @@ import {
 export { PAID_TEST_GLOBS, isPaidTestFile };
 export { PERIODIC_CI_EXCLUDE };
 
-import { shardFile, shardCaseId, shardTrial, trialShardKey, type CaseTrialPlan, caseTrialPlan, excludedCasesNamePattern, caseTestNamePattern, expandCaseShards, expandTrialShards, partitionCaseExclusions } from './lib/paid-cases';
+import { scopeCodexAccess, shardFile, shardCaseId, shardTrial, trialShardKey, type CaseTrialPlan, caseTrialPlan, excludedCasesNamePattern, caseTestNamePattern, expandCaseShards, expandTrialShards, partitionCaseExclusions } from './lib/paid-cases';
 import { retriesForFiles, trialPanelKey, sliceExecutionOrder, buildRunManifest, parseRunManifest, type SliceResult, sliceExitCode, guardTrialRecords, formatSlicePlan, formatCapacityPreflight } from './lib/paid-plan';
 import { caseFile, runCaseDiagnosis, formatPanelLine, runPaidReport } from './lib/paid-report';
 export * from './lib/paid-cases';
@@ -953,6 +953,7 @@ export async function runPaidShard(
   const expectedCases = options.expectedCases ?? (caseId !== null ? { [files[0]!]: 1 } : undefined);
 
   const baseEnv = { ...(options.env ?? process.env) };
+  scopeCodexAccess(baseEnv, files.map(shardFile));
   if (options.evalDirBase) {
     baseEnv.GSTACK_EVAL_DIR = path.join(options.evalDirBase, 'shards', shardSlug(files));
   }

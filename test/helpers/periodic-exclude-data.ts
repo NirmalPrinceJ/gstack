@@ -15,26 +15,6 @@
  * the re-entry mechanism.
  */
 export const PERIODIC_CI_EXCLUDE: Record<string, { reason: string; tracking: string }> = {
-  'test/codex-e2e.test.ts': {
-    reason: 'the codex CLI is not installed in the CI image (Dockerfile.ci ships only claude-code); every case self-skips',
-    tracking: 'TODOS.md "CI-unrunnable paid evals" (re-entry: the CLI/device is available in the CI image; review by 2026-12-28)',
-  },
-  'test/codex-e2e-sol-scope.test.ts': {
-    reason: 'the codex CLI is not installed in the CI image (Dockerfile.ci ships only claude-code); every case self-skips',
-    tracking: 'TODOS.md "CI-unrunnable paid evals" (re-entry: the CLI/device is available in the CI image; review by 2026-12-28)',
-  },
-  'test/codex-e2e-shared-libs.test.ts': {
-    reason: 'the codex CLI is not installed in the CI image (Dockerfile.ci ships only claude-code); every case self-skips',
-    tracking: 'TODOS.md "CI-unrunnable paid evals" (re-entry: the CLI/device is available in the CI image; review by 2026-12-28)',
-  },
-  'test/codex-e2e-recommendation-substance.test.ts': {
-    reason: 'the codex CLI is not installed in the CI image (Dockerfile.ci ships only claude-code); every case self-skips',
-    tracking: 'TODOS.md "CI-unrunnable paid evals" (re-entry: the CLI/device is available in the CI image; review by 2026-12-28)',
-  },
-  'test/skill-e2e-outside-voice.test.ts': {
-    reason: 'needs both the claude and codex CLIs; codex is not in the CI image, so every case self-skips',
-    tracking: 'TODOS.md "CI-unrunnable paid evals" (re-entry: the CLI/device is available in the CI image; review by 2026-12-28)',
-  },
   'test/skill-e2e-aside.test.ts': {
     reason: 'needs macOS with the Aside app open (asideAvailable()); CI runners are Linux, so every case self-skips',
     tracking: 'TODOS.md "CI-unrunnable paid evals" (re-entry: the CLI/device is available in the CI image; review by 2026-12-28)',

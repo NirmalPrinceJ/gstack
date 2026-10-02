@@ -274,6 +274,29 @@ jobs:
           mkdir -p /tmp/paid-slice-results/receipts
           if [ -d /tmp/paid-plan/receipts ]; then cp -a /tmp/paid-plan/receipts/. /tmp/paid-slice-results/receipts/; fi
 
+      # The image ships the pinned Codex CLI off PATH and without a
+      # credential; codex does not read OPENAI_API_KEY from the environment.
+      # Log it in from the secret (same-repo runs only) under a non-default
+      # home. The shard runner hands that home and the CLI to the Codex files
+      # only (scripts/lib/paid-cases.ts scopeCodexAccess); every other paid case sees no
+      # Codex, as before. Without a key the Codex cases fail; they never pass.
+      - name: Authenticate the Codex CLI
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          codex="${GSTACK_CI_CODEX_BIN_DIR:?}/codex"
+          export CODEX_HOME="$HOME/.gstack-ci-codex"
+          mkdir -p "$CODEX_HOME"
+          echo "GSTACK_CI_CODEX_HOME=$CODEX_HOME" >> "$GITHUB_ENV"
+          if [ -z "${OPENAI_API_KEY:-}" ]; then
+            echo "::warning::OPENAI_API_KEY is unavailable; Codex eval cases cannot authenticate and will fail."
+            exit 0
+          fi
+          printenv OPENAI_API_KEY | "$codex" login --with-api-key
+          "$codex" login status >/dev/null 2>&1
+
       - name: Run slice ${{ matrix.slice }}
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

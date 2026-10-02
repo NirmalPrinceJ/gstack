@@ -451,8 +451,13 @@ describeIfSelected('Codex skill E2E', ['codex-review'], () => {
   });
 
   testConcurrentIfSelected('codex-review', async () => {
-    // Check codex is available — skip if not installed
-    const codexCheck = spawnSync('which', ['codex'], { stdio: 'pipe', timeout: 3000 });
+    // Check codex is available — skip if not installed. In CI only this case
+    // opts in to the image's off-PATH Codex (scripts/lib/paid-cases.ts scopeCodexAccess).
+    const ciCodexBin = process.env.GSTACK_CI_CODEX_BIN_DIR, ciCodexHome = process.env.GSTACK_CI_CODEX_HOME;
+    const codexEnv: Record<string, string> = ciCodexBin
+      ? { PATH: `${ciCodexBin}${path.delimiter}${process.env.PATH ?? ''}`, ...(ciCodexHome ? { CODEX_HOME: ciCodexHome } : {}) }
+      : {};
+    const codexCheck = spawnSync('which', ['codex'], { stdio: 'pipe', timeout: 3000, env: { ...process.env, ...codexEnv } });
     if (codexCheck.status !== 0) {
       console.warn('codex CLI not installed — skipping E2E test');
       return;
@@ -469,6 +474,7 @@ Write the full output (including the GATE verdict) to ${codexDir}/codex-output.m
       testName: 'codex-review',
       runId,
       model: resolveEvalModel('capture'),
+      env: codexEnv,
     });
 
     logCost('/codex review', result);

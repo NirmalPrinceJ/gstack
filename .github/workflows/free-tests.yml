@@ -91,6 +91,43 @@ jobs:
           for file in "${files[@]}"; do test -f "$file"; done
           bun test "${files[@]}"
 
+  # Named regressions that only reproduce on macOS's default temp root:
+  # $TMPDIR sits under /var/folders and /var is a symlink to /private/var, so
+  # code that compares a realpath with an unresolved path passes on Linux's
+  # /tmp and fails here (#2982). TMPDIR is deliberately left at the runner's
+  # default, and the job fails if that layout is not symlinked.
+  macos-named-regressions:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.0
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Build browser prerequisites
+        run: |
+          bunx playwright install chromium
+          bun run build
+      - name: Configure git identity (tests init temp repos)
+        run: |
+          git config --global user.email "free-tests-ci@gstack.test"
+          git config --global user.name "Free Tests CI"
+          git config --global init.defaultBranch main
+      - name: Run the named macOS regressions on the default temp root
+        run: |
+          set -euo pipefail
+          tmp="${TMPDIR:-/tmp}"
+          resolved="$(realpath "$tmp")"
+          echo "temp root: $tmp -> $resolved"
+          test "$resolved" != "${tmp%/}"
+          files=(test/gstack-design-detect.test.ts browse/test/chromium-profile-isolation.test.ts test/cso-git-hardening.test.ts test/plan-count-file-permission.test.ts test/spec-quality-gate-secret-sink.test.ts test/gstack-memory-ingest.test.ts)
+          for file in "${files[@]}"; do test -f "$file"; done
+          bun test "${files[@]}"
+
   cso-windows-launcher:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -178,7 +215,7 @@ jobs:
           name: free-plan
           path: ${{ runner.temp }}
 
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.bun/install/cache
           key: linux-bun-${{ hashFiles('bun.lock') }}
@@ -189,7 +226,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: ~/.cache/ms-playwright
           key: linux-playwright-${{ hashFiles('bun.lock') }}
@@ -323,15 +360,16 @@ jobs:
   # gate is merge-blocking without a separate branch-protection migration.
   free-tests:
     if: always()
-    needs: [free-suite, typecheck, cso-macos-launcher, cso-windows-launcher, cso-docker-integration]
+    needs: [free-suite, typecheck, cso-macos-launcher, macos-named-regressions, cso-windows-launcher, cso-docker-integration]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Require the free suite, typecheck, and every CSO platform gate
+      - name: Require the free suite, typecheck, macOS regressions, and every CSO platform gate
         env:
           FREE_SUITE_RESULT: ${{ needs.free-suite.result }}
           TYPECHECK_RESULT: ${{ needs.typecheck.result }}
           CSO_MACOS_RESULT: ${{ needs.cso-macos-launcher.result }}
+          MACOS_REGRESSIONS_RESULT: ${{ needs.macos-named-regressions.result }}
           CSO_WINDOWS_RESULT: ${{ needs.cso-windows-launcher.result }}
           CSO_DOCKER_RESULT: ${{ needs.cso-docker-integration.result }}
         run: |
@@ -339,6 +377,7 @@ jobs:
           test "$FREE_SUITE_RESULT" = success
           test "$TYPECHECK_RESULT" = success
           test "$CSO_MACOS_RESULT" = success
+          test "$MACOS_REGRESSIONS_RESULT" = success
           test "$CSO_WINDOWS_RESULT" = success
           test "$CSO_DOCKER_RESULT" = success
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

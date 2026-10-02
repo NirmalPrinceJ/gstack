@@ -230,3 +230,62 @@ export function partitionCaseExclusions(keys: string[]): { runnable: string[]; e
   });
   return { runnable, excluded };
 }
+
+/**
+ * Codex access in the CI eval image, scoped per paid shard.
+ *
+ * The image installs the pinned Codex CLI off PATH (GSTACK_CI_CODEX_BIN_DIR)
+ * and the eval workflows log it in under a non-default home
+ * (GSTACK_CI_CODEX_HOME). A gate shard never sees either. A non-gate shard
+ * whose every file exercises Codex gets the CLI on PATH and the home as
+ * CODEX_HOME. A file that mixes one Codex case with other cases keeps only
+ * the two variables, and that case opts in on its own session; hermetic
+ * child environments drop GSTACK_* names, so its sibling sessions see no
+ * Codex. Every other shard sees neither, so a skill's outside-voice probe
+ * (`command -v codex`) reports not_installed exactly as it did before Codex
+ * entered the image. Outside CI neither variable is set and nothing changes.
+ */
+export const CODEX_CI_ENV = { binDir: 'GSTACK_CI_CODEX_BIN_DIR', home: 'GSTACK_CI_CODEX_HOME' } as const;
+
+/** Paid files whose every case exercises the real Codex CLI. */
+export const CODEX_CI_FILES: readonly string[] = [
+  'test/codex-e2e.test.ts',
+  'test/codex-e2e-sol-scope.test.ts',
+  'test/codex-e2e-shared-libs.test.ts',
+  'test/codex-e2e-recommendation-substance.test.ts',
+  'test/skill-e2e-outside-voice.test.ts',
+  'test/skill-e2e-outside-plan-disabled.test.ts',
+];
+
+/**
+ * Codex cases inside files whose other cases must not see Codex. Each listed
+ * case opts in by putting $GSTACK_CI_CODEX_BIN_DIR on its own session PATH
+ * (inline, so the file's other touchfile keys do not grow a helper).
+ */
+export const CODEX_CI_CASES: Readonly<Record<string, readonly string[]>> = {
+  'test/skill-e2e-workflow.test.ts': ['codex-review'],
+};
+
+export type CodexShardAccess = 'none' | 'case-opt-in' | 'path';
+
+/** What one shard, given the test files behind its keys, may see of the CI Codex install in `tier`. */
+export function codexShardAccess(files: readonly string[], tier: string | undefined): CodexShardAccess {
+  if (tier === 'gate' || files.length === 0) return 'none';
+  if (files.every(file => CODEX_CI_FILES.includes(file))) return 'path';
+  return files.every(file => file in CODEX_CI_CASES) ? 'case-opt-in' : 'none';
+}
+
+/** Scope one shard's child environment in place; `files` are the shard keys' test files. */
+export function scopeCodexAccess(env: NodeJS.ProcessEnv, files: readonly string[]): void {
+  const binDir = env[CODEX_CI_ENV.binDir];
+  if (!binDir) return;
+  const home = env[CODEX_CI_ENV.home];
+  const access = codexShardAccess(files, env.EVALS_TIER);
+  delete env.CODEX_HOME;
+  if (access === 'case-opt-in') return;
+  delete env[CODEX_CI_ENV.binDir];
+  delete env[CODEX_CI_ENV.home];
+  if (access !== 'path') return;
+  env.PATH = env.PATH ? `${binDir}${path.delimiter}${env.PATH}` : binDir;
+  if (home) env.CODEX_HOME = home;
+}

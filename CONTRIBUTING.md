@@ -69,6 +69,17 @@ No setup needed. Learnings are logged automatically. View them with `/learn`.
 This is the best way to contribute: fix gstack while doing your real work, in the
 project where you actually felt the pain.
 
+**What CI does on a fork PR.** GitHub never gives a fork PR this repository's
+secrets, so CI runs everything that needs none: the required `free-tests` check
+(the Linux free suite, typecheck, the macOS and Windows gates), Windows Free
+Tests, Skill Docs Freshness, Workflow Lint, Version Gate, Quality gate, the
+make-pdf gate, and any path-triggered gates your change touches. E2E Evals
+still builds the CI image from your `Dockerfile.ci` without publishing it, and
+skips its paid eval jobs, which need provider API keys. That skip is expected
+and does not block your PR. It is also not a pass: a maintainer runs the paid
+evals from a branch in this repository before merging. A first-time
+contributor's runs wait for a maintainer to approve them.
+
 ### Session awareness
 
 When you have 3+ gstack sessions open simultaneously, every question tells you which project, which branch, and what's happening. No more staring at a question thinking "wait, which window is this?" The format is consistent across all skills.
