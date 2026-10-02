@@ -94,7 +94,7 @@ export function probeAside(timeoutMs = 30_000): AsideProbe {
 
 // ─── Spec ────────────────────────────────────────────────────────────────────
 
-/** CDP Page.printToPDF options, plus make-pdf's Paged.js wait. Inches for paper/margins. */
+/** CDP Page.printToPDF options, plus an optional Paged.js wait. Inches for paper/margins. */
 export interface PdfStepOptions {
   paperWidth?: number;
   paperHeight?: number;
@@ -112,7 +112,12 @@ export interface PdfStepOptions {
   generateDocumentOutline?: boolean;
   pageRanges?: string;
   scale?: number;
-  /** Wait (≤3s, non-fatal) for `window.__pagedjsAfterFired` before printing. */
+  /**
+   * Wait (≤3s, non-fatal) for `window.__pagedjsAfterFired` before printing —
+   * only for pages that load Paged.js themselves (gstack-render
+   * --wait-pagedjs). make-pdf ships no pagination script and never sets it:
+   * its TOC page numbers come from make-pdf/src/toc-pages.ts.
+   */
   waitForPagedJs?: boolean;
 }
 

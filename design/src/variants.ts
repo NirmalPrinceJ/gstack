@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
+import { imageRequestBody, modelRejectionHint } from "./models";
 import { parseBrief } from "./brief";
 import { normalizeIntFlag } from "./flag-utils";
 
@@ -54,6 +55,12 @@ export async function generateVariant(
   const MAX_RETRY_AFTER_MS = 60_000; // cap honored Retry-After to bound stalls
   let lastError = "";
   let skipLeadingDelay = false;
+  let body: string;
+  try {
+    body = imageRequestBody(prompt, { size, quality });
+  } catch (err: any) {
+    return { path: outputPath, success: false, error: err.message };
+  }
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (attempt > 0 && !skipLeadingDelay) {
@@ -74,11 +81,7 @@ export async function generateVariant(
           "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          model: "gpt-4o",
-          input: prompt,
-          tools: [{ type: "image_generation", size, quality }],
-        }),
+        body,
         signal: controller.signal,
       }, fetchFn);
 
@@ -117,7 +120,7 @@ export async function generateVariant(
         if (response.status === 403 && error.includes("organization must be verified")) {
           return { path: outputPath, success: false, error: "OpenAI organization verification required. Go to https://platform.openai.com/settings/organization to verify." };
         }
-        return { path: outputPath, success: false, error: `API error (${response.status}): ${error.slice(0, 200)}` };
+        return { path: outputPath, success: false, error: `API error (${response.status}): ${error.slice(0, 200)}${modelRejectionHint(response.status, error, "image")}` };
       }
 
       const data = await response.json() as any;

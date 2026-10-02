@@ -6,6 +6,7 @@ import fs from "fs";
 import path from "path";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
+import { imageRequestBody, modelRejectionHint } from "./models";
 import { parseBrief } from "./brief";
 import { createSession, sessionPath } from "./session";
 import { checkMockup } from "./check";
@@ -47,15 +48,7 @@ async function callImageGeneration(
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        input: prompt,
-        tools: [{
-          type: "image_generation",
-          size,
-          quality,
-        }],
-      }),
+      body: imageRequestBody(prompt, { size, quality }),
       signal: controller.signal,
     });
 
@@ -68,7 +61,7 @@ async function callImageGeneration(
           + "After verification, wait up to 15 minutes for access to propagate.",
         );
       }
-      throw new Error(`API error (${response.status}): ${error.slice(0, 200)}`);
+      throw new Error(`API error (${response.status}): ${error.slice(0, 200)}${modelRejectionHint(response.status, error, "image")}`);
     }
 
     const data = await response.json() as any;

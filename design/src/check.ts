@@ -1,11 +1,12 @@
 /**
  * Vision-based quality gate for generated mockups.
- * Uses GPT-4o vision to verify text readability, layout completeness, and visual coherence.
+ * Uses an OpenAI vision model (design/src/models.ts) to verify text readability, layout completeness, and visual coherence.
  */
 
 import fs from "fs";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
+import { modelRejectionHint, visionRequestBody } from "./models";
 
 export interface CheckResult {
   pass: boolean;
@@ -29,36 +30,32 @@ export async function checkMockup(imagePath: string, brief: string): Promise<Che
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: { url: `data:image/png;base64,${imageData}` },
-            },
-            {
-              type: "text",
-              text: [
-                "You are a UI quality checker. Evaluate this mockup against the design brief.",
-                "",
-                `Brief: ${brief}`,
-                "",
-                "Check these 3 things:",
-                "1. TEXT READABILITY: Are all labels, headings, and body text legible? Any misspellings?",
-                "2. LAYOUT COMPLETENESS: Are all requested elements present? Anything missing?",
-                "3. VISUAL COHERENCE: Does it look like a real production UI, not AI art or a collage?",
-                "",
-                "Respond with exactly one line:",
-                "PASS — if all 3 checks pass",
-                "FAIL: [list specific issues] — if any check fails",
-              ].join("\n"),
-            },
-          ],
-        }],
-        max_tokens: 200,
-      }),
+      body: visionRequestBody([{
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${imageData}` },
+          },
+          {
+            type: "text",
+            text: [
+              "You are a UI quality checker. Evaluate this mockup against the design brief.",
+              "",
+              `Brief: ${brief}`,
+              "",
+              "Check these 3 things:",
+              "1. TEXT READABILITY: Are all labels, headings, and body text legible? Any misspellings?",
+              "2. LAYOUT COMPLETENESS: Are all requested elements present? Anything missing?",
+              "3. VISUAL COHERENCE: Does it look like a real production UI, not AI art or a collage?",
+              "",
+              "Respond with exactly one line:",
+              "PASS — if all 3 checks pass",
+              "FAIL: [list specific issues] — if any check fails",
+            ].join("\n"),
+          },
+        ],
+      }], 200),
       signal: controller.signal,
     });
 
@@ -69,7 +66,7 @@ export async function checkMockup(imagePath: string, brief: string): Promise<Che
         return { pass: true, issues: "OpenAI org not verified — vision check skipped" };
       }
       // Non-blocking: if vision check fails, default to PASS with warning
-      console.error(`Vision check API error (${response.status}): ${error}`);
+      console.error(`Vision check API error (${response.status}): ${error}${modelRejectionHint(response.status, error, "vision")}`);
       return { pass: true, issues: "Vision check unavailable — skipped" };
     }
 

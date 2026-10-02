@@ -9,6 +9,7 @@ import fs from "fs";
 import path from "path";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
+import { imageRequestBody, modelRejectionHint, visionRequestBody } from "./models";
 
 export interface EvolveOptions {
   screenshot: string;  // Path to current site screenshot
@@ -18,7 +19,7 @@ export interface EvolveOptions {
 
 /**
  * Generate an evolved mockup from an existing screenshot + brief.
- * Sends the screenshot as context to GPT-4o with image generation,
+ * Sends the screenshot as context to the image model with image generation,
  * asking it to produce a new version incorporating the brief's changes.
  */
 export async function evolve(options: EvolveOptions): Promise<void> {
@@ -62,11 +63,7 @@ export async function evolve(options: EvolveOptions): Promise<void> {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        input: evolvedPrompt,
-        tools: [{ type: "image_generation", size: "1536x1024", quality: "high" }],
-      }),
+      body: imageRequestBody(evolvedPrompt, { size: "1536x1024", quality: "high" }),
       signal: controller.signal,
     });
 
@@ -79,7 +76,7 @@ export async function evolve(options: EvolveOptions): Promise<void> {
           + "After verification, wait up to 15 minutes for access to propagate.",
         );
       }
-      throw new Error(`API error (${response.status}): ${error.slice(0, 300)}`);
+      throw new Error(`API error (${response.status}): ${error.slice(0, 300)}${modelRejectionHint(response.status, error, "image")}`);
     }
 
     const data = await response.json() as any;
@@ -120,27 +117,25 @@ async function analyzeScreenshot(apiKey: string, imageBase64: string): Promise<s
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: { url: `data:image/png;base64,${imageBase64}` },
-            },
-            {
-              type: "text",
-              text: `Describe this UI in detail for re-creation. Include: overall layout structure, color scheme (hex values), typography (sizes, weights), specific text content visible, spacing between elements, alignment patterns, and any decorative elements. Be precise enough that someone could recreate this UI from your description alone. 200 words max.`,
-            },
-          ],
-        }],
-        max_tokens: 400,
-      }),
+      body: visionRequestBody([{
+        role: "user",
+        content: [
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${imageBase64}` },
+          },
+          {
+            type: "text",
+            text: `Describe this UI in detail for re-creation. Include: overall layout structure, color scheme (hex values), typography (sizes, weights), specific text content visible, spacing between elements, alignment patterns, and any decorative elements. Be precise enough that someone could recreate this UI from your description alone. 200 words max.`,
+          },
+        ],
+      }], 400),
       signal: controller.signal,
     });
 
     if (!response.ok) {
+      const error = await response.text();
+      console.error(`  Screenshot analysis failed (${response.status}): ${error.slice(0, 200)}${modelRejectionHint(response.status, error, "vision")}`);
       return "Unable to analyze screenshot";
     }
 
