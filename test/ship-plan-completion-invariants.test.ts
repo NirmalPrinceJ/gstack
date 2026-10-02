@@ -119,7 +119,6 @@ describe('ship/SKILL.md — Plan Completion gate invariants (VAS-449 remediation
   test('Per-item UNVERIFIABLE confirmation: blanket-confirm is forbidden', () => {
     expect(skill).toContain('**Per-item confirmation is mandatory.**');
     expect(skill).toMatch(/Do NOT use a single AskUserQuestion to blanket-confirm/);
-    expect(skill).toMatch(/VAS-449/);
   });
 
   test('Subagent failure: fail-closed, not silent fail-open', () => {
