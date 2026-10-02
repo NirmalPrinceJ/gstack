@@ -40,9 +40,10 @@ This is the gstack router. Its one job is to send the request to the right skill
 
 Best-effort, record which way you routed (never block on it). Set `ROUTE_OUTCOME` to
 `browse` (sent to /browse), `routed` (sent to another skill), or `direct` (answered
-directly, no skill matched):
+directly, no skill matched), and replace `SESSION_ID` with the value the skill-start
+output echoed:
 ```bash
-~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type route --skill gstack --outcome ROUTE_OUTCOME --session-id "$_SESSION_ID" 2>/dev/null || true
+~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type route --skill gstack --outcome ROUTE_OUTCOME --session-id "SESSION_ID" 2>/dev/null || true
 ```
 
 If `PROACTIVE` is `false`: do NOT proactively invoke or suggest other gstack skills during
