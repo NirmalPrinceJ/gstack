@@ -26,6 +26,11 @@
  *      cross_project_learnings ("unset triggers the first-time prompt") and
  *      redact_repo_visibility ("empty falls through to gh/glab detection")
  *      depend on receiving "" successfully.
+ *
+ * The reverse direction is pinned too: every key in the DEFAULTS table must
+ * be read by code (bin/, lib/, scripts/, setup, or a .tmpl), or be listed in
+ * PROSE_ONLY_KEYS with a reason. A documented setting no code reads is a
+ * switch that does nothing, which is how a consent choice once went unread.
  */
 
 import { describe, test, expect } from 'bun:test';
@@ -109,6 +114,74 @@ function keysReadInTree(root = ROOT): string[] {
   return [...keys].sort();
 }
 
+/**
+ * DEFAULTS-table keys no code reads. Each entry needs a reason; an empty list
+ * means every documented setting has a reader.
+ */
+const PROSE_ONLY_KEYS: Record<string, string> = {};
+
+const READER_DIRS = ['bin', 'lib', 'scripts'];
+const READER_FILES = ['setup'];
+
+/**
+ * Source text a config reader could live in: everything under READER_DIRS,
+ * READER_FILES, and every .tmpl in the tree. bin/gstack-config counts too,
+ * minus its documentation header and its DEFAULTS table.
+ */
+function readerCorpus(root = ROOT): string {
+  const files = new Set<string>();
+  const walk = (dir: string, all: boolean) => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const ent of entries) {
+      if (SKIP_DIRS.has(ent.name) || ent.isSymbolicLink()) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(full, all);
+      else if (all || ent.name.endsWith('.tmpl')) files.add(full);
+    }
+  };
+  for (const d of READER_DIRS) walk(path.join(root, d), true);
+  walk(root, false);
+  for (const f of READER_FILES) files.add(path.join(root, f));
+  return [...files]
+    .map((f) => {
+      let text = '';
+      try {
+        text = fs.readFileSync(f, 'utf-8');
+      } catch {
+        return '';
+      }
+      if (f === path.join(root, 'bin', 'gstack-config')) {
+        text = text.replace(/CONFIG_HEADER='[\s\S]*?\n'\n/, '').replace(/lookup_default\(\) \{[\s\S]*?\n\}/, '');
+      }
+      return text;
+    })
+    .join('\n');
+}
+
+/**
+ * A key counts as read when the corpus calls `gstack-config get|has <key>`
+ * (directly or through a variable naming the config binary), passes
+ * ['get', '<key>'] to a spawn, calls a config-reader function with the key,
+ * or anchors the YAML key (`^<key>:`). Wildcard keys match by prefix.
+ */
+function isReadInCorpus(arm: string, corpus: string): boolean {
+  const esc = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wildcard = arm.endsWith('*');
+  const k = wildcard ? esc(arm.slice(0, -1)) : `${esc(arm)}(?![A-Za-z0-9_])`;
+  const re = new RegExp([
+    `(?:gstack-config|\\$\\{?[A-Z_]*CONF[A-Z_]*\\}?)["']?[ \\t]+(?:get|has)[ \\t]+["']?${k}`,
+    `['"](?:get|has)['"]\\s*,\\s*['"]${k}`,
+    `(?:readConfigKey|readConfigKeyWithRoot|configValue|configGet|gstack_read_config_key|gstack_config_select)\\(?[ \\t]*['"\`]?${k}`,
+    `\\^${k}${wildcard ? '' : ':'}`,
+  ].join('|'));
+  return re.test(corpus);
+}
+
 describe('gstack-config defaults (gate, free)', () => {
   test('retired checkpoint keys have no defaults or advertised configuration', () => {
     expect(fs.readFileSync(CONFIG_BIN, 'utf8')).not.toMatch(/checkpoint/i);
@@ -144,6 +217,49 @@ describe('gstack-config defaults (gate, free)', () => {
     expect(arms.length).toBeGreaterThan(10); // the parse actually found the table
     const uncovered = keysReadInTree().filter((k) => !isCovered(k, arms));
     expect(uncovered).toEqual([]);
+  });
+
+  test('every DEFAULTS key is read by code or listed as prose-only', () => {
+    const corpus = readerCorpus();
+    const arms = defaultArms();
+    const unread = arms.filter((a) => !(a in PROSE_ONLY_KEYS) && !isReadInCorpus(a, corpus));
+    if (unread.length > 0) {
+      throw new Error(
+        `DEFAULTS keys with no reader: ${unread.join(', ')}. Fix one of two ways: ` +
+          `add the code that reads the key (gstack-config get/has <key> in bin/, lib/, scripts/, setup or a .tmpl), ` +
+          `or add it to PROSE_ONLY_KEYS in ${SELF} with the reason it has no reader.`,
+      );
+    }
+    const stale = Object.keys(PROSE_ONLY_KEYS).filter((k) => !arms.includes(k) || isReadInCorpus(k, corpus));
+    if (stale.length > 0) {
+      throw new Error(
+        `PROSE_ONLY_KEYS entries that are no longer prose-only: ${stale.join(', ')}. Fix one of two ways: ` +
+          `remove the entry because code now reads the key, or remove it because the key left the DEFAULTS table.`,
+      );
+    }
+  });
+
+  test('the reader matcher finds each reader form and nothing in prose', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-config-readers-'));
+    try {
+      fs.mkdirSync(path.join(root, 'bin'));
+      fs.mkdirSync(path.join(root, 'docs'));
+      fs.writeFileSync(path.join(root, 'bin', 'a'), [
+        'V=$("$CONFIG_BIN" get key_one 2>/dev/null)',
+        'gstack-config has key_two',
+        "spawnSync(bin, ['get', 'key_three'], { timeout: 2000 })",
+        "readConfigKey('key_four')",
+        'grep -E "^key_five_${hash}:" "$F"',
+      ].join('\n'));
+      fs.writeFileSync(path.join(root, 'docs', 'prose.md'), 'gstack-config get key_six\n');
+      fs.writeFileSync(path.join(root, 'skill.md.tmpl'), 'gstack-config get key_seven\n');
+      const corpus = readerCorpus(root);
+      const read = ['key_one', 'key_two', 'key_three', 'key_four', 'key_five_*', 'key_six', 'key_seven', 'key_one_more']
+        .filter((k) => isReadInCorpus(k, corpus));
+      expect(read).toEqual(['key_one', 'key_two', 'key_three', 'key_four', 'key_five_*', 'key_seven']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   test('an unknown key exits non-zero, so the caller fallback fires', () => {
