@@ -569,7 +569,8 @@ Prefer the richer of recent project test plans and plans in conversation over gi
 ## Phases 1-6: QA Baseline
 
 Follow the shared section's ordered preparation, then run its probe loop.
-The numbered browser phases label techniques, not another workflow.
+Inside that loop, browser runs apply qa-patterns.md's numbered Phases 1-6 as techniques
+and functional runs apply system-functional.md; neither is a separate workflow.
 
 > **STOP.** Before running the selected target's QA baseline and exploratory probes, with caller-owned authority, Read `sections/exploratory.md` relative to the installed `qa`/`gstack-qa` SKILL.md directory in full and follow it.
 > Use this host's installed path, never the product working directory or another host's assets.
@@ -632,7 +633,7 @@ Example: Value: protects=refundPayment rejects an empty reason; fails_when=the r
 Rejected (covered_elsewhere): "checkout renders"; checkout.e2e.ts:15 covers it, so extend that test.
 
 Extend an existing table or fixture when one covers the boundary; never add a production
-seam for the test. Match 2-3 nearby tests' naming, imports, assertions and fixtures. Reproduce the failure
+seam for the test. Match 2-3 nearby tests' naming, imports, assertions and fixtures, and detect the command that runs them. Reproduce the failure
 in a new native test. Run its detected command before repair; prove the defect caused its
 failure, not a bad fixture, import or service. Attribute it in the language's comment syntax:
 

@@ -218,3 +218,25 @@ console.log(JSON.stringify({attempts,total:clock,fileWall:1800000}));
     expect(proof.total).toBeLessThan(proof.fileWall);
   } finally { fs.rmSync(a.dir, { recursive: true, force: true }); }
 }, 25_000);
+
+test('the PTY state judge leaves the event loop to concurrent sessions while it waits', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pty-judge-'));
+  const claude = path.join(dir, 'claude');
+  const worker = path.join(dir, 'worker.ts');
+  try {
+    fs.writeFileSync(claude, '#!/bin/sh\ncat >/dev/null\nsleep 1\necho \'{"state":"waiting","reasoning":"fake judge"}\'\n', { mode: 0o755 });
+    fs.writeFileSync(worker, `import {judgePtyState} from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'test/helpers/claude-pty-runner.ts')).href)};
+const ticks=[];const timer=setInterval(()=>ticks.push(performance.now()),50);
+const verdict=await judgePtyState('Which layout? 1. One panel 2. Two panels',{testName:'nonblocking'});
+clearInterval(timer);
+console.log(JSON.stringify({state:verdict.state,elapsedMs:verdict.elapsedMs,ticks:ticks.length}));
+`);
+    const result = spawnSync(process.execPath, [worker], { cwd: ROOT, encoding: 'utf8', timeout: 15_000,
+      env: { ...process.env, BROWSE_TERMINAL_BINARY: claude, HOME: dir } });
+    expect(result.status, result.stdout + result.stderr).toBe(0);
+    const proof = JSON.parse(result.stdout.trim().split('\n').at(-1)!);
+    expect(proof.state).toBe('waiting');
+    expect(proof.elapsedMs).toBeGreaterThanOrEqual(1000);
+    expect(proof.ticks).toBeGreaterThanOrEqual(10);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}, 20_000);

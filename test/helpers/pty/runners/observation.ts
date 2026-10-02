@@ -399,7 +399,7 @@ async function observationTick(run: ObservationRun, session: ClaudePtySession): 
   if (elapsed > JUDGE_AFTER_MS && driver.now() - run.lastJudgeAt > JUDGE_INTERVAL_MS) {
     run.lastJudgeAt = driver.now();
     logPtySnapshot(visible, { testName: opts.skillName, elapsedMs: elapsed, tag: 'judge-tick' });
-    run.lastJudgeVerdict = judgePtyState(visible, { testName: opts.skillName });
+    run.lastJudgeVerdict = await judgePtyState(visible, { testName: opts.skillName });
     if (run.lastJudgeVerdict.state === 'waiting' && !pendingSeededCompletion) {
       run.waitingEverObserved = true;
       if (opts.requireProseEvidence && !run.proseAUQEverObserved) return 'continue';

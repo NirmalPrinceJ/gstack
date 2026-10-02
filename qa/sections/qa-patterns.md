@@ -54,6 +54,7 @@ Visit every reachable page (5-15 minutes). Score health; document 5-10 evidenced
 
 ### Regression (`--regression <baseline>`)
 Run Full; append fixed/new issues and score delta. Preserve the supplied prior baseline.
+A missing or unreadable baseline is a missing prerequisite: it blocks the comparison, not the Full run.
 
 ## Workflow
 

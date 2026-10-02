@@ -142,7 +142,7 @@ ${setupBlock}
 Report the exact output. Do NOT try to fix or install anything — just report what you see.`,
       workingDirectory: emptyDir,
       maxTurns: 5,
-      timeout: 30_000,
+      timeout: JUDGE_MS,
       testName: 'skillmd-no-local-binary',
       runId,
     });
@@ -183,7 +183,7 @@ ${setupBlock}
 Report the exact output — either "READY: <path>" or "NEEDS_SETUP".`,
       workingDirectory: nonGitDir,
       maxTurns: 5,
-      timeout: 30_000,
+      timeout: JUDGE_MS,
       testName: 'skillmd-outside-git',
       runId,
     });
@@ -259,7 +259,7 @@ Replace N with a confidence score 1-10.
 Log the operational learning now. Then say what you logged.`,
       workingDirectory: opDir,
       maxTurns: 5,
-      timeout: 30_000,
+      timeout: JUDGE_MS,
       testName: 'operational-learning',
       runId,
     });

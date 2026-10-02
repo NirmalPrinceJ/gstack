@@ -38,13 +38,17 @@ Set SECONDS to the shorter mode/caller limit; an unlimited mode uses the caller'
 Without a total time limit, do not start D; announce finite command timeouts.
 Stop when scoped contracts are tested or blocked.
 Clocks/checkpoints use REPORT_DIR; mixed standalone runs use REPORT_DIR/browser and REPORT_DIR/functional, with one final report at REPORT_DIR. Caller paths win.
-R = owned probe directory; D = R/deadline.json. Quote paths.
-G = `$HOME/.claude/skills/gstack/bin/gstack-qa-deadline`; Q = `$HOME/.claude/skills/gstack/bin/gstack-qa-evidence`.
+Names used below (quote every path):
+- R: this surface's owned probe directory, chosen above. D: `R/deadline.json`, which exists only for a bounded run.
+- SECONDS: the total probe budget set above. NNN: a fresh three-digit ID (001, 002, ...) for each capture or checkpoint; never reuse one.
+- G = `$HOME/.claude/skills/gstack/bin/gstack-qa-deadline`, the deadline guard: `start` creates D, `status` prints `remainingMs` and `expired`, and `run` executes one command, stopping it at the deadline.
+- Q = `$HOME/.claude/skills/gstack/bin/gstack-qa-evidence`, the functional evidence recorder: `capture` runs one command, stores its exit code, stdout and stderr under `R/.qa-evidence/NNN/`, and prints status `complete`, `incomplete` or `sensitive`.
+
 Start once before baseline: `bun G start D SECONDS [EARLIER_UTC]` if bounded.
 EARLIER_UTC = caller's absolute deadline, if set.
 Functional: `bun Q capture R NNN [--public] --deadline D -- COMMAND ARGS`.
-Unbounded: use `--timeout-ms MS` instead. Use fresh three-digit IDs.
---public requires approved public/synthetic output; Q screens credentials. For complete private captures, await a safe Read of `R/.qa-evidence/NNN/observation.json`. Sensitive/incomplete captures cannot anchor checkpoints.
+Unbounded: use `--timeout-ms MS` instead of `--deadline D`.
+--public requires approved public/synthetic output; Q screens credentials. For complete private captures, await a safe Read of `R/.qa-evidence/NNN/observation.json` (the decoded stdout). Sensitive/incomplete captures cannot anchor checkpoints.
 Bounded browsers: `bun G run D -- COMMAND ARGS`. No detached probes.
 Never reset D/bypass G. Expiry or invalid/missing D stops probes; report unfinished coverage. QA_DEADLINE receipts are not observations.
 
@@ -74,8 +78,8 @@ Never batch probes.
    Preserve every safe program-JSON key/value and identity hash unchanged.
    Withhold unsafe values, disclose limits and stop that chain.
    Check fields before publication. No drafts/placeholders or invented safe-path redactions; corrections cannot repair published notes.
-   Functional: the next capture publishes it: `... --after PREV --hypothesis 'why' -- CMD` (PREV: last complete capture). Q supplies observed; never transcribe it.
-   Browser checkpoints use Write.
+   Functional: do not write this file; the next capture publishes it: `bun Q capture R NNN --deadline D --after PREV --hypothesis 'why' -- CMD` (PREV: the last complete capture's ID). Q supplies observed; never transcribe it.
+   Browser checkpoints use Write: create the four-field file yourself.
    Wait for successful checkpoint publication before dispatch.
    Never backfill or overwrite notes.
 3. Run that exact probe; G enforces the deadline when bounded.

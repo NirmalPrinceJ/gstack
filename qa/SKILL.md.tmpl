@@ -126,7 +126,8 @@ Prefer the richer of recent project test plans and plans in conversation over gi
 ## Phases 1-6: QA Baseline
 
 Follow the shared section's ordered preparation, then run its probe loop.
-The numbered browser phases label techniques, not another workflow.
+Inside that loop, browser runs apply qa-patterns.md's numbered Phases 1-6 as techniques
+and functional runs apply system-functional.md; neither is a separate workflow.
 
 {{SECTION:exploratory}}
 
@@ -179,7 +180,7 @@ and unclear contracts never authorize repair.
 {{TEST_VALUE_BAR:qa}}
 
 Extend an existing table or fixture when one covers the boundary; never add a production
-seam for the test. Match 2-3 nearby tests' naming, imports, assertions and fixtures. Reproduce the failure
+seam for the test. Match 2-3 nearby tests' naming, imports, assertions and fixtures, and detect the command that runs them. Reproduce the failure
 in a new native test. Run its detected command before repair; prove the defect caused its
 failure, not a bad fixture, import or service. Attribute it in the language's comment syntax:
 

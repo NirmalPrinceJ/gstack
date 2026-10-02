@@ -5,7 +5,7 @@
 import * as fs from 'node:fs';
 import { resolveEvalModel } from '../../../lib/eval-model';
 import { createHash } from 'node:crypto';
-import { spawnSync as nodeSpawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { resolveClaudeBinary } from './binary';
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -85,15 +85,17 @@ export function logPtySnapshot(visible: string, ctx: { testName: string; elapsed
  * Implementation: spawns `claude -p --model claude-haiku-4-5` synchronously
  * with the prompt piped via stdin. Uses subscription auth (no API key env
  * required). 30-second timeout; returns 'unknown' on any failure mode
- * (timeout, malformed JSON, missing claude binary).
+ * (timeout, malformed JSON, missing claude binary). Asynchronous: a PTY
+ * session sharing this process (bun --concurrent) keeps reading its terminal
+ * and running its close deadlines while the judge waits.
  *
  * Cache: identical snapshot hashes return the cached verdict without
  * re-calling. Cache lives in-process; resets between test runs.
  */
-export function judgePtyState(
+export async function judgePtyState(
   visible: string,
   ctx?: { testName?: string },
-): PtyStateVerdict {
+): Promise<PtyStateVerdict> {
   // Normalize: strip trailing whitespace lines + take last 4KB. Hash the
   // normalized form so spinner-frame-only diffs (which all look "working")
   // don't bust the cache and rack up cost.
@@ -132,16 +134,22 @@ ${tail}
     // Use the same binary resolution as every PTY launch in this file —
     // judgePtyState previously hardcoded bare 'claude' three definitions
     // below resolveClaudeBinary(), breaking under hermetic PATHs.
-    const result = nodeSpawnSync(
-      resolveClaudeBinary() ?? 'claude',
-      ['-p', '--model', resolveEvalModel('warmup'), '--max-turns', '1'],
-      {
-        input: prompt,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 30_000,
-        encoding: 'utf-8',
-      },
-    );
+    const result = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve, reject) => {
+      const child = spawn(
+        resolveClaudeBinary() ?? 'claude',
+        ['-p', '--model', resolveEvalModel('warmup'), '--max-turns', '1'],
+        { stdio: ['pipe', 'pipe', 'pipe'] },
+      );
+      let stdout = '';
+      let stderr = '';
+      const timer = setTimeout(() => child.kill('SIGTERM'), 30_000);
+      child.stdout.setEncoding('utf-8').on('data', chunk => { stdout += chunk; });
+      child.stderr.setEncoding('utf-8').on('data', chunk => { stderr += chunk; });
+      child.stdin.on('error', () => {});
+      child.on('error', error => { clearTimeout(timer); reject(error); });
+      child.on('close', status => { clearTimeout(timer); resolve({ status, stdout, stderr }); });
+      child.stdin.end(prompt);
+    });
     const elapsedMs = Date.now() - judgeStart;
     if (result.status === 0 && result.stdout) {
       // Pull the first {...} JSON object out of stdout. Haiku occasionally
