@@ -245,10 +245,11 @@ compute_paths_to_stage() {
   local mode="$1"
   local class_file="${2:-}"
   local snapshot_file="${3:-}"
-  python3 - "$GSTACK_HOME" "$QUEUE_DIR" "$ALLOWLIST" "$PRIVACY_MAP" "$SKIP_FILE" "$mode" "$class_file" "$snapshot_file" <<'PYEOF'
+  local transcripts_ok="${4:-0}"
+  python3 - "$GSTACK_HOME" "$QUEUE_DIR" "$ALLOWLIST" "$PRIVACY_MAP" "$SKIP_FILE" "$mode" "$class_file" "$snapshot_file" "$transcripts_ok" <<'PYEOF'
 import sys, json, os, fnmatch, glob
 
-gstack_home, spool_dir, allowlist_path, privacy_path, skip_path, mode, class_file, snapshot_file = sys.argv[1:9]
+gstack_home, spool_dir, allowlist_path, privacy_path, skip_path, mode, class_file, snapshot_file, transcripts_ok = sys.argv[1:10]
 
 def load_lines(path):
     try:
@@ -365,6 +366,11 @@ for p in sorted(queue_paths):
     if not path_matches_any(p, allowlist_globs):
         classified["dropped"]["unmatched"].append(p)
         continue
+    # Staged transcript pages need transcript consent; without it they stay
+    # queued (retained) and on disk, and push once the user consents.
+    if transcripts_ok != "1" and p.split("/")[0] == "transcripts":
+        classified["retained"].append(p)
+        continue
     # Must survive privacy mode filter — held entries STAY QUEUED (retained):
     # they would sync under a higher artifacts_sync_mode, and reporting them
     # as "no allowlisted changes" was #2549's misattribution.
@@ -385,6 +391,17 @@ if class_file:
 for p in final:
     print(p)
 PYEOF
+}
+
+# Transcript consent: transcript_ingest_mode is recent or all (trimmed, any
+# case). An absent key, off, a legacy value or anything else is not consent.
+# Same rule as normalizeTranscriptConsent in gstack-memory-ingest.ts.
+transcripts_consented() {
+  "$CONFIG_BIN" has transcript_ingest_mode 2>/dev/null || return 1
+  local v
+  v=$("$CONFIG_BIN" get transcript_ingest_mode 2>/dev/null || true)
+  v=$(printf '%s' "$v" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')
+  [ "$v" = "recent" ] || [ "$v" = "all" ]
 }
 
 # Finalize the drain: delete exactly the spool record files this drain
@@ -659,7 +676,9 @@ subcmd_once() {
   # snapshot manifest but no classification. Finalizing on that state is what
   # used to wipe the queue — so on a nonzero exit, warn loudly, do NOT call
   # finalize_queue, and leave everything queued for the next drain.
-  if ! compute_paths_to_stage "$mode" "$class_file" "$snapshot_file" > "$paths_file"; then
+  local transcripts_ok=0
+  transcripts_consented && transcripts_ok=1
+  if ! compute_paths_to_stage "$mode" "$class_file" "$snapshot_file" "$transcripts_ok" > "$paths_file"; then
     echo "BRAIN_SYNC: warning: queue classification failed — no records consumed; next run re-drains" >&2
     write_status "error" "classification failed; queue preserved (next run retries)"
     exit 0
