@@ -65,6 +65,11 @@
 #
 # Security: output is sanitized to [a-zA-Z0-9._-] only, preventing shell
 # injection when consumed via source or eval.
+# Bash 5.2+ can feed a heredoc body >=512B through a pipe with no reader
+# yet, which hangs --help forever; compat level 50 restores the tempfile path
+# (same guard as bin/gstack-artifacts-init). Not exported.
+BASH_COMPAT=50
+
 set -euo pipefail
 
 # State-root aware (bin/gstack-state-root.sh), matching lib/bin-context.ts (#2561): the

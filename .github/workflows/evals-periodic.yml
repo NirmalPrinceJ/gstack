@@ -113,7 +113,7 @@ jobs:
       - name: Emit run manifest (ALL periodic tests minus reasoned excludes)
         env:
           EVALS_ALL: "1"
-        run: EVALS_TIER=periodic bun --no-install run scripts/test-paid-shards.ts --tier periodic --emit-plan /tmp/paid-plan/manifest.json --slice-budget 540 --jobs 2 --max-parallel 24
+        run: EVALS_TIER=periodic bun --no-install run scripts/test-paid-shards.ts --tier periodic --emit-plan /tmp/paid-plan/manifest.json --slice-budget 540 --jobs 2 --max-parallel 25
 
       - name: Derive the periodic executor matrix from the plan
         id: periodic-matrix
@@ -166,7 +166,7 @@ jobs:
       fail-fast: false
       # Every planned slice starts at once; test/evals-workflow-wiring.test.ts
       # fails when the live plan outgrows this cap.
-      max-parallel: 24
+      max-parallel: 25
       matrix:
         slice: ${{ fromJSON(needs.plan-slices.outputs.periodic_slices) }}
     steps:
