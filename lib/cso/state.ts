@@ -13,6 +13,7 @@ import {
 } from './contracts';
 import { redact, sanitizeForJson, sanitizeHelperForJson } from './process';
 import { resolveStateRoot } from '../state-root';
+import { PROCESS_IDENTITY, identityStartedAtMs, processIdentitySource } from './process-identity';
 const MAX_STATE_FILE = 1024 * 1024;
 
 type ExactStats = Pick<
@@ -926,7 +927,6 @@ export function requireTime(report: RunReportV3): void {
 const LOCK_PROTOCOL = 'immutable-lease-set-v3';
 const LOCK_OWNER_MAX_BYTES = 4096;
 const LOCK_TOKEN = /^[a-f0-9]{32}$/;
-const PROCESS_IDENTITY = /^linux:\d+$/;
 const LEASE_PUBLICATION_TEMP = /^([a-f0-9]{32})\.(json|decision)\.tmp\.(\d{1,10})\.[a-f0-9]{8}$/;
 const LEASE_BLOCKED_WAIT_MS = 250;
 const LEASE_ELECTION_POLL_MS = 1;
@@ -961,17 +961,7 @@ function processAlive(pid: number): boolean {
   }
 }
 function processIdentity(pid: number): string | undefined {
-  if (process.platform !== 'linux') return;
-  try {
-    const raw = fs.readFileSync(`/proc/${pid}/stat`, 'utf8'),
-      tail = raw
-        .slice(raw.lastIndexOf(')') + 2)
-        .trim()
-        .split(/\s+/);
-    return /^\d+$/.test(tail[19] ?? '') ? `linux:${tail[19]}` : undefined;
-  } catch {
-    return;
-  }
+  return processIdentitySource.read(pid);
 }
 function validateOwner(value: unknown, expectedToken?: string): LockOwner {
   if (!value || typeof value !== 'object' || Array.isArray(value))
@@ -1032,7 +1022,10 @@ function validateLeaseDecision(value: unknown, expectedToken?: string): LeaseDec
       (typeof decision.publisherProcessIdentity !== 'string' ||
         !PROCESS_IDENTITY.test(decision.publisherProcessIdentity)))
   )
-    throw new CsoError('UNSAFE_PATH', 'Run mutation lease decision is malformed');
+    throw new CsoError(
+      'UNSAFE_PATH',
+      `Run mutation lease decision is malformed. Reason: a lease record failed validation, so it is never reclaimed as a stale lock. ${UNVERIFIABLE_LEASE_NEXT}`,
+    );
   return decision as LeaseDecision;
 }
 function decisionOwner(decision: LeaseDecision): LockOwner {
@@ -1160,16 +1153,50 @@ function readOwner(
       } catch {}
   }
 }
-function ownerIsAlive(owner: LockOwner): boolean {
+// Clock steps between a process start and its lease write must not make a
+// genuine owner look younger than its own record.
+const OWNER_START_CLOCK_SLACK_MS = 2_000;
+type OwnerLiveness = { alive: false } | { alive: true; reason: string };
+/**
+ * A recorded identity is compared exactly. A record without one (written where
+ * no identity source existed) is stale only when the PID's current holder
+ * started after the record was written; createdAt 0 means the writer recorded
+ * no time. Anything unproven stays live and says why.
+ */
+function ownerLiveness(owner: LockOwner): OwnerLiveness {
   const pid = owner.pid;
-  if (!processAlive(pid)) return false;
+  if (!processAlive(pid)) return { alive: false };
   const current = processIdentity(pid);
-  return !(
-    typeof owner.processIdentity === 'string' &&
-    current !== undefined &&
-    owner.processIdentity !== current
+  if (current === undefined)
+    return { alive: true, reason: `process ${pid} is running; process identity unavailable` };
+  if (owner.processIdentity !== undefined)
+    return owner.processIdentity === current
+      ? { alive: true, reason: `process ${pid} is still running` }
+      : { alive: false };
+  const started = identityStartedAtMs(current);
+  if (started !== undefined && owner.createdAt > 0 && started > owner.createdAt + OWNER_START_CLOCK_SLACK_MS)
+    return { alive: false };
+  return {
+    alive: true,
+    reason: `process ${pid} is running and the lease record predates process identity, so it cannot be proven stale`,
+  };
+}
+function ownerIsAlive(owner: LockOwner): boolean {
+  return ownerLiveness(owner).alive;
+}
+function heldLeaseError(state: LeaseState): CsoError {
+  const liveness = ownerLiveness(state.owner),
+    reason = liveness.alive ? liveness.reason : `process ${state.owner.pid} holds the lease`;
+  return new CsoError(
+    'INSUFFICIENT_CAPACITY',
+    `${state.owner.pid === process.pid ? 'Another operation in this helper is updating this run' : 'Another helper is updating this run'}. ` +
+      `Status: blocked; this command changed nothing. Reason: ${reason}. ` +
+      'Next: wait for that session to finish or check the owning session, then retry this command.',
   );
 }
+const UNVERIFIABLE_LEASE_NEXT =
+  'Status: this run is blocked; this command changed nothing and the records were kept. ' +
+  'Next: start a new run with `gstack-cso start`; other runs are unaffected. Keep this run directory if you report the problem.';
 function recoverLeasePublications(leases: string): void {
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
@@ -1661,7 +1688,10 @@ function scanRunLeases(leases: string): LeaseState[] {
         (!decisionMatchesIdentity(decisionRecord.decision, identity) ||
           !decisionMatchesOwner(decisionRecord.decision, owner))
       )
-        throw new CsoError('UNSAFE_PATH', 'Run mutation lease decision does not match its candidate owner');
+        throw new CsoError(
+          'UNSAFE_PATH',
+          `Run mutation lease decision does not match its candidate owner. Reason: the lease cannot be verified (decisions written by gstack 1.88.0 or earlier on NTFS can carry a rounded file ID). ${UNVERIFIABLE_LEASE_NEXT}`,
+        );
       const number =
         decisionRecord?.decision.kind === 'ticket'
           ? BigInt(`0x${decisionRecord.decision.ticket}`)
@@ -1909,13 +1939,7 @@ function chooseRunLeaseTicket(
         recovered = true;
         break;
       }
-      if (state.active)
-        throw new CsoError(
-          'INSUFFICIENT_CAPACITY',
-          state.owner.pid === process.pid
-            ? 'Another operation in this helper is updating this run'
-            : 'Another helper is updating this run',
-        );
+      if (state.active) throw heldLeaseError(state);
       if (!state.candidate || state.decision?.kind === 'withdraw') continue;
       if (state.owner.pid === process.pid)
         throw new CsoError('INSUFFICIENT_CAPACITY', 'Another operation in this helper is updating this run');
@@ -1978,13 +2002,7 @@ function activateRunLease(
         retry = true;
         break;
       }
-      if (state.active)
-        throw new CsoError(
-          'INSUFFICIENT_CAPACITY',
-          state.owner.pid === process.pid
-            ? 'Another operation in this helper is updating this run'
-            : 'Another helper is updating this run',
-        );
+      if (state.active) throw heldLeaseError(state);
       if (!state.candidate || state.decision?.kind === 'withdraw') continue;
       if (state.owner.pid === process.pid)
         throw new CsoError('INSUFFICIENT_CAPACITY', 'Another operation in this helper is updating this run');
@@ -2316,13 +2334,21 @@ function repairBundleExpiry(
   return retained;
 }
 
+// Retention never deletes a run it cannot lease. A live lease or a lease set
+// that fails validation keeps that run intact (and blocked on its own) without
+// failing maintenance for every other run and repository.
+function unmaintainableRun(error: unknown): boolean {
+  return (
+    error instanceof CsoError && (error.code === 'INSUFFICIENT_CAPACITY' || error.code === 'UNSAFE_PATH')
+  );
+}
 function cleanupRun(dir: string, run: string, now: number, pinned: boolean, admit: () => void): void {
   admit();
   let lease: HeldRunLease;
   try {
     lease = acquireRunLease(dir);
   } catch (error) {
-    if (error instanceof CsoError && error.code === 'INSUFFICIENT_CAPACITY') return;
+    if (unmaintainableRun(error)) return;
     throw error;
   }
   let releasePath = lease.path,
@@ -2372,7 +2398,7 @@ function cleanupRetiredRun(dir: string, admit: () => void): void {
   try {
     lease = acquireRunLease(dir);
   } catch (error) {
-    if (error instanceof CsoError && error.code === 'INSUFFICIENT_CAPACITY') return;
+    if (unmaintainableRun(error)) return;
     throw error;
   }
   let consumed = false;

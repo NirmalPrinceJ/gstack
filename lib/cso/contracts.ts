@@ -883,12 +883,40 @@ export function renderReport(report: RunReportV3): string {
       : []),
   ];
   const model = report.application;
+  // Missing required coverage is stated before any finding text, so an audit
+  // that did not run (or ran partly) never reads as a clean result.
+  const domains = report.coverage.filter(
+      (c) => !c.domain.startsWith('scanner:') && c.status !== 'not_applicable',
+    ),
+    ran = domains.filter((c) => c.status === 'assessed' || c.status === 'partial'),
+    missing = domains.filter((c) => c.status !== 'assessed'),
+    reasons = [...new Set([...report.gaps, ...missing.flatMap((c) => c.gaps)])],
+    scannersWithoutResults = report.coverage.filter(
+      (c) => c.domain.startsWith('scanner:') && c.status !== 'assessed' && c.status !== 'not_applicable',
+    );
+  const status =
+    report.completeness === 'complete'
+      ? []
+      : [
+          report.completeness === 'not assessed'
+            ? 'Status: not assessed. No security domain was assessed, so this report is not a clean result.'
+            : 'Status: partial. Some required coverage is missing; findings below cover only the assessed part.',
+          `Ran: ${ran.length ? ran.map((c) => `${plain(c.domain)} (${plain(c.status)})`).join('; ') : 'nothing'}. Missing: ${missing.length ? missing.map((c) => `${plain(c.domain)} (${plain(c.status)})`).join('; ') : 'none'}.`,
+          `Reason: ${reasons.length ? list(reasons) : 'no assessment evidence was recorded for the missing domains'}.`,
+          `Next: ${report.status === 'finished' ? 'start a new /cso audit after resolving the reasons above; run `gstack-cso doctor --repo <repo>` to check prerequisites' : `resume this run with \`gstack-cso resume ${plain(report.runId)}\`, submit evidence for each missing domain, then finish it`}.`,
+        ];
   return [
     `${report.completeness} — ${plain(report.policy.scope)}${report.policy.diff ? ` (diff against ${plain(report.policy.base)})` : ''}`,
+    ...status,
     `Run: ${plain(report.runId)}. Mode: ${plain(report.policy.mode)}.`,
     timing,
     ...(usage ? [usage] : []),
     `Material gaps: ${gaps.length ? list(gaps) : 'none reported'}.`,
+    ...(scannersWithoutResults.length
+      ? [
+          `Optional scanners without results: ${scannersWithoutResults.map((c) => `${plain(c.domain.slice('scanner:'.length))} (${plain(c.tool?.outcome ?? c.status)}${c.gaps.length ? `: ${list(c.gaps)}` : ''})`).join('; ')}.`,
+        ]
+      : []),
     '',
     'Application model:',
     `- Actors: ${list(model.actors)}.`,
@@ -900,7 +928,9 @@ export function renderReport(report: RunReportV3): string {
     '',
     ...(supported.length
       ? ['Supported findings:', ...supported.flatMap(findingLines)]
-      : ['No supported findings in the assessed scope.']),
+      : report.completeness === 'not assessed'
+        ? ['No findings: nothing was assessed.']
+        : ['No supported findings in the assessed scope.']),
     ...(report.policy.mode === 'comprehensive'
       ? [
           '',
