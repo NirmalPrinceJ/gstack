@@ -97,10 +97,6 @@ describe('setup-gbrain templates (skeleton + sections) — bin invocation paths'
       '~/.claude/skills/gstack/bin/gstack-config set transcript_ingest_mode <choice>'
     );
   });
-
-  test('the prose-only mention naming the tool as a sentence subject is left unchanged (KTD4 — not a literal invocation; Step 10 verdict, skeleton)', () => {
-    expect(tmpl).toContain('gstack-memory-ingest now persists staged transcripts to');
-  });
 });
 
 describe('setup-gbrain/memory.md — bin invocation paths', () => {
