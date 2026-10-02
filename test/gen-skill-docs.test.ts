@@ -2035,7 +2035,9 @@ describe('CHANGELOG_WORKFLOW resolver', () => {
 
   test('changelog workflow includes cross-check step', () => {
     expect(shipContent).toContain('Cross-check');
-    expect(shipContent).toContain('Every commit must map to at least one bullet point');
+    const crossCheck = shipContent.slice(shipContent.indexOf('**Cross-check:**'), shipContent.indexOf('**Do NOT ask the user to describe changes.**'));
+    expect(crossCheck).toContain('commit list from step 2');
+    expect(crossCheck).toMatch(/user-facing/i);
   });
 
   test('changelog workflow includes voice guidance', () => {
