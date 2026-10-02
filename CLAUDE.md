@@ -92,9 +92,10 @@ shard processes, serial within each, packed by recorded per-file durations
 when `scripts/free-test-durations.json` exists — refresh occasionally with
 `bun run test:free --record-durations`; strict-output classification per
 shard: a shard without bun's terminal summary line FAILS — silent truncation
-cannot report green). The former trailing serial tree-mutating shard is
-gone: `TREE_MUTATING` is empty (gen-skill-docs has a main() guard and
-`--out-dir` renders every host, so tests render into mkdtemps — see
+cannot report green). `TREE_MUTATING` lists the files that still run in their
+own trailing serial shard (today only `test/bootstrap-retention.test.ts`, for
+host-wide procfs visibility); gen-skill-docs tests no longer need it (main()
+guard, and `--out-dir` renders every host into mkdtemps — see
 docs/TESTING_INTERNALS.md). Never type bare `bun test` for the suite: it
 walks the whole repo, loading paid eval files and missing the strict
 classifier.
@@ -199,7 +200,8 @@ or as a reference doc, (3) only compress carefully-tuned prose as a last resort 
 cuts to the coverage audit, review army, or voice directive have real quality cost.
 
 A second, harder ceiling guards the DISCOVERY surface: `test/catalog-budget.test.ts`
-caps the aggregate frontmatter `name` + `description` across all skills at 1,171
+caps the aggregate frontmatter `name` + `description` across all skills at
+`CATALOG_BUDGET_TOKEN_EQUIVALENTS` (1,194 today; each new skill ratchets it)
 token-equivalents (260-byte per-skill sub-cap), counted through the shared census
 in `test/helpers/skill-census.ts`. This one is enforced, not a warning — every
 host loads the full catalog every session, so growth here taxes every
@@ -257,8 +259,9 @@ Rules:
 ## Writing style (V1)
 
 Default output from every tier-≥2 skill follows the Writing Style section in
-`scripts/resolvers/preamble.ts`: jargon glossed on first use (curated list in
-`scripts/jargon-list.json`, baked at gen-skill-docs time), questions framed in
+`scripts/resolvers/preamble/generate-writing-style.ts`: jargon glossed on first
+use (curated list in `scripts/jargon-list.json`, which the skill Reads at runtime
+on the first jargon term), questions framed in
 outcome terms ("what breaks for your users if...") not implementation terms,
 short sentences, decisions close with user impact. Power users who want the
 tighter V0 prose set `gstack-config set explain_level terse` (binary switch,
@@ -748,7 +751,8 @@ the run can also die to idle-sleep. `gstack-detach` fixes both: a fresh session
   (stray `claude`/`codex` grandchildren included), a per-shard
   `GSTACK_EVAL_DIR=<evalDir>/shards/<slug>/` honored by the `EvalCollector`
   constructor, and an aggregate that separates failed vs timed-out vs
-  never-started shards — the detach timeouts (47340s gate / 67380s periodic;
+  never-started shards — the detach timeouts (the `--timeout` values on
+  package.json's `eval:bg:gate` / `eval:bg:periodic`;
   floor enforced against the live shard census by
   test/eval-detach-timeout-floor.test.ts)
   are sized against worst-case shard wall clock. `EVALS_JOBS` sets the shard
