@@ -409,8 +409,9 @@ do not launch the downstream skill or open a browser.`,
     // v1.64+v1.65 merge sums both waves' preamble growth; measured 1.073.
     // + W1 guarded state-root resolution in the Context Recovery preamble, the
     // eureka log, the office-hours lookup and the taste-profile read; measured
-    // 1.0834 (2026-09-30).
-    maxSizeRatio: 1.085,
+    // 1.0834 (2026-09-30). + named design-direction defaults to avoid in the native
+    // subagent prompt (s02 H4a); measured 1.0911 (2026-10-02).
+    maxSizeRatio: 1.092,
   },
   cso: {
     skill: 'cso',
