@@ -130,8 +130,8 @@ replaceable from disk on each Mac.
 
 - **Browse by type:**
   ```bash
-  gbrain list_pages --type transcript --limit 10
-  gbrain list_pages --type ceo-plan
+  gbrain list --type transcript --limit 10
+  gbrain list --type ceo-plan
   ```
 
 - **Read a specific page:**

@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.91.13.0] - 2026-10-02
+
+**/autoplan runs again for anyone with a SessionStart hook, and /land-and-deploy never merges over red CI.**
+**Projects in nested Git groups stop sharing saved state.**
+
+This release fixes the most severe open bugs from a triage of the tracker. /autoplan's phase guard denied every phase when Claude Code's session journal opened with SessionStart hook output, which is the normal shape once any plugin installs a hook, and on Windows it also rejected forward-slash and `/c/` paths. /land-and-deploy treated "no required checks" as "nothing to wait for", so on any repo without branch protection (every private repo on GitHub Free) it could merge while CI was red or still running. Repos under `group/subgroup/repo` remotes collapsed into one `~/.gstack/projects/` bucket, so /context-restore could offer another project's checkpoint.
+
+### What changes for you
+
+- **/autoplan:** works in sessions with SessionStart hooks, after `/compact`, `/clear` and a forked resume, and on Windows. When it does block, the message names the reason and how to run the reviews by hand (`docs/autoplan-guard-troubleshooting.md`). If a future Claude Code journal shape is unrecognized but healthy, /autoplan warns "phase publication was NOT verified for this session" and continues instead of locking you out.
+- **/land-and-deploy is stricter.** It now waits for all checks on the exact commit it merges, not only required ones, and that includes `gh pr merge --auto`. A red or pending optional check, or a commit with no CI at all, needs your explicit approval for that commit. The verdict comes from `bin/gstack-ci-gate` (`--help` documents it).
+- **Nested-group remotes** (GitLab subgroups, Azure DevOps, Bitbucket Server) now get their own `projects/<repo>-<hash>/` bucket. GitHub buckets do not move. The old shared bucket is left in place; `gstack-slug --adopt-legacy` lists it and copies only the files you confirm. /context-restore only treats this project's checkpoints as latest.
+- **never-ask preferences now fire** (#2901). Questions you tuned to never-ask through /plan-tune will start auto-deciding. One-way questions, including the new land-and-deploy CI approvals, never auto-decide.
+- **Upgrade:** run `/gstack-upgrade`, then start a new Claude Code session.
+
+### Itemized changes
+
+#### Fixed
+- /autoplan publication guard accepts real Claude Code journals: SessionStart attachment chains, a forked session that starts at a compact boundary, and Windows path spellings, with typed reason codes and per-reason messages (#3007, #3009, #2968, #2977, #2986, #3006). Built on #3010 by @CharlesBerg85, with root rules from #3008 by @laurenbdaniels-coder, #2969 by @maydaycyber and #2960 by @elmesery-dev.
+- /land-and-deploy no longer merges over red, pending or missing CI when a repo declares no required checks (#2995). Logic from #3001 by @harshitgavita-07, moved into a tested helper.
+- Nested-group remotes no longer share a state bucket, and checkpoints carry a credential-free project identity that /context-restore checks (#3003, reported by @tomg65). All six slug resolvers share one canonical-remote rule; the sticky cache is versioned so cache hits stay git-free.
+- The AskUserQuestion preference hook reads the same project identity as the writer, so never-ask preferences apply; unknown identity asks instead of auto-deciding (#2901). Idea first proposed in #2332 by @jawadakram20.
+- Brain context loaded 0 bytes in every skill because it called `gbrain list_pages`, an MCP tool name; it now uses `gbrain list` and reports failed queries (#2883). Includes #3000 by @TheAngryPit.
+- /sync-gbrain's code stage failed on managed gbrain (>= 0.51); it now passes `--no-pull` and never retries without it (#2985).
+- /sync-gbrain no longer re-creates duplicate curated pages; `--sources` selects memory types (#2922). Based on #2997 by @harshitgavita-07.
+- A clean Codex review could never pass the /codex gate. Untagged output is now UNVERIFIED instead of FAIL, and P2/P3-only output passes (#2769).
+- `/cso import-sarif` dropped every semgrep and trivy result that used `uriBaseId`; captured scanner shapes now import, and rejected results are counted with the rule and path (#3011).
+- The pre-push redact hook flagged the repo's own 4-part VERSION as a public IP on every /ship (#2856).
+- `gstack-update-check` cached "up to date" when it could not read the remote version; it now caches a short-lived CHECK_FAILED (#2786).
+
+#### Added
+- `SECURITY.md` with a private vulnerability reporting path (#2984).
+- Periodic drift canary that reads fresh journals from the pinned `claude` and fails if the guard stops recognizing them.
+
+#### Changed
+- `pr-title-sync.yml`, which runs with a write token on `pull_request_target`, pins `actions/checkout` to a reviewed SHA.
+
 ## [1.91.12.0] - 2026-10-01
 
 **Weekly evals finish in minutes, not hours, and a red now means something.**
