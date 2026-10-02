@@ -121,7 +121,18 @@ engine's own tests run everywhere.
 
 New or changed tests follow the [test value bar](docs/test-value-bar.md): each one
 protects behavior a real regression would break, and contract tests (SKILL.md
-goldens, prompt bytes) stay. The bar's source is `scripts/resolvers/test-value.ts`.
+goldens, and prompt bytes that are a contract as defined below) stay. The bar's
+source is `scripts/resolvers/test-value.ts`.
+
+In this repo, prompt bytes are a contract only when software reads them (a
+parser, hook, grader or another skill consumes the exact text) or a recorded
+eval shows the wording matters. Tests on skill templates and generated SKILL.md
+pin structure, step order, routing tables, machine-read markers and
+safety-critical lines; check safety lines case-insensitively, on meaning rather
+than capitals. Leave behavior to E2E cases and judges. Don't pin emphasis,
+capitalization, issue numbers, or a sentence a behavioral check already covers,
+and when a rewrite changes a pinned sentence, replace the pin with a structural
+or meaning-level check instead of pinning the new sentence.
 Projects tune `/ship`'s coverage gate with optional CLAUDE.md `## Test Coverage`
 keys, all absent by default: `Minimum:`, `Target:`, `Generation cap:` (default 5),
 `Base control:` (`auto` or `off`), `Base control budget:` (seconds, default 90) and
