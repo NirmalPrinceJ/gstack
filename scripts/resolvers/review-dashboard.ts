@@ -238,9 +238,7 @@ ${beforeLog ? `4. **Read-back gate:** Read the saved file. Verify the accepted c
    \\\`## \\\` heading in the file before continuing. If it isn't, repeat steps
    2-3 once.`}
 
-${ceo || ctx.skillName === 'plan-eng-review' ? 'Do NOT replace the section in place; delete it and append the new report at EOF.' : `Do NOT replace the section in place. The "replace mid-file" path is what allowed
-prior versions to leave the report mid-file when an older report already lived
-there — the user then sees a plan whose review report is not at the bottom and
-(correctly) rejects it.`}`;
+${ceo || ctx.skillName === 'plan-eng-review' ? 'Do NOT replace the section in place; delete it and append the new report at EOF.' : `Do NOT replace the section in place; delete it and append the new report at EOF,
+so the review report is always the plan's last section.`}`;
   return conditionalWrites ? result.replaceAll('\\`', '`') : result;
 }

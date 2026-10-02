@@ -179,11 +179,9 @@ ${approvals}1. Read the plan file with the Read tool (after your most recent wri
    short-circuit when no plan file exists.
 
 Failing this gate and calling ExitPlanMode anyway is a contract violation —
-the user will see a plan whose review report is missing or stale, and will
-(correctly) reject it. Self-deception failure mode to watch for: feeling
-"done" after writing review prose into the plan body. The body prose is not
-the report. The report is a separate, structured, table-bearing section that
-must be the file's terminal heading.`;
+the user sees a plan whose review report is missing or stale. Review prose in
+the plan body is not the report: the report is a separate, structured,
+table-bearing section that must be the file's terminal heading.`;
 }
 
 // ─── Plan File Discovery (shared helper) ──────────────────────────────
