@@ -143,14 +143,14 @@ describe('engineering review routing contracts', () => {
   test('paused transport and failed persistence have distinct non-success outcomes', () => {
     const pause = between(recovery, '**Paused question:**', '**Repairable write/read failure:**');
     expect(pause).toContain('without completion telemetry or ExitPlanMode');
-    expect(compact(pause)).toContain('may have surfaced is still pending; do not duplicate it');
+    expect(compact(pause)).toContain('that the user may have seen is still pending; do not resend it');
     const failure = between(recovery, '**Repairable write/read failure:**', '**Late change or missing work:**');
     expect(compact(failure)).toContain('Stop before the dependent question or output');
     expect(compact(failure)).toContain('If no recovery is specified or it fails, follow **Blocked outcome**');
     expect(compact(failure)).toContain('Never turn a failed permitted save into a chat-only success');
     const policy = between(section, '## Review record and write policy', '{{LEARNINGS_SEARCH}}');
-    expect(compact(policy)).toContain('not the forbidden-write branches above');
-    expect(compact(policy)).toContain('Best-effort logs retain their stated non-blocking behavior');
+    expect(compact(policy)).toContain('use **Recovery routing → Repairable write/read failure**, never the routes above');
+    expect(compact(policy)).toContain('Skip forbidden writes; otherwise keep their best-effort behavior');
     expect(recovery).toContain('`OUTCOME=error`');
     expect(recovery).not.toContain('`OUTCOME=success`');
   });

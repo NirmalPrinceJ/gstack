@@ -35,7 +35,7 @@ path authorizes no other; implementation edits require explicit authority.
 
 | Artifact | Destination | If writing is forbidden |
 |---|---|---|
-| Working plan, ledger and complete review report | Selected report file | Ask for a permitted destination if the user can supply one; wait without completion telemetry. If none is permitted, complete the review in chat as **not persisted**, then use **Blocked outcome**. |
+| Working plan, ledger and complete review report | Selected report file | Ask for a permitted destination if the user can supply one; wait without completion telemetry. If none is permitted, follow **Read-only review** below, then use **Blocked outcome**. |
 | QA Test Plan and task JSONL | Discovery paths below | Present each completely as **not persisted** and continue. |
 | TODOS.md | The project's TODO file | Present accepted TODO content as **not persisted** and continue. |
 | Required Review Log | The helper's state location | Present its fields as **not persisted**; at Review Log, use **Blocked outcome** instead of publishing a saved review. The final gate cannot pass without this log. |
@@ -45,12 +45,6 @@ QA Test Plan/task JSONL keep discovery paths `~/.gstack/projects/{slug}/`:
 `{user}-{branch}-eng-review-test-plan-{datetime}.md` and
 `tasks-eng-review-{datetime}.jsonl`. Keep their formats; do not relocate.
 
-A failed permitted save uses **Recovery routing → Repairable write/read failure**,
-not the forbidden-write branches above. Do not ask from an unsaved record.
-Forbidden auxiliary writes allow the review to continue; unrecovered attempted
-writes block it. Best-effort logs retain their stated non-blocking behavior.
-Apply this policy at every later write.
-
 **First report save:** Name the fixed target in the report header. Read an
 existing destination and preserve its content. For a new file, create permitted
 parent directories, then write that header, an unchanged copy of the original
@@ -59,11 +53,15 @@ creation; use a suffix rather than overwrite. Do not add findings or fixes befor
 Scope Challenge C. Put records before an existing `## GSTACK REVIEW REPORT`, or
 at EOF if absent; create that terminal report only at Plan File Review Report.
 
-**Read-only review:** At each scope/decision record save, present the complete
-record, grid and authorized amendments as **not persisted** instead. At both
-pre-question and post-answer verification gates, perform the same comparisons
-on that presentation instead of a saved Read. This supports chat review, never
-the saved-report gate. A failed permitted save is not this route.
+**Write routes.** A forbidden write follows its row above.
+- **Read-only review:** At each scope/decision record save, present the complete
+  record, grid and authorized amendments as **not persisted** instead. At both
+  pre-question and post-answer verification gates, perform the same comparisons
+  on that presentation instead of a saved Read. This supports chat review, never
+  the saved-report gate.
+- **Failed permitted save** (error or failed Read-back): use **Recovery routing →
+  Repairable write/read failure**, never the routes above. Do not ask from an
+  unsaved record; an unrecovered failed write blocks the review.
 
 {{LEARNINGS_SEARCH}}
 
@@ -157,8 +155,9 @@ Put the problem and file:line in the native fields. Offer 2–3 options, includi
 do-nothing when reasonable; Outside Voice retains its four-option menu.
 Each option must explain human/CC effort, risk and maintenance. Tie the
 recommendation to the engineering preferences; prefer complete coverage when
-extra CC effort is marginal. Fit headers and labels to host limits now, before
-saving. Without stated limits, keep both under 5 words; details go in descriptions.
+extra CC effort is marginal. Make the header and every label final before saving:
+within the host's stated length limits, or under 5 words each when none are stated.
+Put details in descriptions.
 
 For one fixed approved contract, coverage choices vary implementation or proof
 depth. Apply the preamble's Completeness scores or kind-note accordingly.
@@ -171,8 +170,9 @@ each option's value and work, and any approval citation. Include shared, fixed
 and pending choices.
 
 Use these three checks for every column:
-1. Vary only this choice. Keep other approved values fixed and pending choices
-   undecided. A value shared by all options still needs approval if it is new.
+1. Vary only this choice: every column repeats each other approved value
+   unchanged and leaves each other pending choice pending. A value shared by all
+   options still needs approval if it is new.
 2. Treat necessary implementation and proof of an approved contract as common
    work. Cite its answer instead of creating another approval row. Never cut an
    established contract or its required proof.
@@ -383,12 +383,14 @@ Continue to Section 1 only when no answer is pending.
 
 ## Review Sections (after scope is agreed)
 
-Evaluate Architecture → Code Quality → Tests → Performance,
-at most 8 top issues each. Never condense, abbreviate or skip a section, including
-strategy/spec/infra plans. With zero findings, report "No issues found" and continue.
+Evaluate Architecture → Code Quality → Tests → Performance. Never condense,
+abbreviate or skip a section, including strategy/spec/infra plans.
 
 After each of Sections 1–4, resolve new or reopened choices through Decision
-procedure, report findings and dispositions, then continue.
+procedure, report findings and dispositions, then continue. Per section, output
+at most 8 findings in the Confidence Calibration format (or "No issues found"),
+one question per new or reopened choice, then `Dispositions:` (accepted, rejected,
+deferred or pending, with D-number or answer) for each finding.
 
 ### 1. Architecture review
 Evaluate:
@@ -427,6 +429,11 @@ Evaluate:
 * Memory usage.
 * Caching opportunities.
 * Slow or complex paths.
+
+On per-request or looped paths, check queries in loops, unbounded
+queries or caches, missing indexes, whole-file loads and blocking calls without
+timeouts. Give each finding's scale (rows, requests/s, bytes) or mark it
+unknown; never invent benchmarks.
 
 {{CODEX_PLAN_REVIEW}}
 
@@ -474,7 +481,7 @@ must pass steps 1–4 again.
 4. **Publish.** Display the Review Readiness Dashboard, then present the saved
    Completion summary to the user.
 5. **Choose navigation.** Use Next Steps — Review Chaining; wait for its answer.
-   Navigation grants no implementation authority. A substantive change follows
+   A substantive change follows
    **Recovery routing → Late change or missing work** before navigation resumes.
 6. **Finish.** Run Learning hooks, including gated Brain Calibration Write-Back;
    then return to the entrypoint's Section self-check and read-only EXIT PLAN MODE GATE in
@@ -507,21 +514,18 @@ If any failure mode has no test AND no error handling AND would be silent, flag 
 ### Worktree parallelization strategy
 
 Group implementation into parallel git worktrees (`isolation: "worktree"`) or workspaces.
-
 With one primary module or fewer than 2 independent workstreams, write:
-"Sequential implementation, no parallelization opportunity."
-
-Otherwise provide each step/workstream's **Dependency table**:
+"Sequential implementation, no parallelization opportunity." Otherwise give a
+**Dependency table** by module, not guessed file:
 
 | Step | Modules touched | Depends on |
 |------|----------------|------------|
 | (step name) | (directories/modules, NOT specific files) | (other steps, or —) |
 
-Use modules, not guessed files. **Parallel lanes:** disjoint modules run together;
-shared modules run sequentially, dependencies later. Example:
-`Lane A: step1 → step2 (shared models/)` / `Lane B: step3 (independent)`.
-**Execution order:** name launch/wait points, e.g. "Launch A + B. Merge both. Then C."
-**Conflict flags:** identify cross-lane shared modules; sequence or coordinate them.
+**Parallel lanes:** disjoint modules together; shared modules sequentially, dependencies
+later (`Lane A: step1 → step2 (shared models/)` / `Lane B: step3 (independent)`).
+**Execution order:** launch/wait points ("Launch A + B. Merge both. Then C.").
+**Conflict flags:** cross-lane shared modules to sequence or coordinate.
 
 {{TASKS_SECTION_EMIT:eng-review}}
 
@@ -544,7 +548,7 @@ From final decisions/outputs; publish after report Read-back and Review Log:
 - Unresolved decisions: ___ in this review
 - Outside voice: recorded provider, completed / unavailable / disabled / skipped (reason)
 - Parallelization: ___ lanes, ___ parallel / ___ sequential
-- Lake Score: X/Y = 10/10 choices / answered coverage choices. Exclude kind choices; N/A if Y=0.
+- Lake Score: X/Y = answers picking a 10/10 option / answers scored for Completeness; N/A if Y=0.
 
 {{PLAN_FILE_REVIEW_REPORT}}
 
@@ -590,8 +594,6 @@ copy the working plan's task prerequisites, dependencies and execution order
 without adding or strengthening them in the question or descriptions. A test
 required before editing one function does not make every independent lane wait.
 A next-step answer approves no implementation change.
-A substantive change follows **Recovery routing → Late change or missing work**
-before navigation resumes.
 
 ## Learning hooks
 

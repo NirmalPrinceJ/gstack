@@ -62,7 +62,7 @@ test('entry binds a current target and delays bootstrap until scope resolves', (
   const entry = template.slice(template.indexOf('## Engineering review'), template.indexOf('## Section self-check'));
   expect(entry.split('{{SECTION:review-sections}}')).toHaveLength(2);
   expect(entry.indexOf('Before Step 0, require resolved scope')).toBeLessThan(entry.indexOf('{{SECTION:review-sections}}'));
-  expect(entry.indexOf('**STOP while a Scope Challenge complexity question')).toBeLessThan(entry.indexOf('{{SECTION:review-sections}}'));
+  expect(entry.indexOf('**Complexity gate:** while a Scope Challenge complexity question')).toBeLessThan(entry.indexOf('{{SECTION:review-sections}}'));
 });
 
 test('existing plan selection exceptions and unseeded hard STOP remain explicit', () => {
@@ -71,8 +71,8 @@ test('existing plan selection exceptions and unseeded hard STOP remain explicit'
   expect(scope).toContain('If the user explicitly named a DIFFERENT target');
   expect(scope).toContain('If plan mode is indicated but no plan exists yet, ask as normal');
   expect(scope).toContain('First tool call = AskUserQuestion (tool_use). Send this exact menu and wait');
-  expect(scope).toContain('if unavailable, disallowed (`--disallowedTools`) or failed, send the menu as plain prose and STOP');
-  expect(scope).toContain('If a failed call may have surfaced, keep it pending; do not duplicate it');
+  expect(scope).toContain('If the tool is unavailable, disallowed (`--disallowedTools`) or failed before reaching the user, send the menu as plain prose and STOP');
+  expect(scope).toContain('If the call returned no result but the user may have seen it, wait; do not resend it');
   expect(scope).toContain('A) The current branch diff — the work in progress on this branch.\nB) A plan or design doc I\'ll paste or point you to.\nC) A specific file, directory, or path.');
   expect(scope).toContain('Reply with A, B, or C. STOP and wait for the answer.');
 });
