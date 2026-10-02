@@ -416,8 +416,9 @@ For Paths 1, 2a, 2b, 3, run the ingest gate:
 ## Step 8: Persist `## GBrain Configuration` in CLAUDE.md
 
 CLAUDE.md is the audit trail: after a successful setup, persist the
-configuration block. The exact block formats (remote-http vs local-stdio) and
-the post-Step-9 Search Guidance write live in the claude-md-persist section.
+configuration block. The exact block formats (remote-http vs local-stdio) live
+in the claude-md-persist section. The search-guidance block is written only by
+`/sync-gbrain` (Step 10 offers it).
 
 {{SECTION:claude-md-persist}}
 
@@ -609,6 +610,15 @@ surface a one-line "next action" (e.g.,
 There is no automatic restore: with brain-sync enabled, the brain remote holds
 curated artifacts as markdown + git, recoverable via `gbrain import` from a
 clone.
+
+### Next: `/sync-gbrain`
+
+This skill does not write the `## GBrain Search Guidance` block in CLAUDE.md;
+`/sync-gbrain` writes it once this repo's code index answers a read. Unless
+the verdict is RED, AskUserQuestion: "Run `/sync-gbrain` now to index this
+repo and add the search guidance to CLAUDE.md?" A) Run it now (read and
+follow the sync-gbrain skill) B) Later. If B, or with `SESSION_KIND: spawned`
+or `headless`, end by naming `/sync-gbrain` as the next step.
 
 ---
 
