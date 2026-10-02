@@ -793,7 +793,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
      "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
     'test/helpers/coverage-audit.ts', 'test/helpers/office-hours-attempt.ts',  'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts' 
   ],
-  'ship-triage': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'ship/**', 'bin/gstack-repo-mode', 'test/skill-e2e-triage.test.ts',
+  'ship-triage': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'ship/**', 'bin/gstack-repo-mode', 'test/skill-e2e-triage.test.ts', 'test/helpers/ship-triage-labels.ts',
     'scripts/resolvers/testing.ts'
   ],
   'ship-docsync-completion': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'ship/**', 'document-release/**', 'test/skill-e2e-ship-docsync.test.ts', 'test/helpers/docsync-*.ts', 'test/helpers/session-runner.ts', 'test/helpers/hermetic-env.ts', 'bin/gstack-skill-start', 'bin/gstack-session-kind', 'scripts/resolvers/sections.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/gen-skill-docs.ts', 'scripts/resolvers/testing.ts', 'test/helpers/qa-checkpoint-evidence.ts',    'test/helpers/qa-functional-observer.ts', 'test/helpers/e2e-gate.ts', 'test/helpers/qa-evidence-producer.ts', 'test/helpers/qa-functional-fixture.ts'],
