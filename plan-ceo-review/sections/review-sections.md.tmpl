@@ -204,7 +204,7 @@ Flag any unhandled edge case as a gap. For each gap, specify the fix.
 ### Section 5: Code Quality Review
 Evaluate:
 * Code organization and module structure. Does new code fit existing patterns?
-* DRY violations. Be aggressive. If the same logic exists elsewhere, flag it and reference the file and line.
+* Duplicated behavior. If the same logic exists elsewhere, flag it with the file and line; similar-looking code alone is not a reason to extract.
 * Naming quality. Are new classes, methods, and variables named for what they do, not how they do it?
 * Error handling patterns. (Cross-reference with Section 2 — this section reviews the patterns; Section 2 maps the specifics.)
 * Missing edge cases: nil, empty, 429/timeouts and boundary values.

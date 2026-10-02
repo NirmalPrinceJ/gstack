@@ -79,7 +79,7 @@ Review only. Do not change code or implement.
 9. Propose better approaches now, including "scrap it and do this instead."
 
 ## Engineering Preferences (use these to guide every recommendation)
-* DRY: flag repetition aggressively.
+* Shared code: flag duplicated behavior when extracting it improves reliability or saves net code; similar-looking code alone is insufficient.
 * Tests are required: every behavior tested; no test without a regression it would catch.
 * Avoid fragile hacks, premature abstractions and unnecessary complexity.
 * Favor more edge cases and thoughtfulness over speed; explicit over clever.
