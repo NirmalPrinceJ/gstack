@@ -716,19 +716,6 @@ regenerated SKILL.md shifts prompt context.
 
 "Pre-existing" without receipts is a lazy claim. Prove it or don't say it.
 
-## Long-running tasks: don't give up
-
-When running evals, E2E tests, or any long-running background task, **poll until
-completion**. Use `sleep 180 && echo "ready"` + `TaskOutput` in a loop every 3
-minutes. Never switch to blocking mode and give up when the poll times out. Never
-say "I'll be notified when it completes" and stop checking — keep the loop going
-until the task finishes or the user tells you to stop.
-
-The full E2E suite can take 30-45 minutes. That's 10-15 polling cycles. Do all of
-them. Report progress at each check (which tests passed, which are running, any
-failures so far). The user wants to see the run complete, not a promise that
-you'll check later.
-
 ## Running evals as an agent: always detach (SIGTERM-proof)
 
 When **you (an agent/harness)** launch a long eval/benchmark run, run it through
@@ -765,7 +752,10 @@ the run can also die to idle-sleep. `gstack-detach` fixes both: a fresh session
 - Then **poll the printed logfile** with a death-aware watcher: break on the
   guaranteed `### gstack-detach EXIT=<code> ###` sentinel (success AND failure are
   both marked, so silence is never mistaken for success). The detached run survives
-  even if your watcher gets reaped, so re-checking the log always works.
+  even if your watcher gets reaped, so re-checking the log always works. Keep
+  checking until the sentinel appears or the user tells you to stop; a long run is
+  expected, and a promise to check later is not a result. At each check, report
+  which tests passed, which are still running, and any failures so far.
 - Why the lock: a shared dev box with several Conductor worktrees will rate-limit
   the model API if two eval suites run at once (15-way concurrency each), which
   mass-times-out E2E tests. The lock makes the second run WAIT, not collide.
