@@ -354,7 +354,8 @@ describeIfSelected('Test Coverage Audit E2E', ['ship-coverage-audit'], () => {
             return { path: file, content: fs.readFileSync(file, 'utf8') };
           });
           return runSkillTest({
-            prompt: `Read ship/SKILL.md and ship/sections/test-coverage.md for the current ship workflow.
+            prompt: `Read ${coverageDir}/ship/SKILL.md and ${coverageDir}/ship/sections/test-coverage.md
+for the current ship workflow. Read files with the Read tool; Bash cuts large output to a preview.
 
 You are on the feature/billing branch. The base branch is main.
 This is a test project — there is no remote, no PR to create.
@@ -363,6 +364,8 @@ Run ONLY Step 7 (Test Coverage Audit), applying the section's audit instructions
 to the two supplied billing functions. This is a targeted audit with no branch diff.
 Run the audit inline; do not dispatch subagents.
 Skip all other steps (tests, evals, review, version, changelog, commit, push, PR).
+No parent workflow or /qa run consumes this audit, so also skip the Test Plan Artifact
+and the LAST-line JSON.
 
 The source code is in ${coverageDir}/src/billing.ts.
 Existing tests are in ${coverageDir}/test/billing.test.ts.
