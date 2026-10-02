@@ -21,6 +21,7 @@ import {
   createEvalCollector, finalizeEvalCollector,
 } from './helpers/e2e-helpers';
 import { extractSkillBody } from './helpers/skill-fixture';
+import { readShippedSkillRouting } from './helpers/shipped-skill-routing';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -70,19 +71,13 @@ function setupWorkdir(suffix: string): { workDir: string; gstackHome: string; sl
     }
   }
 
-  // Routing CLAUDE.md: explicit instruction to always use the Skill tool.
+  // Routing CLAUDE.md: the ## Skill routing section gstack ships.
   fs.writeFileSync(path.join(workDir, 'CLAUDE.md'), `# Project Instructions
 
-## Skill routing
+${readShippedSkillRouting().section}
 
-When the user's request matches an available skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+## Test environment
 
-Key routing rules:
-- Save progress, save state, save my work → invoke context-save
-- Resume, where was I, pick up where I left off → invoke context-restore
-
-Environment:
 - Use GSTACK_HOME="${gstackHome}" for all gstack bin scripts.
 - The bin scripts are at ./bin/ (relative to this directory).
 - The skill files are at ./.claude/skills/context-save/SKILL.md and
