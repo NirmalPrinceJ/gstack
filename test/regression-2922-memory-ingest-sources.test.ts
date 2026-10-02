@@ -194,6 +194,8 @@ describe.skipIf(process.platform === "win32")("memory stage source selection (#2
   test("without a federated source, the default still ingests every type", () => {
     const sb = sandbox({ federated: false });
     try {
+      // Transcripts join the default selection only with consent.
+      writeFileSync(join(sb.gstackHome, "config.yaml"), "transcript_ingest_mode: recent\n");
       const r = runSync(sb, ["--incremental"]);
       expect(r.status).toBe(0);
       expect(ingestedTypes(sb)).toEqual(["ceo-plan", "design-doc", "learning"]);
