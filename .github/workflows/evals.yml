@@ -281,6 +281,7 @@ jobs:
       # only (scripts/lib/paid-cases.ts scopeCodexAccess); every other paid case sees no
       # Codex, as before. Without a key the Codex cases fail; they never pass.
       - name: Authenticate the Codex CLI
+        shell: bash
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

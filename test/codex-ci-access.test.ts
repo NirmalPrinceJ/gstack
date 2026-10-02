@@ -149,7 +149,13 @@ describe('codex CI access in the image and workflows', () => {
     for (const name of ['evals.yml', 'evals-periodic.yml', 'evals-marathon.yml']) {
       const workflow = Bun.YAML.parse(fs.readFileSync(path.join(ROOT, '.github/workflows', name), 'utf8')) as any;
       for (const job of Object.values<any>(workflow.jobs)) {
-        for (const step of job.steps ?? []) if (/login --with-api-key/.test(String(step.run ?? ''))) steps.push(String(step.run));
+        for (const step of job.steps ?? []) {
+          if (!/login --with-api-key/.test(String(step.run ?? ''))) continue;
+          steps.push(String(step.run));
+          // The paid jobs run inside the CI container whose default shell is `sh -e` (dash),
+          // which rejects `set -o pipefail`; the login step must opt into bash.
+          if (/pipefail/.test(String(step.run))) expect({ step: step.name, shell: step.shell }).toEqual({ step: step.name, shell: 'bash' });
+        }
       }
     }
     expect(steps.length).toBeGreaterThanOrEqual(4);
