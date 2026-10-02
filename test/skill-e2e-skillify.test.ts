@@ -15,8 +15,8 @@
  *      (no matching skill) drives $B primitives, returns JSON, suggests
  *      /skillify.
  *   3. skillify-happy-path — /scrape then /skillify in one session.
- *      Skill written to ~/.gstack/browser-skills/<name>/ with full
- *      file tree, $B skill test passes.
+ *      Skill written to the global tier (<state root>/browser-skills/<name>/)
+ *      with full file tree, $B skill test passes.
  *   4. skillify-provenance-refusal — cold /skillify with no prior
  *      /scrape refuses with the D1 message; nothing on disk.
  *   5. skillify-approval-reject — /scrape then /skillify but reject in
@@ -38,6 +38,7 @@ import {
   createEvalCollector, finalizeEvalCollector,
 } from './helpers/e2e-helpers';
 import { extractSkillBody } from './helpers/skill-fixture';
+import { resolveStateRoot } from '../lib/state-root';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -138,6 +139,24 @@ function installBundledHackernewsSkill(workDir: string) {
   const src = path.join(ROOT, 'browser-skills', 'hackernews-frontpage');
   const dst = path.join(workDir, '.gstack', 'browser-skills', 'hackernews-frontpage');
   copyDirSync(src, dst);
+}
+
+/**
+ * Where the child's skill writes resolve: the state root its env names (the
+ * global tier and /skillify's .tmp staging, per lib/state-root.ts — GSTACK_HOME
+ * outranks HOME) and the cwd's project tier. Since the global tier moved to
+ * the state root (v1.91.11.0), sweeping only $HOME/.gstack failed the agent
+ * that used commitSkill as written and passed agents that unset GSTACK_HOME
+ * to land a skill $B skill list cannot see.
+ */
+function skillWriteRoots(workDir: string, childEnv: { GSTACK_HOME: string; HOME: string }) {
+  return { global: resolveStateRoot(childEnv), project: path.join(workDir, '.gstack') };
+}
+
+/** Negative sweeps also cover $HOME/.gstack, where an agent that bypassed the state root would write. */
+function everyWriteRoot(workDir: string, childEnv: { GSTACK_HOME: string; HOME: string }): string[] {
+  const { global, project } = skillWriteRoots(workDir, childEnv);
+  return [...new Set([global, project, path.join(childEnv.HOME, '.gstack')])];
 }
 
 /** Helper: every Bash invocation's command string from the agent. */
@@ -297,6 +316,16 @@ Do NOT use AskUserQuestion.`,
 
     const childHome = path.join(workDir, 'home');
     fs.mkdirSync(childHome, { recursive: true });
+    const childEnv = {
+      GSTACK_HOME: gstackHome,
+      // Fresh subdir, NEVER the cwd: with HOME == cwd, claude resolves
+      // <cwd>/.claude/skills as the PERSONAL skills dir and the seeded
+      // project-tier skills stop registering — this test's Skill() calls
+      // silently errored ("Unknown skill") and only passed via the agent
+      // self-recovering by Reading SKILL.md manually. Same fix as the
+      // provenance-refusal test below.
+      HOME: childHome,
+    };
 
     const result = await runSkillTest({
       prompt: `Two steps in this session:
@@ -311,21 +340,12 @@ Do NOT use AskUserQuestion.`,
    - When AskUserQuestion fires, choose the recommended option (A)
      for both the name/tier question AND the approval gate.
 
-Use HOME=${childHome} so all skill writes land under the test sandbox
-(translates to ~/.gstack/browser-skills/<name>/ via $HOME).
+The environment already points gstack's state root (GSTACK_HOME) at a
+test sandbox; keep it as set so the write helpers and $B agree.
 
 Do NOT halt for clarification.`,
       workingDirectory: workDir,
-      env: {
-        GSTACK_HOME: gstackHome,
-        // Fresh subdir, NEVER the cwd: with HOME == cwd, claude resolves
-        // <cwd>/.claude/skills as the PERSONAL skills dir and the seeded
-        // project-tier skills stop registering — this test's Skill() calls
-        // silently errored ("Unknown skill") and only passed via the agent
-        // self-recovering by Reading SKILL.md manually. Same fix as the
-        // provenance-refusal test below.
-        HOME: childHome, // /skillify writes to $HOME/.gstack/browser-skills/
-      },
+      env: childEnv,
       maxTurns: 40,
       allowedTools: ['Skill', 'Bash', 'Read', 'Write'],
       timeout: CAPTURE_LONG_MS,
@@ -335,9 +355,9 @@ Do NOT halt for clarification.`,
 
     logCost('skillify-happy-path', result);
 
-    // The skill lands under $HOME/.gstack/browser-skills/<name>/ (= childHome);
-    // sweep the cwd tier too in case the skill's write path resolves cwd-relative.
-    const skillRoots = [childHome, workDir].map((r) => path.join(r, '.gstack', 'browser-skills'));
+    // The skill must land in a tier $B resolves: global (the state root) or project.
+    const tiers = skillWriteRoots(workDir, childEnv);
+    const skillRoots = [tiers.global, tiers.project].map((r) => path.join(r, 'browser-skills'));
     const writtenSkills = skillRoots.flatMap((root) => (fs.existsSync(root)
       ? fs.readdirSync(root)
         .filter(d => !d.startsWith('.') && d !== 'hackernews-frontpage')
@@ -388,6 +408,7 @@ Do NOT halt for clarification.`,
     // home) without colliding with project-skill discovery.
     const childHome = path.join(workDir, 'home');
     fs.mkdirSync(childHome, { recursive: true });
+    const childEnv = { GSTACK_HOME: gstackHome, HOME: childHome };
 
     const result = await runSkillTest({
       prompt: `Run /skillify via the Skill tool. There has been NO prior /scrape
@@ -396,10 +417,7 @@ walk back through agent turns, find no /scrape result, refuse with the exact
 message the skill specifies, and stop. Do NOT synthesize anything. Do NOT
 write any files.`,
       workingDirectory: workDir,
-      env: {
-        GSTACK_HOME: gstackHome,
-        HOME: childHome,
-      },
+      env: childEnv,
       maxTurns: 8,
       allowedTools: ['Skill', 'Bash', 'Read'],
       timeout: JUDGE_MS,
@@ -432,17 +450,16 @@ write any files.`,
     ].join('\n');
     const refusalText = /no recent \/?scrape result|run \/scrape.*first|no prior \/?scrape/i.test(agentText);
 
-    // Critical: nothing on disk. No staged dir, no committed skill. Tier
-    // paths resolve under $HOME/.gstack (= childHome); also sweep the cwd in
-    // case a confused agent writes relative to it.
-    const diskRoots = [childHome, workDir];
+    // Critical: nothing on disk. No staged dir, no committed skill, in any
+    // root a write could resolve to.
+    const diskRoots = everyWriteRoot(workDir, childEnv);
     const noSkillsWritten = diskRoots.every((root) => {
-      const skillsRoot = path.join(root, '.gstack', 'browser-skills');
+      const skillsRoot = path.join(root, 'browser-skills');
       return !fs.existsSync(skillsRoot)
         || fs.readdirSync(skillsRoot).filter(d => !d.startsWith('.')).length === 0;
     });
     const noStaging = diskRoots.every((root) => {
-      const stagingRoot = path.join(root, '.gstack', '.tmp');
+      const stagingRoot = path.join(root, '.tmp');
       return !fs.existsSync(stagingRoot)
         || fs.readdirSync(stagingRoot).filter(d => d.startsWith('skillify-')).length === 0;
     });
@@ -470,6 +487,8 @@ write any files.`,
 
     const childHome = path.join(workDir, 'home');
     fs.mkdirSync(childHome, { recursive: true });
+    // Fresh subdir, never the cwd — see the happy-path comment.
+    const childEnv = { GSTACK_HOME: gstackHome, HOME: childHome };
 
     const result = await runSkillTest({
       prompt: `Two steps:
@@ -481,13 +500,9 @@ write any files.`,
    of A (Commit). The D3 contract says the temp dir must be removed and
    nothing should land at the final tier path.
 
-Use HOME=${childHome}. Do NOT commit the skill.`,
+Do NOT commit the skill.`,
       workingDirectory: workDir,
-      env: {
-        GSTACK_HOME: gstackHome,
-        // Fresh subdir, never the cwd — see the happy-path comment.
-        HOME: childHome,
-      },
+      env: childEnv,
       maxTurns: 35,
       allowedTools: ['Skill', 'Bash', 'Read', 'Write'],
       timeout: CAPTURE_LONG_MS,
@@ -498,16 +513,15 @@ Use HOME=${childHome}. Do NOT commit the skill.`,
     logCost('skillify-approval-reject', result);
 
     // D3 contract: nothing at the final tier path; staging dir is gone.
-    // Sweep BOTH roots: $HOME/.gstack (= childHome) and cwd-relative .gstack.
-    const negativeRoots = [childHome, workDir];
+    const negativeRoots = everyWriteRoot(workDir, childEnv);
     const writtenSkills = negativeRoots.flatMap((root) => {
-      const skillsRoot = path.join(root, '.gstack', 'browser-skills');
+      const skillsRoot = path.join(root, 'browser-skills');
       return fs.existsSync(skillsRoot)
         ? fs.readdirSync(skillsRoot).filter(d => !d.startsWith('.'))
         : [];
     });
     const stagingLeftovers = negativeRoots.flatMap((root) => {
-      const stagingRoot = path.join(root, '.gstack', '.tmp');
+      const stagingRoot = path.join(root, '.tmp');
       return fs.existsSync(stagingRoot)
         ? fs.readdirSync(stagingRoot).filter(d => d.startsWith('skillify-'))
         : [];
