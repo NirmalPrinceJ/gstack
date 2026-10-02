@@ -93,7 +93,11 @@ function openDaemonLog(): fs.WriteStream | null {
   try {
     const p = resolveDaemonLogPath();
     fs.mkdirSync(path.dirname(p), { recursive: true });
-    return fs.createWriteStream(p, { flags: "a" });
+    const stream = fs.createWriteStream(p, { flags: "a" });
+    stream.on("error", () => {
+      if (daemonLog === stream) daemonLog = null;
+    });
+    return stream;
   } catch {
     return null;
   }
@@ -574,7 +578,10 @@ export const __testInternals__ = {
   fetchHandler,
   idleCheckTick,
   markMeaningfulActivity,
+  daemonLog: () => daemonLog,
   resetForTest: (): void => {
+    daemonLog?.end();
+    daemonLog = undefined;
     boards.clear();
     boardMutex.clear();
     lastMeaningfulActivity = Date.now();
