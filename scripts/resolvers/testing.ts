@@ -116,7 +116,7 @@ If multiple runtimes detected (monorepo) → ask which runtime to set up first, 
 3. Create directory structure (test/, spec/, etc.)
 4. Create one example test matching the project's code to verify setup works
 
-If package installation fails → debug once. If still failing → revert with \`git checkout -- package.json package-lock.json\` (or equivalent for the runtime). Warn user and continue without tests.
+Record existing files and edits before installing. If package installation fails → debug once. If still failing → undo only the changes this bootstrap made and preserve the user's edits; never blanket-checkout. Warn user and continue without tests.
 
 ### B4.5. First real tests
 
@@ -125,7 +125,7 @@ Generate 3-5 real tests for existing code:
 1. **Find recently changed files:** \`git log --since=30.days --name-only --format="" | sort | uniq -c | sort -rn | head -10\`
 2. **Prioritize by risk:** Error handlers > business logic with conditionals > API endpoints > pure functions
 3. **For each file:** Write one test that tests real behavior with meaningful assertions. Never \`expect(x).toBeDefined()\` — test what the code DOES.
-4. Run each test. Passes → keep. Fails → fix once. Still fails → delete silently.
+4. Run each test. Passes → keep. Fails → fix an invalid test or fixture once. Still fails → drop it and name it, with its failure output, in the bootstrap summary; a failure in the code under test is a finding for the user, never a silent deletion.
 5. Generate at least 1 test, cap at 5.
 
 Never import secrets, API keys, or credentials in test files. Use environment variables or test fixtures.
@@ -137,7 +137,7 @@ Never import secrets, API keys, or credentials in test files. Use environment va
 {detected test command}
 \`\`\`
 
-If tests fail → debug once. If still failing → revert all bootstrap changes and warn user.
+If tests fail → debug once. If still failing → undo only this bootstrap's own changes, preserve the user's edits, and warn user with the failure.
 
 ### B5.5. CI/CD pipeline
 
@@ -188,7 +188,7 @@ Append a \`## Testing\` section:
 git status --porcelain
 \`\`\`
 
-Only commit if there are changes. Stage all bootstrap files (config, test directory, TESTING.md, CLAUDE.md, .github/workflows/test.yml if created):
+Only commit if there are changes. Stage the bootstrap's own files by name (config, test directory, TESTING.md, CLAUDE.md, .github/workflows/test.yml if created); if unrelated edits are already staged, stop and ask before committing:
 \`git commit -m "chore: bootstrap test framework ({framework name})"\`
 
 ---`;
