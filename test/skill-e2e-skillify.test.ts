@@ -42,6 +42,8 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { readShippedSkillRouting } from './helpers/shipped-skill-routing';
+import { hasNarrationLeak } from './helpers/skill-body-narration';
 
 const evalCollector = createEvalCollector('e2e-skillify');
 
@@ -60,7 +62,7 @@ interface Workdir {
  *   - bin/ scripts referenced by the preamble
  *   - A scoped GSTACK_HOME under the workdir so on-disk artifacts are
  *     contained and assertable
- *   - A CLAUDE.md routing block instructing Skill-tool invocation
+ *   - A CLAUDE.md with the ## Skill routing section gstack ships
  *
  * `installSkills` lets each test pick the minimum surface (e.g., the
  * provenance-refusal scenario doesn't need /scrape).
@@ -109,16 +111,10 @@ function setupSkillifyWorkdir(suffix: string, installSkills: string[] = ['scrape
 
   fs.writeFileSync(path.join(workDir, 'CLAUDE.md'), `# Project Instructions
 
-## Skill routing
+${readShippedSkillRouting().section}
 
-When the user's request matches an available skill, ALWAYS invoke it via
-the Skill tool as your FIRST action.
+## Test environment
 
-Key routing rules:
-- /scrape, "scrape", "get data from", "extract from" → invoke scrape
-- /skillify, "skillify", "codify this scrape" → invoke skillify
-
-Environment:
 - GSTACK_HOME="${gstackHome}" for all gstack bin scripts.
 - bin scripts are at ./bin/ relative to this directory.
 - Browse binary is at ${browseBin} — assign to $B (e.g., \`B=${browseBin}\`).
@@ -196,13 +192,8 @@ describeIfSelected('Browser-skills Phase 2a E2E (/scrape + /skillify)', [
     installBundledHackernewsSkill(workDir);
 
     const result = await runSkillTest({
-      prompt: `Run /scrape latest hacker news stories. Invoke /scrape via the Skill tool.
-You MUST follow the skill's match-phase logic:
-1. Run \`$B skill list\` to see what browser-skills are available
-2. Recognize that "latest hacker news stories" matches the bundled
-   hackernews-frontpage skill's triggers
-3. Run \`$B skill run hackernews-frontpage\` and emit the JSON
-Do NOT enter the prototype phase. Do NOT use AskUserQuestion.`,
+      prompt: `Run /scrape latest hacker news stories.
+This run is non-interactive; AskUserQuestion is unavailable.`,
       workingDirectory: workDir,
       env: { GSTACK_HOME: gstackHome },
       maxTurns: 12,
@@ -214,18 +205,31 @@ Do NOT enter the prototype phase. Do NOT use AskUserQuestion.`,
 
     logCost('scrape-match-path', result);
 
+    // Outcome: the matcher ran the bundled skill instead of prototyping, and
+    // nothing new was written. Listing first is one valid way to match.
     const cmds = bashCommands(result);
-    const listedSkills = cmds.some(c => /\bskill\s+list\b/.test(c));
     const ranBundledSkill = cmds.some(c => /\bskill\s+run\s+hackernews-frontpage\b/.test(c));
+    const prototyped = cmds.some(c => /\$B\s+goto\b|\/browse\s+goto\b/.test(c));
+    const newSkills = [workDir, gstackHome].flatMap((root) => {
+      const skillsRoot = path.join(root, '.gstack', 'browser-skills');
+      return fs.existsSync(skillsRoot) ? fs.readdirSync(skillsRoot).filter(d => !d.startsWith('.') && d !== 'hackernews-frontpage') : [];
+    });
+    const staged = [workDir, gstackHome].some((root) => {
+      const stagingRoot = path.join(root, '.gstack', '.tmp');
+      return fs.existsSync(stagingRoot) && fs.readdirSync(stagingRoot).some(d => d.startsWith('skillify-'));
+    });
+    console.log(`scrape-match-path: listed skills first = ${cmds.some(c => /\bskill\s+list\b/.test(c))}`);
     const exitOk = ['success', 'error_max_turns'].includes(result.exitReason);
 
     recordE2E(evalCollector, 'scrape match-path routes to bundled skill', 'Phase 2a E2E', result, {
-      passed: exitOk && listedSkills && ranBundledSkill,
+      passed: exitOk && ranBundledSkill && !prototyped && newSkills.length === 0 && !staged,
     });
 
     expect(exitOk).toBe(true);
-    expect(listedSkills).toBe(true);
     expect(ranBundledSkill).toBe(true);
+    expect(prototyped, 'matched skill must run without prototyping').toBe(false);
+    expect(newSkills).toEqual([]);
+    expect(staged).toBe(false);
     try { fs.rmSync(workDir, { recursive: true, force: true }); } catch {}
   }, CAPTURE_MS);
 
@@ -240,13 +244,8 @@ Do NOT enter the prototype phase. Do NOT use AskUserQuestion.`,
 
     const result = await runSkillTest({
       prompt: `Run /scrape titles and scores from ${fileUrl}.
-Invoke /scrape via the Skill tool. Follow the skill's prototype-phase logic:
-1. \`$B skill list\` finds NO matching skill
-2. Drive: \`$B goto ${fileUrl}\` then \`$B html\` (or \`$B text\`)
-3. Parse the items (each has a title and a score)
-4. Emit JSON of the form {"items": [{"title": "...", "score": N}, ...], "count": N}
-5. Suggest /skillify in one line
-Do NOT use AskUserQuestion.`,
+Return JSON of the form {"items": [{"title": "...", "score": N}, ...], "count": N}.
+This run is non-interactive; AskUserQuestion is unavailable.`,
       workingDirectory: workDir,
       env: { GSTACK_HOME: gstackHome },
       maxTurns: 18,
@@ -351,16 +350,13 @@ Do NOT halt for clarification.`,
       && fs.existsSync(path.join(skillDir, '_lib', 'browse-client.ts'))
       && fs.existsSync(path.join(skillDir, 'fixtures'));
 
-    // D2 enforcement: the SKILL.md prose body MUST NOT contain conversation
-    // fragments. Cheap heuristic: it shouldn't have "I" or "Let me" or other
-    // first-person/agent-narration markers.
+    // D2 enforcement: the SKILL.md prose body must not contain conversation
+    // fragments (stored good/bad bodies: skill-body-narration.test.ts).
     let prosesClean = false;
     if (hasAllFiles) {
       const skillMd = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');
       const body = skillMd.split(/\n---\n/)[1] || '';
-      prosesClean = !/^I /m.test(body)
-        && !/Let me /i.test(body)
-        && !/^I'll /m.test(body);
+      prosesClean = !hasNarrationLeak(body);
     }
 
     const exitOk = ['success', 'error_max_turns'].includes(result.exitReason);
@@ -390,11 +386,8 @@ Do NOT halt for clarification.`,
     fs.mkdirSync(childHome, { recursive: true });
 
     const result = await runSkillTest({
-      prompt: `Run /skillify via the Skill tool. There has been NO prior /scrape
-in this conversation. Follow the skill's Step 1 (D1 provenance guard) literally:
-walk back through agent turns, find no /scrape result, refuse with the exact
-message the skill specifies, and stop. Do NOT synthesize anything. Do NOT
-write any files.`,
+      prompt: `Run /skillify.
+This run is non-interactive; AskUserQuestion is unavailable.`,
       workingDirectory: workDir,
       env: {
         GSTACK_HOME: gstackHome,

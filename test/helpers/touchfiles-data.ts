@@ -884,24 +884,24 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'scrape-match-path': [
     'scrape/**', 'browse/src/browser-skills.ts', 'browse/src/browser-skill-commands.ts',
     'browser-skills/hackernews-frontpage/**',
-    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'
+    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts', 'test/helpers/skill-body-narration.ts'
   ],
   'scrape-prototype-path': [
     'scrape/**', 'browse/src/browser-skills.ts', 'browse/src/browser-skill-commands.ts',
-    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'
+    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts', 'test/helpers/skill-body-narration.ts'
   ],
   'skillify-happy-path': [
     'skillify/**', 'scrape/**', 'browse/src/browser-skill-write.ts',
     'browse/src/browser-skills.ts', 'browse/src/browser-skill-commands.ts',
-    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'
+    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts', 'test/helpers/skill-body-narration.ts'
   ],
   'skillify-provenance-refusal': [
     'skillify/**', 'browse/src/browser-skill-write.ts',
-    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'
+    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts', 'test/helpers/skill-body-narration.ts'
   ],
   'skillify-approval-reject': [
     'skillify/**', 'scrape/**', 'browse/src/browser-skill-write.ts',
-    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'
+    'test/skill-e2e-skillify.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts', 'test/helpers/skill-body-narration.ts'
   ],
 
   // Skill routing — journey-stage tests (depend on ALL skill descriptions)
