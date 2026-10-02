@@ -520,18 +520,6 @@ complete plan, report and summary as not persisted, then use **Gate outcome:
 Blocked**. This delivers the review content without claiming saved completion;
 skip Review Log, success telemetry and the next-skill handoff.
 
-## Handoff Note Cleanup
-
-After producing the Completion Summary, remove this branch's handoff notes only if the storage policy permits cleanup. Otherwise retain them and report that cleanup was not performed.
-
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
-setopt +o nomatch 2>/dev/null || true  # zsh compat
-# gstack-slug prints both SLUG and BRANCH; eval sets them in this shell.
-{{SLUG_EVAL}}
-rm -f "$GSTACK_STATE_ROOT"/projects/$SLUG/*-$BRANCH-ceo-handoff-*.md 2>/dev/null || true
-```
-
 ## Review Log
 
 Attempt these history writes only after the plan/report's successful write and

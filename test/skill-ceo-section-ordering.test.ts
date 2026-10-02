@@ -317,7 +317,7 @@ test('CEO output stages prepare body before report and publish only after verifi
   expect(section).toContain('no stage depends on a completion log written later');
   expect(section).toContain('After the report Read-back gate passes');
   expect(section).toContain('Do not append it after the report in the file');
-  const chat = section.slice(section.indexOf('If no plan/report write is permitted'), section.indexOf('## Handoff Note Cleanup'));
+  const chat = section.slice(section.indexOf('If no plan/report write is permitted'), section.indexOf('## Review Log'));
   expect(chat).toContain('complete plan, report and summary as not persisted, then use **Gate outcome: Blocked**');
   expect(chat).toContain('without claiming saved completion');
   expect(chat).toContain('skip Review Log, success telemetry and the next-skill handoff');
