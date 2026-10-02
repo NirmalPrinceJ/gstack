@@ -4485,7 +4485,7 @@ describe('plan-mode-info resolver (handshake-replacement)', () => {
       'utf-8',
     );
     const planModeIdx = content.indexOf(PLAN_MODE_INFO_MARKER);
-    const upgradeIdx = content.indexOf('If `PROACTIVE` is `"false"`');
+    const upgradeIdx = content.search(/If `PROACTIVE` is `"?false"?`/i);
     expect(planModeIdx).toBeGreaterThan(0);
     expect(upgradeIdx).toBeGreaterThan(0);
     expect(planModeIdx).toBeLessThan(upgradeIdx);
