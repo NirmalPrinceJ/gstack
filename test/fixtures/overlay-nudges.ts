@@ -55,6 +55,8 @@ export interface OverlayFixture {
   verify?: (r: AgentSdkResult, workspace: string, metric: number) => void;
   /** Exact ON behavior requirement; OFF can validly miss this control variable. */
   taskCorrect?: (metric: number) => boolean;
+  /** Blocking comparison over complete arms; when absent the comparison is research-only. */
+  gate?: (arms: { overlay: number[]; off: number[] }) => boolean;
   /** Exact permitted paths; read-only by default. */
   allowedChanges?: string[];
   metricName?: string;
@@ -149,6 +151,22 @@ export function lowerIsBetter20Pct(arms: { overlay: number[]; off: number[] }): 
   return mean(arms.overlay) <= meanOff * 0.8;
 }
 
+function median(xs: number[]): number {
+  const sorted = [...xs].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+/**
+ * Blocking gate for lower-is-better counts: the 20% reduction, except that a
+ * baseline whose median is already 0 leaves no room to improve, so ON passes
+ * only when every ON trial is also 0.
+ */
+export function lowerIsBetter20PctOrZeroBaseline(arms: { overlay: number[]; off: number[] }): boolean {
+  if (median(arms.off) === 0) return arms.overlay.every((n) => n === 0);
+  return lowerIsBetter20Pct(arms);
+}
+
 /**
  * Original "higher is better" research comparator: overlay mean should lift the
  * metric by at least 20% vs baseline. Used for nudges like "literal
@@ -205,12 +223,14 @@ export const OVERLAY_FIXTURES: OverlayFixture[] = [
       "The final message is consumed directly by JSON.parse: return the exact JSON object, with no Markdown fences and no other prose. " +
       "You may use any tools available.",
     // Metric: total Bash tool_use count across the whole session.
-    // The overlay says "prefer Read/Glob/Grep over cat/find/grep shell."
+    // The overlay says to prefer the host's dedicated file and search tools over cat/find/grep in the shell.
     // A model following that should emit Glob + Read, not Bash ls/find/cat.
+    // Every ON trial must return the exact JSON (verify) and the ON arm must
+    // use at least 20% fewer Bash calls than OFF (or none, at a zero baseline).
     metric: bashToolCallCount,
     metricName: 'bash_tool_calls',
     verify: (r) => assertFinalJson(r, { 'src/index.ts': ['x'], 'src/util.ts': ['util'], 'src/types.ts': ['Foo'], 'src/config.ts': ['c'], 'src/api.ts': ['fetchFoo'] }),
-    taskCorrect: (metric) => metric === 0,
+    gate: lowerIsBetter20PctOrZeroBaseline,
     comparison: { direction: 'lower_is_better', minimum: 0 },
     pass: lowerIsBetter20Pct,
   },
@@ -300,7 +320,7 @@ export const OVERLAY_FIXTURES: OverlayFixture[] = [
     metric: bashToolCallCount,
     metricName: 'bash_tool_calls',
     verify: (r) => assertFinalJson(r, { 'src/index.ts': ['x'], 'src/util.ts': ['util'], 'src/types.ts': ['Foo'], 'src/config.ts': ['c'], 'src/api.ts': ['fetchFoo'] }),
-    taskCorrect: (metric) => metric === 0,
+    gate: lowerIsBetter20PctOrZeroBaseline,
     comparison: { direction: 'lower_is_better', minimum: 0 },
     pass: lowerIsBetter20Pct,
   },
