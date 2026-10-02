@@ -240,6 +240,7 @@ Build the full readiness report:
 ╠══════════════════════════════════════════════════════════╣
 ║  PR: #NNN — title                                        ║
 ║  Branch: feature → main                                  ║
+║  CI (head <sha7>): PASS / FAIL / PENDING / NO CI RAN     ║
 ║  REVIEWS                                                 ║
 ║  ├─ Eng Review:    CURRENT / STALE (N commits) / —       ║
 ║  ├─ CEO Review:    CURRENT / — (optional)                ║
@@ -258,6 +259,13 @@ Build the full readiness report:
 ║  WARNINGS: N  |  BLOCKERS: N                             ║
 ╚══════════════════════════════════════════════════════════╝
 ```
+
+CI row: ERROR or red/pending `required=y|?` checks are BLOCKERS. Red/pending
+`required=n` checks or NO_CHECKS first need one-way question
+`land-and-deploy-ci-override` / `land-and-deploy-no-ci-confirm`, naming each check
+(or "no CI ran on `<sha>`"): A) exclude exactly these / accept no CI, this head → set
+`CI_OVERRIDE=(--override-head "$PR_HEAD" --exclude "<name>" ...)` or
+`NO_CI_APPROVED_HEAD=$PR_HEAD`, never stored or reused; B) stop (BLOCKER).
 
 If there are BLOCKERS (including failing free tests): show the report and **STOP**
 with repair instructions. Do not offer A or C with blockers.

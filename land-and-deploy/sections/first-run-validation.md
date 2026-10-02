@@ -93,7 +93,7 @@ Run whichever commands are relevant based on the detected platform. Build the re
 ║  ├─ Staging workflow:   {file or "not found"}              ║
 ║  └─ Preview deploys:    {detected or "not detected"}       ║
 ║  WHAT WILL HAPPEN                                          ║
-║  1. Wait for required CI if pending                       ║
+║  1. Wait for all CI on this head (gstack-ci-gate)         ║
 ║  2. Readiness checks and explicit merge approval          ║
 ║  3. Merge PR via {merge method}                            ║
 ║  4. {Wait for deploy workflow / Wait 60s / Skip}           ║
