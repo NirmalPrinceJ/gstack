@@ -243,8 +243,8 @@ ExitPlanMode or next-skill handoff.
 | 0H spec-review metrics | Stop with the cause; reviewer availability does not waive this write. |
 | Review, decision and question history logs | Report cause and unsaved fields; continue. The plan's ledger is still required. |
 
-Paths differ: 0H resolves `CEO_PLANS`; tasks use `~/.gstack/projects/`, metrics
-use `~/.gstack/analytics/`, and log helpers choose their paths. Never substitute
+Paths differ: 0H resolves `CEO_PLANS`; tasks use `$GSTACK_STATE_ROOT/projects/`, metrics
+use `$GSTACK_STATE_ROOT/analytics/`, and log helpers choose their paths. Never substitute
 the CEO archive root for task, metric or log paths.
 
 Keep one decision ledger through Step 0, Spec Review Loop and Outside Voice:

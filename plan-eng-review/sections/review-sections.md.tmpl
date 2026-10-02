@@ -41,7 +41,7 @@ path authorizes no other; implementation edits require explicit authority.
 | Required Review Log | The helper's state location | Present its fields as **not persisted**; at Review Log, use **Blocked outcome** instead of publishing a saved review. The final gate cannot pass without this log. |
 | Best-effort metadata/learning logs | Helper-defined locations | Skip forbidden writes; otherwise keep their best-effort behavior. |
 
-QA Test Plan/task JSONL keep discovery paths `~/.gstack/projects/{slug}/`:
+QA Test Plan/task JSONL keep discovery paths `$GSTACK_STATE_ROOT/projects/{slug}/`:
 `{user}-{branch}-eng-review-test-plan-{datetime}.md` and
 `tasks-eng-review-{datetime}.jsonl`. Keep their formats; do not relocate.
 

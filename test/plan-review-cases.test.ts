@@ -849,7 +849,9 @@ describe('Eng approved-work decision gate', () => {
     expect(compactProse(policy)).toContain("adding a suffix on collision");
     expect(compactProse(policy)).toContain("Never substitute an unrelated active plan");
     expect(compactProse(policy)).toContain("ledger and final structured report");
-    expect(compactProse(policy)).toContain('QA Test Plan/task JSONL keep discovery paths `~/.gstack/projects/{slug}/`');
+    // Discovery paths follow the writers' state root (testing.ts, tasks-section.ts), never a hardcoded home.
+    expect(compactProse(policy)).toMatch(/discovery paths `\$GSTACK_STATE_ROOT\/projects\/\{slug\}\/`/);
+    expect(compactProse(policy)).not.toContain('~/.gstack/projects/{slug}/');
     expect(compactProse(policy)).toContain("including active-plan-only");
     expect(compactProse(policy)).toContain("**Check each artifact and parent directory's permission before writing.**");
     expect(compactProse(policy)).toContain("Permission for one path authorizes no other");
