@@ -11,7 +11,7 @@ import { buildEvalInputIdentity, lookupEvalInputCache, sourceDependencyClosure, 
 
 type Thresholds = { clarity: number; completeness: number; actionability: number };
 export interface WorkflowCacheOptions {
-  root: string; testName: string; skillPath: string; startMarker: string; endMarker: string | null;
+  root: string; testName: string; skillPath: string; startMarker: string; endMarker: string | RegExp | null;
   judgeContext: string; judgeGoal: string; model?: string; thresholds: Thresholds; prompt: string; attempt: number;
   references?: readonly string[];
   agentCapability?: 'frontier';

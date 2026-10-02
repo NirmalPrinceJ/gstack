@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ENG_REVIEW_EXCERPT, readWorkflowExcerpt } from './helpers/workflow-excerpt';
+import { ASK_QUESTIONS_HEADING, ENG_REVIEW_EXCERPT, readWorkflowExcerpt } from './helpers/workflow-excerpt';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -106,9 +106,9 @@ describe('workflow judge excerpts', () => {
   });
 
   test('a sliced section is not appended again with its generated header', () => {
-    const text = readWorkflowExcerpt('plan-design-review/SKILL.md', '## Review Sections', '## CRITICAL RULE');
+    const text = readWorkflowExcerpt('plan-design-review/SKILL.md', '## Review Sections', ASK_QUESTIONS_HEADING);
     expect(text.match(/## Review Sections/g)).toHaveLength(1);
-    expect(text).not.toContain('## CRITICAL RULE');
+    expect(text).not.toMatch(ASK_QUESTIONS_HEADING);
     expect(text).not.toContain('AUTO-GENERATED');
   });
 
@@ -293,7 +293,7 @@ console.log(JSON.stringify({calls, results}));
     expect(pendingDecision).toContain("**STOP until the actual answer arrives.**");
     expect(pendingDecision.replace(/\s+/g, ' ')).toContain("Do not apply a remedy, make another call, start the next section or call ExitPlanMode while the choice awaits an answer");
     expect(eng.replace(/\s+/g, ' ')).toContain("Use a scoped Edit to save this record and only the authorized working-plan amendments. Leave other choices unchanged");
-    const design = readWorkflowExcerpt('plan-design-review/SKILL.md', '## Review Sections', '## CRITICAL RULE');
+    const design = readWorkflowExcerpt('plan-design-review/SKILL.md', '## Review Sections', ASK_QUESTIONS_HEADING);
     expect(design).toContain('wait for approval, then edit the plan and re-rate');
     const pass4 = design.slice(design.indexOf('### Pass 4:'), design.indexOf('### Pass 5:'));
     expect(pass4.match(/^### /gm)).toHaveLength(1);

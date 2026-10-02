@@ -1,6 +1,7 @@
 /** Preserve source-file boundaries when a workflow judge reads carved skills. */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { markerIndex } from './workflow-excerpt';
 
 export interface WorkflowJudgeFile {
   path: string;
@@ -84,7 +85,7 @@ export function readWorkflowJudgeInput(opts: {
   root: string;
   skillPath: string;
   startMarker: string;
-  endMarker: string | null;
+  endMarker: string | RegExp | null;
   references?: readonly string[];
 }): WorkflowJudgeInput {
   const sources = [{
@@ -115,7 +116,7 @@ export function readWorkflowJudgeInput(opts: {
   const union = allSources.map(file => file.content).join('\n');
   const start = union.indexOf(opts.startMarker);
   if (start < 0) throw new Error(`Start marker not found in ${opts.skillPath}: "${opts.startMarker}"`);
-  const end = opts.endMarker === null ? union.length : union.indexOf(opts.endMarker, start);
+  const end = opts.endMarker === null ? union.length : markerIndex(union, opts.endMarker, start);
   if (end < 0) throw new Error(`End marker not found in ${opts.skillPath}: "${opts.endMarker}"`);
 
   const files: WorkflowJudgeFile[] = [];
