@@ -254,7 +254,7 @@ echo "DIFF_SIZE: $DIFF_TOTAL"
 ${outsideVoicePreflight(ctx, { disabledBehavior: 'codex-only' })}
 
 \`CODEX_MODE: disabled\` means skip the ${outsideVoiceFor(ctx).label} passes ONLY.
-\`ready\` runs them; \`not_installed\` / \`not_authed\` skip with the printed reason.
+\`ready\` runs them; every other mode skips them with the printed reason.
 The ${outsideVoiceFor(ctx).nativeLabel} adversarial subagent always runs.
 
 **User override:** If the user explicitly requested "full review", "structured review", or "P1 gate", also run the ${outsideVoiceFor(ctx).label} structured review regardless of diff size (still requires \`CODEX_MODE: ready\`).
