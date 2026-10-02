@@ -223,3 +223,60 @@ describe('design_detector_install_prompted (true|false, rejecting validator)', (
     }
   });
 });
+
+describe('transcript_ingest_mode (recent|all|off, rejecting validator)', () => {
+  const env = { ...process.env, GSTACK_STATE_ROOT: STATE };
+  const set = (key: string, value: string) =>
+    spawnSync('bash', [CONFIG_BIN, 'set', key, value], { encoding: 'utf-8', timeout: 30_000, env });
+  const has = (key: string) => spawnSync('bash', [CONFIG_BIN, 'has', key], { encoding: 'utf-8', timeout: 30_000, env }).status;
+  const file = path.join(STATE, 'config.yaml');
+  const snapshot = () => (fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : null);
+
+  test('accepts recent, all and off', () => {
+    for (const value of ['recent', 'all', 'off']) {
+      expect(set('transcript_ingest_mode', value).status).toBe(0);
+      expect(get('transcript_ingest_mode').out).toBe(value);
+    }
+    expect(has('transcript_ingest_mode')).toBe(0);
+  });
+
+  test('rejects legacy letters and unknown values with the file unchanged', () => {
+    set('transcript_ingest_mode', 'recent');
+    for (const value of ['A', 'incremental', 'new-only', 'yes', 'Recent']) {
+      const before = snapshot();
+      const r = set('transcript_ingest_mode', value);
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain(
+        `Error: transcript_ingest_mode '${value}' not recognized. Valid values: recent, all, off. Existing value left unchanged.`,
+      );
+      expect(snapshot()).toBe(before);
+    }
+    expect(get('transcript_ingest_mode').out).toBe('recent');
+  });
+});
+
+describe('set rejects empty and multi-line values for every key', () => {
+  const env = { ...process.env, GSTACK_STATE_ROOT: STATE };
+  const file = path.join(STATE, 'config.yaml');
+  const snapshot = () => (fs.existsSync(file) ? fs.readFileSync(file, 'utf-8') : null);
+
+  test('an empty value exits 1 and leaves the file unchanged', () => {
+    for (const key of ['workspace_root', 'transcript_ingest_mode', 'some_free_form_key']) {
+      const before = snapshot();
+      const r = spawnSync('bash', [CONFIG_BIN, 'set', key, ''], { encoding: 'utf-8', timeout: 30_000, env });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/empty/i);
+      expect(snapshot()).toBe(before);
+    }
+  });
+
+  test('a value containing a newline exits 1 and leaves the file unchanged', () => {
+    for (const key of ['workspace_root', 'transcript_ingest_mode', 'some_free_form_key']) {
+      const before = snapshot();
+      const r = spawnSync('bash', [CONFIG_BIN, 'set', key, 'recent\nall'], { encoding: 'utf-8', timeout: 30_000, env });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/newline/i);
+      expect(snapshot()).toBe(before);
+    }
+  });
+});

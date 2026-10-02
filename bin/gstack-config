@@ -89,6 +89,20 @@ CONFIG_HEADER='# gstack configuration — edit freely, changes take effect on ne
 #                           # Set to true once the privacy gate has asked the user.
 #                           # Flip back to false to be re-prompted.
 #
+# ─── Transcript ingest (gbrain memory) ───────────────────────────────
+# transcript_ingest_mode: off  # recent | all | off — consent for /sync-gbrain
+#                           #   to ingest Claude Code and Codex session
+#                           #   transcripts (every project repo policy allows)
+#                           #   into your brain (local or Supabase).
+#                           #   recent — last 90 days
+#                           #   all    — all history
+#                           #   off    — never (other memory still syncs)
+#                           # Absent, legacy (A-E, incremental) or unknown
+#                           # values are not consent: transcripts are skipped
+#                           # and /sync-gbrain asks once. An invalid value is
+#                           # REJECTED and the stored value kept.
+#                           # Docs: setup-gbrain/memory.md#transcripts
+#
 # ─── Timeline Stop hook ──────────────────────────────────────────────
 # timeline_stop_hook: yes   # Controls whether ./setup registers the timeline
 #                           #   Stop hook (closes dangling session entries).
@@ -195,7 +209,7 @@ lookup_default() {
     # the callers already assume in their own `|| echo "<default>"` fallback.
     question_tuning) echo "false" ;;
     team_mode) echo "false" ;;
-    transcript_ingest_mode) echo "off" ;;
+    transcript_ingest_mode) echo "off" ;; # recent | all | off — transcript consent; absent = not consented (use `has`)
     # repo_mode: EMPTY is load-bearing — gstack-repo-mode treats any non-empty
     # answer as a user override and skips its own classification entirely, so
     # a synthesized "unknown" default turns the classifier into dead code.
@@ -390,7 +404,23 @@ case "${1:-}" in
     ;;
   set)
     KEY="${2:?Usage: gstack-config set <key> <value>}"
-    VALUE="${3:?Usage: gstack-config set <key> <value>}"
+    if [ "$#" -lt 3 ]; then
+      echo "Usage: gstack-config set <key> <value>" >&2
+      exit 1
+    fi
+    VALUE="$3"
+    # A config value is one non-empty line. Reject rather than truncate, so a
+    # bad value never replaces the stored one.
+    if [ -z "$VALUE" ]; then
+      echo "Error: $KEY value is empty. Existing value left unchanged." >&2
+      exit 1
+    fi
+    case "$VALUE" in
+      *$'\n'*)
+        echo "Error: $KEY value contains a newline. Existing value left unchanged." >&2
+        exit 1
+        ;;
+    esac
     # Validate key (alphanumeric + underscore + optional @<endpoint-id> suffix).
     # Accepts hex hashes and the literal "local" from endpoint_hash.
     if ! printf '%s' "$KEY" | LC_ALL=C grep -qE '^[a-zA-Z0-9_]+(@[a-zA-Z0-9]+)?$'; then
@@ -467,6 +497,12 @@ case "${1:-}" in
       echo "Error: cross_project_learnings '$VALUE' not recognized. Valid values: true, false. Existing value left unchanged." >&2
       exit 1
     fi
+    # transcript_ingest_mode is a CONSENT key: recent/all let /sync-gbrain
+    # ingest coding-agent transcripts. Reject a typo; never coerce or store it.
+    if [ "$KEY" = "transcript_ingest_mode" ] && [ "$VALUE" != "recent" ] && [ "$VALUE" != "all" ] && [ "$VALUE" != "off" ]; then
+      echo "Error: transcript_ingest_mode '$VALUE' not recognized. Valid values: recent, all, off. Existing value left unchanged." >&2
+      exit 1
+    fi
     # memorable_recall is a CONSENT key: `on` lets a Claude Code hook hand every
     # prompt to a third-party binary. Reject like codex_reviews -- a typo must
     # never flip consent in either direction, so nothing is coerced or stored.
@@ -479,8 +515,8 @@ case "${1:-}" in
     if [ ! -f "$CONFIG_FILE" ]; then
       printf '%s' "$CONFIG_HEADER" > "$CONFIG_FILE"
     fi
-    # Drop embedded newlines, then escape sed replacement metacharacters.
-    SAFE_VALUE="$(printf '%s' "$VALUE" | head -1)"
+    # Escape sed replacement metacharacters (newlines were rejected above).
+    SAFE_VALUE="$VALUE"
     ESC_VALUE="$(printf '%s' "$SAFE_VALUE" | sed 's/[&/\]/\\&/g')"
     if grep -qE "^${KEY}:" "$CONFIG_FILE" 2>/dev/null; then
       # Portable in-place edit (BSD sed uses -i '', GNU sed uses -i without arg)
