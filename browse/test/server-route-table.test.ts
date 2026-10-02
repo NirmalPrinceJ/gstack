@@ -27,6 +27,9 @@ import { buildFetchHandler, __testInternals__ } from '../src/server';
 import { __resetRegistry } from '../src/token-registry';
 import { BrowserManager } from '../src/browser-manager';
 import { resolveConfig } from '../src/config';
+import { usePrivateStateRoot } from '../../test/helpers/private-state-root';
+
+usePrivateStateRoot();
 
 type Cred = 'none' | 'wrong' | 'root' | 'scoped' | 'sse-cookie' | 'extension-origin';
 const CREDS: Cred[] = ['none', 'wrong', 'root', 'scoped', 'sse-cookie', 'extension-origin'];

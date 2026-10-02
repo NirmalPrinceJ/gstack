@@ -716,6 +716,25 @@ resolves (`browserAvailable()` — Aside, or the browse binary CI builds with
 `bun run build:gates`) and skip only when neither exists; the fallback
 engine's own tests run everywhere.
 
+### Real-home tripwire
+
+No free test may write the developer's real home. `scripts/lib/free-home-guard.ts`
+snapshots `~/.gstack`, `~/.claude`, `~/.codex`, `~/.agents` and `~/.config/gstack`
+(live session logs excluded) and fails the run when an entry changes.
+
+- A shard that runs alone (`--shard`, CI, the exclusive host-state shard, the
+  flaky retry) owns its window, so the failure names its files.
+- Full-suite shards run concurrently on one HOME and cannot tell whose write a
+  change was. The runner guards that whole phase once and names no shard.
+- `bun run scripts/test-free-shards.ts --attribute-home` names the writer: it
+  runs every file alone with a private HOME (browser cache and git identity
+  still come from the real home) and reports each file that wrote a watched
+  surface. The retained shard directory keeps the written files as evidence.
+
+Fix a writer with `usePrivateStateRoot()` (`test/helpers/private-state-root.ts`)
+or a child HOME/GSTACK_HOME, and resolve product state paths at write time,
+never at import.
+
 ## Running evals as an agent: detach
 
 Moved verbatim from CLAUDE.md (#2096 size limit). The short rule stays in

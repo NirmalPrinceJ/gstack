@@ -1,5 +1,5 @@
 {
-  "recordedFrom": "96764e80 (pre-engine base runners); paid lane re-recorded at v1.91.12.0 for the marathon tier and the --slice-budget, --max-parallel, --case and --trials flags (PR 2999)",
+  "recordedFrom": "96764e80 (pre-engine base runners); paid lane re-recorded at v1.91.12.0 for the marathon tier and the --slice-budget, --max-parallel, --case and --trials flags (PR 2999); free lane re-recorded for the --attribute-home flag (PR 3014)",
   "free": [
     {
       "argv": [],
@@ -15,6 +15,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": null,
           "ciVerify": null,
@@ -41,6 +42,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": null,
           "ciVerify": null,
@@ -66,6 +68,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": null,
           "ciVerify": null,
@@ -90,6 +93,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": null,
           "ciVerify": null,
@@ -114,6 +118,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": true,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": null,
           "ciVerify": null,
@@ -141,6 +146,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": null,
           "ciVerify": null,
@@ -166,6 +172,7 @@
           "wallTimeoutMs": 600000,
           "wallTimeoutExplicit": true,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": null,
           "ciVerify": null,
@@ -193,6 +200,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": "plan.json",
           "ciRun": null,
           "ciVerify": null,
@@ -222,6 +230,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": "plan.json",
           "ciVerify": null,
@@ -249,6 +258,7 @@
           "wallTimeoutMs": 360000,
           "wallTimeoutExplicit": false,
           "quick": false,
+          "attributeHome": false,
           "ciPlan": null,
           "ciRun": null,
           "ciVerify": "plan.json",
@@ -380,6 +390,41 @@
       ],
       "result": {
         "error": "--quick cannot change recording, Windows or shard selection"
+      }
+    },
+    {
+      "argv": [
+        "--attribute-home"
+      ],
+      "result": {
+        "ok": {
+          "dryRun": false,
+          "listOnly": false,
+          "recordDurations": false,
+          "windowsOnly": false,
+          "verbose": false,
+          "shardCount": 20,
+          "shardIndex": null,
+          "wallTimeoutMs": 360000,
+          "wallTimeoutExplicit": false,
+          "quick": false,
+          "attributeHome": true,
+          "ciPlan": null,
+          "ciRun": null,
+          "ciVerify": null,
+          "result": null,
+          "results": null
+        }
+      }
+    },
+    {
+      "argv": [
+        "--ci-plan",
+        "a.json",
+        "--attribute-home"
+      ],
+      "result": {
+        "error": "CI modes cannot be combined with other selection modes"
       }
     }
   ],

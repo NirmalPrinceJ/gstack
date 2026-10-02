@@ -6,12 +6,17 @@
  * when one of those entries changed. It watches only these surfaces; it is not
  * a universal write-containment check. Live agent-session logs that a
  * concurrently running host keeps writing are excluded, and directory mtimes
- * are ignored, so only file, link and directory-set changes count. Concurrent
- * shards whose windows overlap a change all report it.
+ * are ignored, so only file, link and directory-set changes count.
+ *
+ * A shard that runs alone owns its window, so its guard names its files.
+ * Concurrent shards share one HOME and cannot tell whose write a change was, so
+ * the runner guards that phase once and names no file; `--attribute-home`
+ * then runs every file alone in a private HOME, where any write is that file's.
  */
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { forEachFileAlone } from './shard-engine';
 
 export const FREE_HOME_SURFACES = ['.gstack', '.claude', '.codex', '.agents', '.config/gstack'] as const;
 
@@ -76,15 +81,28 @@ export function diffFreeHome(before: FreeHomeSnapshot, after: FreeHomeSnapshot):
   return [...changed].sort();
 }
 
-export function formatFreeHomeChange(changed: string[], files: string[]): string {
+/** Who owns the snapshotted window: one shard, a concurrent phase, or one file in a private HOME. */
+export type FreeHomeScope = { kind: 'shard' } | { kind: 'concurrent'; shards: number } | { kind: 'private' };
+
+export function formatFreeHomeChange(changed: string[], files: string[], scope: FreeHomeScope = { kind: 'shard' }): string {
   const shown = changed.slice(0, MAX_REPORTED).map(entry => `~/${entry.split(path.sep).join('/')}`);
   const more = changed.length > MAX_REPORTED ? ` (+${changed.length - MAX_REPORTED} more)` : '';
-  return `real home changed while this shard ran (watches ${FREE_HOME_SURFACES.map(s => `~/${s}`).join(', ')} only): `
-    + `${shown.join(', ')}${more}. Give the writer a private HOME/GSTACK_HOME. Shard files: ${files.join(', ')}`;
+  const watched = `(watches ${FREE_HOME_SURFACES.map(s => `~/${s}`).join(', ')} only): ${shown.join(', ')}${more}.`;
+  const fix = 'Give the writer a private HOME/GSTACK_HOME.';
+  if (scope.kind === 'concurrent') {
+    return `real home changed while ${scope.shards} shards ran concurrently ${watched} They share one HOME, so no shard or file `
+      + `is named. Find the writer with \`bun run scripts/test-free-shards.ts --attribute-home\` (each file alone in a private HOME). ${fix}`;
+  }
+  if (scope.kind === 'private') return `${files.join(', ')} wrote its private HOME ${watched} With the real HOME it writes there. ${fix}`;
+  return `real home changed while this shard ran ${watched} ${fix} Shard files: ${files.join(', ')}`;
 }
 
+export interface FreeHomeGuard { verify(): string | null }
+/** How runFreeShard guards one shard; it may redirect `env` before the child starts. */
+export type FreeHomeGuardFactory = (files: string[], env: NodeJS.ProcessEnv, stateDir: string) => FreeHomeGuard;
+
 /** Take the baseline now; verify() returns null or the failure to report. */
-export function guardFreeHome(files: string[], env: NodeJS.ProcessEnv = process.env): { verify(): string | null } {
+export function guardFreeHome(files: string[], env: NodeJS.ProcessEnv = process.env, scope: FreeHomeScope = { kind: 'shard' }): FreeHomeGuard {
   const home = freeHomeDir(env);
   const unreadable = (error: unknown) => `real home surfaces could not be snapshotted (${(error as NodeJS.ErrnoException).code ?? 'error'}); shard files: ${files.join(', ')}`;
   let before: FreeHomeSnapshot | undefined;
@@ -95,8 +113,51 @@ export function guardFreeHome(files: string[], env: NodeJS.ProcessEnv = process.
       if (!before) return baselineError!;
       try {
         const changed = diffFreeHome(before, snapshotFreeHome(home));
-        return changed.length ? formatFreeHomeChange(changed, files) : null;
+        return changed.length ? formatFreeHomeChange(changed, files, scope) : null;
       } catch (error) { return unreadable(error); }
     },
   };
+}
+
+/** For a shard inside a concurrently guarded phase: the phase guard reports, this one never does. */
+export const sharedFreeHome = (): FreeHomeGuard => ({ verify: () => null });
+
+/**
+ * Redirect one shard's HOME to `<stateDir>/home` and guard that instead. The
+ * browser cache and git identity still come from the real home, so tests run
+ * as they would there; only home writes are diverted.
+ */
+export function privateFreeHome(files: string[], env: NodeJS.ProcessEnv, stateDir: string): FreeHomeGuard {
+  const real = freeHomeDir(env);
+  const home = path.join(stateDir, 'home');
+  fs.mkdirSync(home, { recursive: true, mode: 0o700 });
+  env.PLAYWRIGHT_BROWSERS_PATH ??= path.join(real, process.platform === 'darwin' ? 'Library/Caches' : '.cache', 'ms-playwright');
+  if (!env.GIT_CONFIG_GLOBAL && fs.existsSync(path.join(real, '.gitconfig'))) env.GIT_CONFIG_GLOBAL = path.join(real, '.gitconfig');
+  env.HOME = home;
+  if (env.USERPROFILE !== undefined) env.USERPROFILE = home;
+  return guardFreeHome(files, env, { kind: 'private' });
+}
+
+/**
+ * `--attribute-home`: run each reader file alone with a private HOME, `jobs`
+ * at a time, then each exclusive host-state file alone, and name every file
+ * that wrote a watched surface. Exit 1 when any did.
+ */
+export async function attributeFreeHomeWriters(
+  readers: string[], exclusive: string[], jobs: number,
+  runAlone: (file: string, index: number, homeGuard: FreeHomeGuardFactory) => Promise<unknown>,
+): Promise<number> {
+  const writers: string[] = [];
+  console.log(`[test:free] attributing home writes: ${readers.length + exclusive.length} files, each alone in a private HOME, ${jobs} at a time`);
+  await forEachFileAlone(readers, exclusive, jobs, async (file, index) => {
+    let change = null as string | null;
+    await runAlone(file, index, (files, env, stateDir) => {
+      const guard = privateFreeHome(files, env, stateDir);
+      return { verify: () => (change = guard.verify()) };
+    });
+    if (change) writers.push(change);
+  });
+  for (const writer of writers.sort()) console.error(`[test:free] ✗ ${writer}`);
+  console.log(`[test:free] ${writers.length ? `${writers.length} file(s) wrote home surfaces` : 'no file wrote a watched home surface'}`);
+  return writers.length ? 1 : 0;
 }

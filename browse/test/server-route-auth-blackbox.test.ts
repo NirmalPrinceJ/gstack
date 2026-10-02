@@ -23,6 +23,9 @@ import { __resetRegistry, __resetConnectRateLimit, createToken } from '../src/to
 import { mintSseSessionToken, SSE_COOKIE_NAME } from '../src/sse-session-cookie';
 import { BrowserManager } from '../src/browser-manager';
 import { resolveConfig } from '../src/config';
+import { usePrivateStateRoot } from '../../test/helpers/private-state-root';
+
+usePrivateStateRoot();
 
 const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-route-blackbox-'));
 const fixtureConfig = resolveConfig({ BROWSE_STATE_FILE: path.join(fixtureDir, 'state/browse.json') });

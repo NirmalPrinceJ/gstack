@@ -73,6 +73,7 @@
  *   bun run scripts/test-free-shards.ts --wall-timeout 600         # override the kill deadline
  *   bun run scripts/test-free-shards.ts --verbose                  # forward the full child stream
  *   bun run scripts/test-free-shards.ts --quick                    # explicit fast subset, not acceptance
+ *   bun run scripts/test-free-shards.ts --attribute-home           # name real-home writers: each file alone, private HOME
  *   bun run scripts/test-free-shards.ts --ci-plan plan.json --shards 20
  *   bun run scripts/test-free-shards.ts --ci-run plan.json --shard 1 --result result.json
  *   bun run scripts/test-free-shards.ts --ci-verify plan.json --results results/
@@ -86,11 +87,12 @@ import { StringDecoder } from 'node:string_decoder';
 import { createHash, randomUUID } from 'node:crypto';
 import { isPaidTestFile } from '../test/helpers/paid-test-set';
 import { resolveStateRoot } from '../lib/state-root';
-import { guardFreeHome } from './lib/free-home-guard';
+import { attributeFreeHomeWriters, guardFreeHome, sharedFreeHome, type FreeHomeGuardFactory } from './lib/free-home-guard';
 import {
   BunTestOutputClassifier,
   createShardSandbox,
   exactTestFileSelectors,
+  forEachFileAlone,
   isTerminationRequested,
   killProcessGroup,
   BunFailureSummaryParser,
@@ -902,6 +904,7 @@ type CliOptions = {
   /** True when --wall-timeout was passed explicitly; full-suite mode only auto-scales the default. */
   wallTimeoutExplicit: boolean;
   quick: boolean;
+  attributeHome: boolean;
   ciPlan: string | null;
   ciRun: string | null;
   ciVerify: string | null;
@@ -920,6 +923,7 @@ export function parseCliOptions(argv: string[]): CliOptions {
   let wallTimeoutMs = DEFAULT_WALL_TIMEOUT_MS;
   let wallTimeoutExplicit = false;
   let quick = false;
+  let attributeHome = false;
   const paths: Record<'ciPlan' | 'ciRun' | 'ciVerify' | 'result' | 'results', string | null> = {
     ciPlan: null, ciRun: null, ciVerify: null, result: null, results: null,
   };
@@ -936,6 +940,7 @@ export function parseCliOptions(argv: string[]): CliOptions {
     '--windows-only': () => { windowsOnly = true; },
     '--verbose': () => { verbose = true; },
     '--quick': () => { quick = true; },
+    '--attribute-home': () => { attributeHome = true; },
     '--ci-plan': pathFlag('--ci-plan', 'ciPlan'),
     '--ci-run': pathFlag('--ci-run', 'ciRun'),
     '--ci-verify': pathFlag('--ci-verify', 'ciVerify'),
@@ -960,11 +965,11 @@ export function parseCliOptions(argv: string[]): CliOptions {
   });
 
   const ciModes = [paths.ciPlan, paths.ciRun, paths.ciVerify].filter(Boolean).length;
-  if (ciModes > 1 || (ciModes && (quick || listOnly || dryRun || recordDurations || windowsOnly))) throw new Error('CI modes cannot be combined with other selection modes');
+  if (ciModes > 1 || (ciModes && (quick || listOnly || dryRun || recordDurations || windowsOnly || attributeHome))) throw new Error('CI modes cannot be combined with other selection modes');
   if (paths.ciRun && (shardIndex === null || !paths.result)) throw new Error('--ci-run requires --shard and --result');
   if (paths.ciVerify && !paths.results) throw new Error('--ci-verify requires --results');
   if (quick && (recordDurations || windowsOnly || shardIndex !== null)) throw new Error('--quick cannot change recording, Windows or shard selection');
-  return { dryRun, listOnly, recordDurations, windowsOnly, verbose, shardCount, shardIndex, wallTimeoutMs, wallTimeoutExplicit, quick, ...paths };
+  return { dryRun, listOnly, recordDurations, windowsOnly, verbose, shardCount, shardIndex, wallTimeoutMs, wallTimeoutExplicit, quick, attributeHome, ...paths };
 }
 
 function formatShardSummary(shards: string[][]): string[] {
@@ -1394,6 +1399,8 @@ export interface RunFreeShardOptions {
   /** Per-run full-stream log path (tests inject). Default: a private retained file under .context/free-test-logs. */
   logFilePath?: string;
   log?: (line: string) => void;
+  /** Home tripwire for this shard. Default: guard the real home and name this shard's files. */
+  homeGuard?: FreeHomeGuardFactory;
 }
 
 const EPILOGUE_WORD: Record<FreeShardStatus, string> = {
@@ -1915,6 +1922,7 @@ export async function runFreeShard(
   // shards and prior daemons replace each other's state; override inherited state.
   env.BROWSE_STATE_FILE = path.join(stateDir, '.gstack', 'browse.json');
   env.GSTACK_FREE_SHARD_ID = randomUUID();
+  const home = options.homeGuard ? options.homeGuard(files, env, stateDir) : guardFreeHome(files, env);
 
   const startedAt = Date.now();
   const classifier = new BunTestOutputClassifier();
@@ -1952,7 +1960,7 @@ export async function runFreeShard(
     child = await runShardChild({
       command, args, cwd: rootDir, env, timeoutMs: wallTimeoutMs,
       attach: () => {
-        const browser = trackShardBrowser(stateDir, env), home = guardFreeHome(files, env);
+        const browser = trackShardBrowser(stateDir, env);
         return { signal: (force) => browser.signal(force), settle: async () => { cleanupError = await browser.settle() ?? home.verify(); } };
       },
       hookStreams: (spawned) => [consumeStream(spawned.stdout, 'stdout'), consumeStream(spawned.stderr, 'stderr')],
@@ -2053,30 +2061,18 @@ async function recordFreeTestDurations(files: string[], jobs: number): Promise<n
   const durations: Record<string, number> = {};
   const failed: string[] = [];
   const expectedCount = files.length;
-  let cursor = 0;
   console.log(`[test:free] recording per-file durations: ${files.length} files across ${jobs} workers`);
-  const worker = async (): Promise<void> => {
-    for (;;) {
-      if (isTerminationRequested()) return;
-      const index = cursor;
-      cursor += 1;
-      if (index >= files.length) return;
-      const file = files[index];
-      const outcome = await runFreeShard([file], index + 1, files.length, {
-        wallTimeoutMs: wallTimeoutForShard(1),
-        quiet: true,
-      });
-      durations[normalizeRelativePath(file)] = outcome.elapsedMs;
-      if (outcome.status !== 'passed') failed.push(file);
-    }
-  };
+  const phaseHome = guardFreeHome(files, process.env, { kind: 'concurrent', shards: jobs });
   // As in full-suite mode, finish parallel work before exclusive host-state fixtures.
-  const exclusive = files.filter(file => file in TREE_MUTATING);
-  files = files.filter(file => !(file in TREE_MUTATING));
-  await Promise.all(Array.from({ length: Math.max(1, jobs) }, () => worker()));
-  files = exclusive;
-  cursor = 0;
-  await worker();
+  await forEachFileAlone(files.filter(file => !(file in TREE_MUTATING)), files.filter(file => file in TREE_MUTATING), jobs, async (file, index) => {
+    const outcome = await runFreeShard([file], index + 1, files.length, {
+      wallTimeoutMs: wallTimeoutForShard(1), quiet: true, homeGuard: sharedFreeHome,
+    });
+    durations[normalizeRelativePath(file)] = outcome.elapsedMs;
+    if (outcome.status !== 'passed') failed.push(file);
+  });
+  const homeChange = phaseHome.verify();
+  if (homeChange) console.error(`[test:free] ${homeChange}`);
   if (Object.keys(durations).length !== expectedCount) {
     throw new Error('Duration recording was interrupted; the seed was not replaced.');
   }
@@ -2085,7 +2081,7 @@ async function recordFreeTestDurations(files: string[], jobs: number): Promise<n
   // Atomic: a killed recorder never leaves a truncated seed behind.
   writeDurationSeed(target, durations);
   console.log(`[test:free] wrote ${Object.keys(durations).length} durations to ${path.relative(ROOT, target)}`);
-  if (failed.length > 0) {
+  if (failed.length > 0 || homeChange) {
     // Failures still recorded (a red file's duration is still a real cost),
     // but surfaced loudly — recording from a broken tree deserves a look.
     console.error(`[test:free] WARNING: ${failed.length} file(s) failed while recording:`);
@@ -2245,6 +2241,8 @@ async function main(): Promise<number> {
   if (options.recordDurations) {
     return recordFreeTestDurations(files, fullSuiteJobs());
   }
+  if (options.attributeHome) return attributeFreeHomeWriters(files.filter(file => !(file in TREE_MUTATING)), files.filter(file => file in TREE_MUTATING),
+    fullSuiteJobs(), (file, index, homeGuard) => runFreeShard([file], index + 1, files.length, { wallTimeoutMs: wallTimeoutForShard(1), quiet: true, log: () => {}, homeGuard }));
 
   if (options.dryRun) {
     const shards = assignFilesToShards(files, options.shardCount);
@@ -2305,8 +2303,10 @@ async function main(): Promise<number> {
   }
   const shardTimeout = (fileCount: number): number =>
     options.wallTimeoutExplicit ? options.wallTimeoutMs : wallTimeoutForShard(fileCount, options.wallTimeoutMs);
+  const phaseHome = guardFreeHome(readers, process.env, { kind: 'concurrent', shards: shards.length });
   const outcomes = await Promise.all(
     shards.map((shardFiles, index) => runFreeShard(shardFiles, index + 1, totalShards, {
+      homeGuard: sharedFreeHome,
       // Packed shards get duration-aware walls: LPT decouples file count from
       // cost BY DESIGN, so the 5s/file heuristic would undersize a shard
       // holding few expensive files.
@@ -2316,7 +2316,8 @@ async function main(): Promise<number> {
       verbose: options.verbose,
     })),
   );
-  let worst = Math.max(...outcomes.map((o) => exitCodeFor(o.status)));
+  const homeChange = phaseHome.verify();
+  if (homeChange) console.error(`[test:free] ${homeChange}`);
   // Cancellation stops the run: don't launch the exclusive host-state shard
   // after a SIGINT/SIGTERM already killed the parallel phase.
   if (exclusive.length > 0 && !isTerminationRequested()) {
@@ -2324,7 +2325,6 @@ async function main(): Promise<number> {
       wallTimeoutMs: shardTimeout(exclusive.length),
       verbose: options.verbose,
     });
-    worst = Math.max(worst, exitCodeFor(exclusiveOutcome.status));
     if (exclusiveOutcome.status !== 'passed') {
       // Fixture safety rests on each test restoring default state itself; a
       // SIGKILL at the wall deadline (or a mid-regeneration crash) defeats
@@ -2340,7 +2340,7 @@ async function main(): Promise<number> {
     outcomes.push(exclusiveOutcome);
   }
 
-  return (await retryFailedFreeFiles(outcomes, totalShards, options)).exitCode;
+  return Math.max(homeChange ? 1 : 0, (await retryFailedFreeFiles(outcomes, totalShards, options)).exitCode);
 }
 
 /** Dirty generated artifacts (SKILL.md / host outputs) after a failed exclusive shard. */

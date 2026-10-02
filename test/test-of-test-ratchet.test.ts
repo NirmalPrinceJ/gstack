@@ -18,9 +18,7 @@ const ROOT = path.resolve(import.meta.dir, '..');
 /** Recorded after workstream D. Add a path only with a one-line reason comment, reviewed in the diff. */
 const BASELINE = [
   'test/anthropic-preflight.test.ts',
-  'test/artifacts-allowlist-decisions.test.ts',
   'test/artifacts-init-migration.test.ts',
-  'test/auto-decide-fixture.test.ts',
   'test/autoplan-artifact-recorder.test.ts',
   'test/autoplan-artifact-windows-argv.test.ts',
   'test/autoplan-edit-digests-al.test.ts',
@@ -29,15 +27,12 @@ const BASELINE = [
   'test/autoplan-pending-question.test.ts',
   'test/autoplan-phase-observer.test.ts',
   'test/autoplan-public-narration.test.ts',
-  'test/benchmark-cli.test.ts',
   'test/bootstrap-retention-shard.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/bootstrap-retention.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/bootstrap-session-lifecycle.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
-  'test/brain-sync-windows-paths.test.ts',
   'test/build-script-shell-compat.test.ts',
   'test/builder-profile.test.ts',
   'test/bun-subprocess-fd-lifetime.test.ts',
-  'test/bun-version-drift.test.ts',
   'test/carve-guard-completeness.test.ts',
   'test/carve-plan-fixture.test.ts',
   'test/carve-section-ordering.test.ts',
@@ -51,20 +46,14 @@ const BASELINE = [
   'test/ceo-mode-pending-submit.test.ts',
   'test/ceo-mode-posture-native.test.ts',
   'test/ceo-mode-prerequisite.test.ts',
-  'test/ceo-mode-routing-fixture.test.ts',
-  'test/ceo-plan-mode-fixture.test.ts',
   'test/ceo-posture-packet.test.ts',
   'test/ceo-section-loading-fixture.test.ts',
   'test/ceo-split-collection.test.ts',
   'test/ceo-split-question-policy.test.ts',
   'test/changed-files-union.test.ts',
-  'test/ci-image-cli-pin.test.ts',
-  'test/ci-image-tag-binding.test.ts',
   'test/claude-provider-keychain.test.ts',
-  'test/code-intelligence-cli.test.ts',
   'test/codex-carve-fixture.test.ts',
   'test/codex-eval-recording.test.ts',
-  'test/codex-model-probe.test.ts',
   'test/codex-resume-flag-semantics.test.ts',
   'test/cso-ntfs-fixture.test.ts',
   'test/cso-windows-build-contract.test.ts',
@@ -75,11 +64,7 @@ const BASELINE = [
   'test/design-html-section-completion.test.ts',
   'test/devex-peer-comparison-calibration.test.ts',
   'test/diagram-render-drift.test.ts',
-  'test/diff-scope.test.ts',
   'test/disabled-dated-record-at.test.ts',
-  'test/distill-apply.test.ts',
-  'test/distill-free-text.test.ts',
-  'test/docs-config-keys.test.ts',
   'test/docsync-atomic-writes.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/docsync-command-grammar.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/docsync-nested-writes.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
@@ -97,40 +82,11 @@ const BASELINE = [
   'test/eng-semantic-terminal.test.ts',
   'test/eng-test-plan-edit-approval.test.ts',
   'test/eval-list-cli.test.ts',
-  'test/evidence.test.ts',
-  'test/explain-level-config.test.ts',
   'test/extension-pty-inject-invariant.test.ts',
-  'test/founder-resources-optout.test.ts',
-  'test/free-tests-workflow-wiring.test.ts',
-  'test/gbrain-lib-validate-varname.test.ts',
-  'test/gbrain-lib-verify.test.ts',
-  'test/gbrain-refresh-install-render.test.ts',
-  'test/gbrain-repo-policy.test.ts',
   'test/gbrain-source-worktree-advance.test.ts',
-  'test/gbrain-sync-skip.test.ts',
   'test/gbrain-sync-voyage-code-3-integration.test.ts',
-  'test/gstack-artifacts-url.test.ts',
-  'test/gstack-codex-session-import.test.ts',
-  'test/gstack-config-cross-project.test.ts',
-  'test/gstack-config-defaults.test.ts',
-  'test/gstack-config-key-locale.test.ts',
-  'test/gstack-config-memorable-key.test.ts',
-  'test/gstack-config-redact-keys.test.ts',
-  'test/gstack-detach.test.ts',
-  'test/gstack-developer-profile.test.ts',
-  'test/gstack-gbrain-mcp-verify.test.ts',
   'test/gstack-gbrain-source-wireup.test.ts',
   'test/gstack-home-module-scope.test.ts',
-  'test/gstack-learnings-search.test.ts',
-  'test/gstack-question-log.test.ts',
-  'test/gstack-question-preference.test.ts',
-  'test/gstack-redact-cli.test.ts',
-  'test/gstack-repo-mode.test.ts',
-  'test/gstack-session-kind.test.ts',
-  'test/gstack-slug-parity.test.ts',
-  'test/gstack-slug-sanitize.test.ts',
-  'test/gstack-state-root-override.test.ts',
-  'test/gstack-team-init-hook-schema.test.ts',
   'test/gstack-upgrade-migration-v1_17_0_0.test.ts',
   'test/gstack-upgrade-migration-v1_37_0_0.test.ts',
   'test/gstack-upgrade-migration-v1_40_0_0.test.ts',
@@ -139,7 +95,6 @@ const BASELINE = [
   'test/helpers/budget-override.test.ts',
   'test/helpers/capture-parity-baseline.test.ts',
   'test/helpers/claude-pty-runner.auq.unit.test.ts', // W4: moved from claude-pty-runner.unit.test.ts (exempt via its design SKILL.md.tmpl read), split along the pty/ module seams
-  'test/helpers/claude-pty-runner.classify.unit.test.ts', // W4: moved from claude-pty-runner.unit.test.ts (exempt via its design SKILL.md.tmpl read), split along the pty/ module seams
   'test/helpers/claude-pty-runner.launch.unit.test.ts', // W4: moved from claude-pty-runner.unit.test.ts (exempt via its design SKILL.md.tmpl read), split along the pty/ module seams
   'test/helpers/claude-pty-runner.plan-native.unit.test.ts', // W4: moved from claude-pty-runner.unit.test.ts (exempt via its design SKILL.md.tmpl read), split along the pty/ module seams
   'test/helpers/claude-pty-runner.runners.unit.test.ts', // W4 fake-driver regressions: the PTY harness is itself the subject (plan-mode paid evals stand on it)
@@ -152,22 +107,16 @@ const BASELINE = [
   'test/helpers/session-runner.test.ts',
   'test/helpers/sync-command-capture.test.ts',
   'test/hooks-windows-paths.test.ts',
-  'test/hostile-path-writers.test.ts',
   'test/ios-debug-bridge-release-guard.test.ts',
   'test/ios-qa-stateserver-hardening.test.ts',
   'test/ios-qa-swift-build.test.ts',
   'test/jargon-list.test.ts',
-  'test/jsonl-merge.test.ts',
-  'test/learnings-injection.test.ts',
   'test/llm-judge-frontier.test.ts',
   'test/llm-judge-stream.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/memory-cache-injection.test.ts',
-  'test/memory-ingest-include-gitignored.test.ts',
-  'test/migrations-v1.27.0.0.test.ts',
   'test/module-size-ratchet.test.ts', // ratchet (c) source scanner (W2): measures product modules as text; its counter is test tooling
   'test/native-auto-decide-pty.test.ts',
   'test/no-suicide-exit.test.ts',
-  'test/osv-config-wiring.test.ts',
   'test/outside-voice-fixture.test.ts',
   'test/overlay-measurement.test.ts',
   'test/overlay-recording-order.test.ts',
@@ -200,19 +149,14 @@ const BASELINE = [
   'test/plan-create-combined-permission.test.ts',
   'test/plan-create-permission.test.ts',
   'test/plan-create-prepublication.test.ts',
-  'test/plan-design-floor-fixture.test.ts',
   'test/plan-edit-cropped-permission.test.ts',
   'test/plan-floor-dx-actor.test.ts',
   'test/plan-floor-review.test.ts',
-  'test/plan-floor-target.test.ts',
   'test/plan-mode-evidence.test.ts',
   'test/plan-pending-question-pty.test.ts',
   'test/plan-seed-submission.test.ts',
   'test/plan-skill-read-permission.test.ts',
   'test/plan-skill-webfetch-permission.test.ts',
-  'test/plan-tune-cathedral.test.ts',
-  'test/pr-title-rewrite.test.ts',
-  'test/pr-title-sync-workflow-safety.test.ts',
   'test/pty-askuserquestion-single-line.test.ts',
   'test/pty-numbered-option-indent-native.test.ts',
   'test/pty-option-selection.test.ts',
@@ -229,12 +173,9 @@ const BASELINE = [
   'test/qa-functional-fixture.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/qa-functional-observer-atomic.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/qa-functional-observer.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
-  'test/qa-only-capability.test.ts',
   'test/qa-supervision-selection.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/question-log-hook.test.ts',
   'test/readme-throughput.test.ts',
-  'test/redact-prepush-rebase-force-push.test.ts',
-  'test/redact-prepush-scan-range.test.ts',
   'test/review-army-budget.test.ts',
   'test/review-consensus-lifecycle.test.ts',
   'test/review-count-markdown.test.ts',
@@ -246,29 +187,17 @@ const BASELINE = [
   'test/setup-browser-hint.test.ts',
   'test/setup-bun-cmd-and-pipe-bugs.test.ts',
   'test/setup-conductor-worktree.test.ts',
-  'test/setup-plan-tune-hooks-noninteractive.test.ts',
   'test/setup-playwright-platform.test.ts',
   'test/setup-sections-linking.test.ts',
-  'test/setup-timeline-hook-gate.test.ts',
   'test/shared-libs-cancellation.test.ts', // landed in v1.91.7.0 before this ratchet: harness owner for its functional-QA/docsync paid evals
   'test/shared-libs-plan-actor.test.ts',
-  'test/shared-libs-revalidation-prompt.test.ts',
-  'test/shared-libs-source-reads.test.ts',
-  'test/ship-coverage-audit-af.test.ts',
-  'test/ship-pr-liveness-policy.test.ts',
   'test/ship-section-fixture.test.ts',
   'test/skill-budget-regression.test.ts',
   'test/skill-parser.test.ts',
   'test/spawnsync-timeout-tripwire.test.ts',
   'test/tasks-section-jq.test.ts',
-  'test/taste-engine.test.ts',
-  'test/telemetry-repo-strip.test.ts',
   'test/test-free-shards-capture.test.ts',
   'test/timeline.test.ts',
-  'test/ubicloud-runner.test.ts',
-  'test/update-check-crash-sentinel.test.ts',
-  'test/verify-gate.test.ts',
-  'test/workflow-concurrency.test.ts',
 ];
 
 function freeTests(): string[] {
@@ -280,7 +209,8 @@ function testsOnlyTestCode(file: string): { counted: boolean; helper?: string } 
   const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
   const targets = directSpecifiers(source).map(specifier => resolveRepoSpecifier(ROOT, file, specifier)).filter(Boolean) as string[];
   if (targets.some(target => !target.startsWith('test/') && !target.startsWith('node_modules/'))) return { counted: false };
-  if (/(['"`])[^'"`\n]*(?:\bbin\/|SKILL\.md|\.tmpl)[^'"`\n]*\1/.test(source)) return { counted: false };
+  if (/(['"`])[^'"`\n]*(?:\bbin\/|SKILL\.md|CLAUDE\.md|\.tmpl)[^'"`\n]*\1/.test(source)) return { counted: false };
+  if (/(['"`])(?:\.\/)?\.github\b[^'"`\n]*\1|(['"`])bin\2\s*,\s*(['"`])[\w.-]+\3/.test(source)) return { counted: false };
   return { counted: true, helper: targets.find(target => target.startsWith('test/helpers/') && !target.endsWith('.test.ts')) };
 }
 

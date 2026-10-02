@@ -247,8 +247,9 @@ describe('/spec --no-gate keeps redacting', () => {
 });
 
 describe('/spec archive (carved: gate-and-file section)', () => {
-  test('uses eval $(gstack-paths) not hardcoded ~/.gstack/', () => {
-    expect(SEC_TMPL).toMatch(/eval "\$\(.+gstack-paths\)"/);
+  test('resolves the state root with gstack-paths --get, not hardcoded ~/.gstack/', () => {
+    expect(SEC_TMPL).toContain('GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_ROOT); : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"');
+    expect(SEC_TMPL).not.toMatch(/eval "\$\(.+gstack-paths\)"/);
     expect(SEC_TMPL).toMatch(/\$GSTACK_STATE_ROOT\/projects\/\$SLUG\/specs/);
     // No hardcoded ~/.gstack/projects path anywhere in /spec:
     expect(TMPL_UNION).not.toMatch(/~\/\.gstack\/projects\/\$SLUG\/specs/);

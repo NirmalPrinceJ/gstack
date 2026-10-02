@@ -27,6 +27,8 @@ export const FREE_CASES: string[][] = [
   ['--ci-verify', 'plan.json'],
   ['--quick', '--shard', '1'],
   ['--quick', '--windows-only'],
+  ['--attribute-home'],
+  ['--ci-plan', 'a.json', '--attribute-home'],
 ];
 
 export const PAID_CASES: Array<{ argv: string[]; env?: Record<string, string> }> = [

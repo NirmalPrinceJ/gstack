@@ -5,6 +5,7 @@ import { SNAPSHOT_FLAGS } from '../browse/src/snapshot';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { usePrivateStateRoot } from './helpers/private-state-root';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
@@ -1096,6 +1097,7 @@ describe('CEO review mode validation', () => {
 
 describe('gstack-slug', () => {
   const SLUG_BIN = path.join(ROOT, 'bin', 'gstack-slug');
+  usePrivateStateRoot();
 
   test('binary exists and is executable', () => {
     expect(fs.existsSync(SLUG_BIN)).toBe(true);
@@ -1104,7 +1106,7 @@ describe('gstack-slug', () => {
   });
 
   test('outputs SLUG and BRANCH lines in a git repo', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
+    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, env: { ...process.env }, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
     expect(result.exitCode).toBe(0);
     const output = result.stdout.toString();
     expect(output).toContain('SLUG=');
@@ -1112,21 +1114,21 @@ describe('gstack-slug', () => {
   });
 
   test('SLUG does not contain forward slashes', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
+    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, env: { ...process.env }, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
     const slug = result.stdout.toString().match(/SLUG=(.*)/)?.[1] ?? '';
     expect(slug).not.toContain('/');
     expect(slug.length).toBeGreaterThan(0);
   });
 
   test('BRANCH does not contain forward slashes', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
+    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, env: { ...process.env }, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
     const branch = result.stdout.toString().match(/BRANCH=(.*)/)?.[1] ?? '';
     expect(branch).not.toContain('/');
     expect(branch.length).toBeGreaterThan(0);
   });
 
   test('output is eval-compatible (KEY=VALUE format)', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
+    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, env: { ...process.env }, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
     const lines = result.stdout.toString().trim().split('\n');
     expect(lines.length).toBe(2);
     expect(lines[0]).toMatch(/^SLUG=.+/);
@@ -1134,7 +1136,7 @@ describe('gstack-slug', () => {
   });
 
   test('output values contain only safe characters (no shell metacharacters)', () => {
-    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
+    const result = Bun.spawnSync([SLUG_BIN], { cwd: ROOT, env: { ...process.env }, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 });
     const slug = result.stdout.toString().match(/SLUG=(.*)/)?.[1] ?? '';
     const branch = result.stdout.toString().match(/BRANCH=(.*)/)?.[1] ?? '';
     // Only alphanumeric, dot, dash, underscore are allowed (#133)
@@ -1144,7 +1146,7 @@ describe('gstack-slug', () => {
   test('eval sets variables under bash with set -euo pipefail', () => {
     const result = Bun.spawnSync(
       ['bash', '-c', 'set -euo pipefail; eval "$(./bin/gstack-slug 2>/dev/null)"; echo "SLUG=$SLUG"; echo "BRANCH=$BRANCH"'],
-      { cwd: ROOT, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 }
+      { cwd: ROOT, env: { ...process.env }, stdout: 'pipe', stderr: 'pipe', timeout: 30_000 }
     );
     expect(result.exitCode).toBe(0);
     const output = result.stdout.toString();

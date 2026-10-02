@@ -29,6 +29,9 @@ import {
 import { __resetRegistry } from '../src/token-registry';
 import { BrowserManager } from '../src/browser-manager';
 import { resolveConfig } from '../src/config';
+import { usePrivateStateRoot } from '../../test/helpers/private-state-root';
+
+usePrivateStateRoot();
 
 const PINNED_ORIGIN = `chrome-extension://${GSTACK_EXTENSION_ID}`;
 const fixtureDir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-extension-token-')));

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { diffFreeHome, guardFreeHome, snapshotFreeHome } from '../scripts/lib/free-home-guard';
+import { attributeFreeHomeWriters, diffFreeHome, guardFreeHome, snapshotFreeHome } from '../scripts/lib/free-home-guard';
 import { runFreeShard } from '../scripts/test-free-shards';
 
 const homes: string[] = [];
@@ -76,6 +76,47 @@ describe('free-suite home-write tripwire (#2895)', () => {
     expect(failure).toContain('~/.gstack/.last-setup-version');
     expect(failure).toContain('Shard files: test/a.test.ts, test/b.test.ts');
     expect(failure).toContain('only');
+  });
+
+  test('a concurrent phase guard names no shard and points at attribution', () => {
+    const home = fakeHome();
+    const guard = guardFreeHome(['test/a.test.ts', 'test/b.test.ts'], { HOME: home }, { kind: 'concurrent', shards: 3 });
+    fs.writeFileSync(path.join(home, '.gstack/security/egress.jsonl'), '{}\n');
+    const failure = guard.verify();
+    expect(failure).toContain('~/.gstack/security/egress.jsonl');
+    expect(failure).toContain('while 3 shards ran concurrently');
+    expect(failure).toContain('--attribute-home');
+    expect(failure).not.toContain('test/a.test.ts');
+  });
+
+  test.skipIf(process.platform === 'win32')('attribution runs each file alone in a private HOME and names only the writer', async () => {
+    const home = fakeHome();
+    const before = snapshotFreeHome(home);
+    const writer = `require('fs').mkdirSync(require('path').join(process.env.HOME, '.gstack', 'security'), { recursive: true });`
+      + `require('fs').writeFileSync(require('path').join(process.env.HOME, '.gstack', 'security', 'attempts.jsonl'), '{}\\n');`
+      + `console.log('Ran 1 tests across 1 files. [1.00ms]')`;
+    const clean = `console.log('Ran 1 tests across 1 files. [1.00ms]')`;
+    const errors: string[] = [];
+    const spy = spyOn(console, 'error').mockImplementation((...args: unknown[]) => { errors.push(args.join(' ')); });
+    const logSpy = spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const exitCode = await attributeFreeHomeWriters(['test/clean.test.ts', 'test/writer.test.ts'], [], 2, (file, index, homeGuard) =>
+        runFreeShard([file], index + 1, 2, { env: { ...process.env, HOME: home }, quiet: true, log: () => {}, homeGuard,
+          logFilePath: path.join(home, `${index}.log`),
+          commandFor: () => ({ command: process.execPath, args: ['-e', file.includes('writer') ? writer : clean] }) }));
+      expect(exitCode).toBe(1);
+      const verdicts = errors.filter(line => line.startsWith('[test:free] ✗ '));
+      expect(verdicts).toHaveLength(1);
+      expect(verdicts[0]).toContain('test/writer.test.ts wrote its private HOME');
+      expect(verdicts[0]).toContain('~/.gstack/security/attempts.jsonl');
+      expect(diffFreeHome(before, snapshotFreeHome(home))).toEqual([]);
+    } finally {
+      spy.mockRestore();
+      logSpy.mockRestore();
+      for (const retained of errors.flatMap(line => /retained (\S+)$/.exec(line)?.[1] ?? [])) {
+        if (/^gstack-free-shard-/.test(path.basename(retained))) fs.rmSync(retained, { recursive: true, force: true });
+      }
+    }
   });
 
   test.skipIf(process.platform === 'win32')('a free shard that writes the real home fails and names its files', async () => {

@@ -595,6 +595,22 @@ export async function removeShardSandbox(stateDir: string): Promise<void> {
   catch { /* a locked file must not turn a real verdict into an exception */ }
 }
 
+/** Run once per file, alone: readers `jobs` at a time, then exclusive files one by one. Stops on termination. */
+export async function forEachFileAlone(
+  readers: string[], exclusive: string[], jobs: number, run: (file: string, index: number) => Promise<void>,
+): Promise<void> {
+  let cursor = 0;
+  const worker = async (files: string[], offset: number) => {
+    while (cursor < files.length && !isTerminationRequested()) {
+      const index = cursor++;
+      await run(files[index], offset + index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.max(1, jobs) }, () => worker(readers, 0)));
+  cursor = 0;
+  await worker(exclusive, readers.length);
+}
+
 let shardLogSequence = 0;
 
 /** Timestamped log path; pid + sequence defeat same-millisecond collisions. */
