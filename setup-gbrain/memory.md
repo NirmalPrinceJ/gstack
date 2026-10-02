@@ -1,9 +1,9 @@
 # gstack memory ingest — what it does, what stays local, what you can do with it
 
-This is the user-facing reference for the V1 transcript + memory ingest
-feature in `/setup-gbrain`. If you ran `/setup-gbrain` and it asked
-"Ingest THIS repo's transcripts into gbrain?", this doc explains what
-happens after you say yes.
+This is the user-facing reference for the transcript + memory ingest
+feature in `/setup-gbrain` and `/sync-gbrain`. If either asked whether to
+ingest your coding-agent sessions into gbrain, this doc explains what each
+answer does.
 
 ## What gets ingested
 
@@ -19,6 +19,62 @@ happens after you say yes.
 | Design docs | `design-doc` | `~/.gstack/projects/<slug>/*-design-*.md` | Medium |
 | Retros | `retro` | `~/.gstack/projects/<slug>/retros/*.md` | Medium |
 | Builder profile | `builder-profile-entry` | `~/.gstack/builder-profile.jsonl` | Low |
+
+## Transcripts
+
+Curated memory (learnings, timeline, plans, designs, retros, eureka, builder
+profile) syncs on every `/sync-gbrain`. Session transcripts sync only after
+you choose to share them. The choice is the `transcript_ingest_mode` config
+key:
+
+| Value | What `/sync-gbrain` ingests |
+|---|---|
+| `recent` | Sessions from the last 90 days |
+| `all` | All history (`--full` walks every session file) |
+| `off` | No transcripts; other memory still syncs |
+
+Both sources are covered: Claude Code sessions (`~/.claude/projects/`) and
+Codex sessions (`~/.codex/sessions/`), from every project on this machine
+that your per-remote trust policy allows, not only the current repo. Pages go
+to your brain: the local engine (PGLite or Supabase) in local-stdio mode, or
+the artifacts repo the remote brain pulls from in remote-http mode.
+
+Set or change it:
+
+```bash
+gstack-config set transcript_ingest_mode recent   # or all, or off
+gstack-config has transcript_ingest_mode && gstack-config get transcript_ingest_mode
+```
+
+`gstack-config set` rejects any other value and keeps the stored one.
+
+**Not set.** Until you choose, transcripts are skipped. Each sync prints one
+line saying so, even with `--quiet`, and the next interactive `/sync-gbrain`
+asks once. Older values from previous gate versions (`A`-`E`, `incremental`)
+also count as not chosen and get the question again. A stored `off` prints
+`transcripts off (your choice)` without `--quiet` and is never asked again.
+
+**One-run override.** A `--sources` list (or `GSTACK_MEMORY_INGEST_SOURCES`)
+that names `transcript` ingests transcripts for that run whatever the mode;
+the sync still prints the mode notice. `--sources all`, an empty list, or a
+list with no valid types does not override.
+
+```bash
+bun run bin/gstack-gbrain-sync.ts --incremental --sources transcript
+```
+
+**Interrupted imports.** If a sync was interrupted mid-import and your
+transcript choice changed before the next run, the next sync restages memory
+from scratch once instead of resuming, and prints a line saying so.
+
+**Staged pages wait.** Transcript pages already staged under
+`~/.gstack/transcripts/` (remote-http mode) stay on disk and are not pushed
+by `gstack-brain-sync` until the mode is `recent` or `all`. Other artifacts
+keep pushing.
+
+**Already-ingested transcripts stay.** Switching to `off` stops new ingests;
+it does not remove pages already in the brain. Delete them there (see
+"Delete a page" below).
 
 ## What stays local
 

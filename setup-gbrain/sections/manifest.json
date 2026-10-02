@@ -19,7 +19,7 @@
     {
       "id": "transcript-gate",
       "file": "transcript-gate.md",
-      "title": "Step 7.5: transcript & memory ingest gate (probe, thresholds, ingest AskUserQuestion)",
+      "title": "Step 7.5: transcript ingest consent (has-check, probe, recent/all/off AskUserQuestion)",
       "trigger": "running the Step 7.5 transcript & memory ingest gate on Paths 1, 2a, 2b, or 3 (Path 4 skips this section entirely — see the skeleton's skip note)"
     },
     {

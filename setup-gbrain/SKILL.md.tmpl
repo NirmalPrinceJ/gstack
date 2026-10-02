@@ -397,14 +397,15 @@ the prereq is fixed.
 
 ---
 
-## Step 7.5: Transcript & memory ingest gate
+## Step 7.5: Transcript ingest consent
 
 **SKIP entirely on Path 4 (Remote MCP).** Transcript ingest shells out to
 the local `gbrain` CLI which Path 4 doesn't install. Remote-mode users
 rely on the brain server's own ingest cadence — if your brain admin wants
 this machine's transcripts indexed, they pull from your `gstack-artifacts-$USER`
-repo (set up in Step 7) on whatever schedule they prefer. Set
-`gstack-config set transcript_ingest_mode off` and continue to Step 8.
+repo (set up in Step 7) on whatever schedule they prefer. Do not store a
+transcript mode for the user here; transcripts stay skipped until they choose
+(`/sync-gbrain` asks). Continue to Step 8.
 
 For Paths 1, 2a, 2b, 3, run the ingest gate:
 
@@ -541,7 +542,7 @@ state, repairs only what's missing, and reports here.
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 ~/.claude/skills/gstack/bin/gstack-gbrain-detect 2>/dev/null || true
-~/.claude/skills/gstack/bin/gstack-config get transcript_ingest_mode 2>/dev/null || echo "off"
+~/.claude/skills/gstack/bin/gstack-config has transcript_ingest_mode && echo "transcript_ingest_mode: $(~/.claude/skills/gstack/bin/gstack-config get transcript_ingest_mode)" || echo "transcript_ingest_mode: not set"
 ~/.claude/skills/gstack/bin/gstack-config get artifacts_sync_mode 2>/dev/null || echo "off"
 [ -f "$GSTACK_STATE_ROOT"/.gbrain-sync-state.json ] && cat "$GSTACK_STATE_ROOT"/.gbrain-sync-state.json || echo "{}"
 ```
@@ -561,7 +562,7 @@ gbrain status: GREEN  (mode: remote-http)
   Repo policy ..... OK   {read-write|read-only|deny}
   Artifacts repo .. OK   {gstack_artifacts_remote URL}
   Artifacts sync .. OK   {artifacts_sync_mode}
-  Transcripts ..... OK   route to artifacts repo → remote brain
+  Transcripts ..... OK   {recent|all}: route to artifacts repo → remote brain | INFO {off|not set}: skipped
   Code search ..... {OK local-pglite (~/.gbrain/pglite) | N/A declined at Step 4d}
   CLAUDE.md ....... OK
   Smoke test ...... INFO printed for post-restart manual verification
@@ -592,12 +593,15 @@ gbrain status: GREEN  (mode: local-stdio)
   Repo policy ..... OK   <read-write|read-only|deny>
   Code import ..... OK   <last_imported_head>
   Artifacts sync .. OK   <artifacts_sync_mode> to <remote>
-  Transcripts ..... OK   <N> sessions, last ingest <when>
+  Transcripts ..... OK   <recent|all>: <N> sessions, last ingest <when> | INFO <off|not set>: skipped
   CLAUDE.md ....... OK
   Smoke test ...... OK   put → search round-trip
 
 Run `/setup-gbrain` again any time gbrain feels off; it's safe and idempotent.
 ```
+
+A `not set` transcript mode is not a failure: transcripts stay skipped until
+the user chooses, and `/sync-gbrain` asks.
 
 If any row is YELLOW or RED, the verdict line says so and the failing rows
 surface a one-line "next action" (e.g.,
