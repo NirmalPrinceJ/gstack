@@ -299,25 +299,27 @@ describe('terminal-agent owned lifecycle regression', () => {
     const stateFile = path.join(stateDir, 'browse.json');
     const barrier = path.join(stateDir, 'go');
     const ownerStartTime = readAgentStartTime(process.pid);
-    const rawAgent = (gen: string, paused: boolean) => Bun.spawn(['bun', 'run', path.join(sourceDir, 'terminal-agent.ts'), `--agent-gen=${gen}`], {
-      env: { ...process.env, BROWSE_STATE_FILE: stateFile, BROWSE_OWNER_PID: String(process.pid),
-        BROWSE_OWNER_START_TIME: ownerStartTime, BROWSE_AGENT_GEN: gen, NODE_ENV: 'test',
-        GSTACK_TERMINAL_OWNER_WATCHDOG_MS: '25',
-        ...(paused ? { GSTACK_TERMINAL_TEST_PUBLISH_BARRIER: barrier } : {}) },
-      stdio: ['ignore', 'ignore', 'ignore'],
-    });
+    const rawAgent = (gen: string, paused: boolean) => {
+      writeAgentRecord(stateDir, { pid: 0, gen, startedAt: Date.now(), ownerPid: process.pid, ownerStartTime });
+      const agent = Bun.spawn(['bun', 'run', path.join(sourceDir, 'terminal-agent.ts'), `--agent-gen=${gen}`], {
+        env: { ...process.env, BROWSE_STATE_FILE: stateFile, BROWSE_OWNER_PID: String(process.pid),
+          BROWSE_OWNER_START_TIME: ownerStartTime, BROWSE_AGENT_GEN: gen, NODE_ENV: 'test',
+          GSTACK_TERMINAL_OWNER_WATCHDOG_MS: '25',
+          ...(paused ? { GSTACK_TERMINAL_TEST_PUBLISH_BARRIER: barrier } : {}) },
+        stdio: ['ignore', 'ignore', 'ignore'],
+      });
+      writeAgentRecord(stateDir, { pid: agent.pid, gen, startedAt: Date.now(),
+        startTime: readAgentStartTime(agent.pid), ownerPid: process.pid, ownerStartTime });
+      return agent;
+    };
     const old = rawAgent('synthetic-old-generation', true);
     let winner: ReturnType<typeof Bun.spawn> | undefined;
     try {
-      writeAgentRecord(stateDir, { pid: old.pid, gen: 'synthetic-old-generation', startedAt: Date.now(),
-        startTime: readAgentStartTime(old.pid), ownerPid: process.pid, ownerStartTime });
       // Startup waits cover a cold `bun run` of the agent; under a fully
       // loaded 16-shard run that alone can exceed 3s. They return as soon as
       // the file appears, so the ordering contract below is unchanged.
       expect(await waitFor(() => fs.existsSync(`${barrier}.ready`), 8000)).toBe(true);
       winner = rawAgent('synthetic-new-generation', false);
-      writeAgentRecord(stateDir, { pid: winner.pid, gen: 'synthetic-new-generation', startedAt: Date.now(),
-        startTime: readAgentStartTime(winner.pid), ownerPid: process.pid, ownerStartTime });
       expect(await waitFor(() => fs.existsSync(path.join(stateDir, 'terminal-port')), 8000)).toBe(true);
       const port = fs.readFileSync(path.join(stateDir, 'terminal-port'), 'utf8');
       const token = fs.readFileSync(path.join(stateDir, 'terminal-internal-token'), 'utf8');

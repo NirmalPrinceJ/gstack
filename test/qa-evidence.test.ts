@@ -162,7 +162,8 @@ test('public permission never exposes detected credentials in output or receipts
 test.each(['resumed', 'blocked-forever'])('evidence receipts survive a genuinely %s stdout pipe without extending command execution', async mode => {
   const f = fixture();
   const preload = path.join(f.root, 'full-pipe.ts');
-  fs.writeFileSync(preload, `import { write } from 'node:fs'; if (process.argv[1] === ${JSON.stringify(CLI)}) { write(1, Buffer.alloc(2 * 1024 * 1024, 32), () => {}); await Bun.sleep(100); }`);
+  const saturated = path.join(f.root, 'stdout-saturated');
+  fs.writeFileSync(preload, `import { existsSync, write } from 'node:fs'; if (process.argv[1] === ${JSON.stringify(CLI)}) { write(1, Buffer.alloc(2 * 1024 * 1024, 32), () => {}); while (!existsSync(${JSON.stringify(saturated)})) await Bun.sleep(10); }`);
   const child = spawn(process.execPath, ['--preload', preload, CLI, 'capture', f.root, '001', '--timeout-ms', '1000', '--', process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(path.join(f.root, 'effect'))}, 'once'); process.exit(69);`], { cwd: f.root, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '', stderr = '';
   child.stdout!.on('data', bytes => { stdout += bytes; });
@@ -172,6 +173,9 @@ test.each(['resumed', 'blocked-forever'])('evidence receipts survive a genuinely
   const closed = new Promise<void>(resolve => child.once('close', () => resolve()));
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    for (let index = 0; index < 300 && child.stdout!.readableLength < child.stdout!.readableHighWaterMark; index++) await Bun.sleep(10);
+    expect(child.stdout!.readableLength).toBeGreaterThanOrEqual(child.stdout!.readableHighWaterMark);
+    fs.writeFileSync(saturated, '');
     const file = path.join(f.root, '.qa-evidence/001/receipt.json');
     for (let index = 0; index < 300 && !fs.existsSync(file); index++) await Bun.sleep(10);
     expect(fs.existsSync(file)).toBe(true);
