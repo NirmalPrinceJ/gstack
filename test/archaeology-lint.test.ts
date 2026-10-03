@@ -29,30 +29,6 @@ const ALLOWLIST: AllowEntry[] = [
   { skills: ['landing-report'], anchor: 'feat/payments', reason: 'sample landing-report output (PR number of a sibling workspace)' },
   { skills: ['retro'], anchor: 'Biggest ship: PR #605', reason: 'sample retro output' },
   { skills: ['codex'], anchor: 'OpenAI issues #8545', reason: 'upstream OpenAI Codex issue IDs behind the reasoning-effort default' },
-  {
-    skills: ['codex'],
-    anchor: 'consult previously had NONE',
-    source: 'codex/sections/consult-mode.md.tmpl',
-    reason: 'PENDING: codex/sections/consult-mode.md.tmpl is a W1 rule file; drop "(#2671; consult previously had NONE)" there and delete this entry',
-  },
-  {
-    skills: ['codex'],
-    anchor: 'falls through (#2669)',
-    source: 'codex/sections/consult-mode.md.tmpl',
-    reason: 'PENDING: codex/sections/consult-mode.md.tmpl is a W1 rule file; drop " (#2669)" there and delete this entry',
-  },
-  {
-    skills: ['codex'],
-    anchor: 'stall. See #1327.',
-    source: 'codex/sections/consult-mode.md.tmpl',
-    reason: 'PENDING: codex/sections/consult-mode.md.tmpl is a W1 rule file; drop " See #1327." there and delete this entry',
-  },
-  {
-    skills: ['codex'],
-    anchor: 'Session-cost reality (#2387, measured)',
-    source: 'codex/sections/consult-mode.md.tmpl',
-    reason: 'PENDING: codex/sections/consult-mode.md.tmpl is a W1 rule file; use "(measured)" there and delete this entry',
-  },
 ];
 
 /** `#` + 3 or more digits (bare or parenthesized), `PR #N`, `issue #N`, incident stories. */
