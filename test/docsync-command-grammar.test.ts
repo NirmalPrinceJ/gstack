@@ -107,7 +107,9 @@ test('parent and child receive resolved local platform and base without new prob
   expect(options.prompt).toContain('Platform: local/git-native. Base: main.');
 });
 
-test('declared section insert appends one private Markdown artifact to another byte-for-byte', () => {
+// The observer polices bash commands from the POSIX-only paid ship evals and refuses backslashes
+// outright, so a Windows fixture path can never form an allowed insert; the refusals below still run.
+test.skipIf(process.platform === 'win32')('declared section insert appends one private Markdown artifact to another byte-for-byte', () => {
   const source = path.join(fixture.home, 'audit-1-documentation.md');
   const target = path.join(fixture.home, 'ship-report.md');
   const section = '**Status:** current — no edits.\n\n- Diagram drift: none.';
