@@ -29,6 +29,11 @@ This release closes the follow-ups filed by the v1.91.15.0 prompt cleanup. The c
 - Parity caps lowered to measured sizes for land-and-deploy, design-consultation and ship.
 - The codex consult section drops issue numbers from its runtime prose.
 
+#### Fixed
+- /review's specialist header counted advisory findings in its total; the header's N is now defined as critical plus informational.
+- Free-lane shards failed with "browser ownership deadline exceeded" when a browse daemon took more than 5 seconds to exit after SIGINT. Reaching the force-kill point now ends the graceful phase instead of recording a cleanup failure; a probe cut off at that point still fails the shard.
+- `bun run audit:manifest` printed backslash paths on Windows.
+
 #### For contributors
 - Five safety rules and the qa workflow, review and cookie judges keep their wording; TODOS.md lists what each needs before it can change.
 
