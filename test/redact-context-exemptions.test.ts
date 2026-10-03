@@ -78,3 +78,30 @@ describe("pii.phone.e164 / pii.cc: vector geometry is not PII (#2885, #2827)", (
     }
   });
 });
+
+describe("env.kv: a function call assigned to a credential name is code (#2899)", () => {
+  table(
+    "env.kv",
+    "MEDIUM",
+    [
+      '    session = _FlakySession(requests.ReadTimeout("Read timed out"))',
+      "    session = _FlakySession(responses=[1])",
+      "    session = requests.Session()",
+      "    session = find_session(client, args.session_id, now=now, state=state)",
+      '    token = make_token(user, scopes=["read"])',
+      "    password = getpass.getpass()",
+      "    session = build_http_session(",
+    ],
+    [
+      'session = "Xk9pQ2mLr7Tz4vBn"',
+      "SESSION_SECRET=9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c",
+      'password = "Tr0ub4dor&3!xyz"',
+      "PASSWORD=Tr0ub4dor&3!xyz#",
+      "password = correct.horse.battery.staple",
+      'api_key: "Zx9Qw8Er7Ty6Ui5Op4As3Df2"',
+      "API_SECRET=Abc123xyz(9Qm",
+      'password = "getPassword(x)Q9z"',
+      'token = decrypt("Zx9Qw8Er7Ty6Ui5Op4As3Df2")',
+    ],
+  );
+});

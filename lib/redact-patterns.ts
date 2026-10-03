@@ -482,10 +482,35 @@ const ENV_READ_SPAN =
   /^(?:os\.environ\[|os\.environ\.get\(|os\.getenv\(|getenv\(|ENV\[|process\.env\.[A-Za-z_$][\w$]*[;,)]?)$/;
 function isBareEnvRead(span: string, match: RegExpExecArray): boolean {
   if (!ENV_READ_SPAN.test(span)) return false;
-  const rest = match.input.slice(match.index + match[0].length).split("\n", 1)[0];
-  for (const [, literal] of rest.matchAll(/["']([^\s'"]{8,})["']/g))
-    if (!isPlaceholderSpan(literal) && shannonEntropy(literal) >= 3.0) return false;
-  return true;
+  return !carriesSecretLiteral(match.input.slice(match.index + match[0].length).split("\n", 1)[0]);
+}
+
+/** True when `text` holds a quoted, non-placeholder, high-entropy literal. */
+function carriesSecretLiteral(text: string): boolean {
+  for (const [, literal] of text.matchAll(/["']([^\s'"]{8,})["']/g))
+    if (!isPlaceholderSpan(literal) && shannonEntropy(literal) >= 3.0) return true;
+  return false;
+}
+
+/**
+ * #2899: the value capture is any non-space run, so it swallows code:
+ * `session = _FlakySession(responses=[...])`, `token = make_token(user,`,
+ * `password = getpass.getpass()`. A bare credential name plus mixed-case code
+ * clears the entropy gate. The span alone cannot tell `Abc123(xyz` (a real
+ * password) from a call, so the exemption needs the line's evidence: the
+ * value is unquoted, starts with an identifier or dotted path followed by
+ * `(`, and that call closes on the line or opens a multi-line argument list.
+ * A quoted value is a literal, and a call whose arguments carry a
+ * high-entropy literal (`decrypt("<secret>")`) still reports.
+ */
+const CALL_SHAPED_VALUE = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\(/;
+function isCallExpression(span: string, match: RegExpExecArray): boolean {
+  if (!CALL_SHAPED_VALUE.test(span)) return false;
+  const { start } = spanBounds(match);
+  if (match.input[start - 1] === '"' || match.input[start - 1] === "'") return false;
+  const call = match.input.slice(start + span.indexOf("(")).split("\n", 1)[0];
+  if (!call.includes(")") && call.trim() !== "(") return false;
+  return !carriesSecretLiteral(call);
 }
 
 export const PATTERNS: RedactPattern[] = [
@@ -760,11 +785,14 @@ export const PATTERNS: RedactPattern[] = [
     // holding one, unless the rest of its line carries a high-entropy quoted
     // literal (`os.getenv("X", "<secret>")`). A literal appended to the read
     // itself (`process.env.X||"…"`) is not an exact read and still fires.
+    // #2899: a function call assigned to the name is code, not a value (see
+    // isCallExpression).
     validate: (span, match) =>
       isCredentialShapedEnvName(match[0]) &&
       !isPlaceholderSpan(span) &&
       !/^\$\{?[A-Za-z_]/.test(span) &&
       !isBareEnvRead(span, match) &&
+      !isCallExpression(span, match) &&
       shannonEntropy(span) >= 3.0,
   },
   {
