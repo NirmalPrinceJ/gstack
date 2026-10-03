@@ -118,3 +118,13 @@ export function jsonFindings(output: string): any[] {
     try { return [JSON.parse(line)]; } catch { return []; }
   });
 }
+
+/**
+ * A test-only-export finding records its non_test_callers count and how the
+ * callers were searched. Any repository search counts (git grep, rg, grep -r,
+ * the Grep tool); the specific command is not graded.
+ */
+export function recordsNonTestCallerSearch(finding: { evidence?: unknown }): boolean {
+  const evidence = JSON.stringify(finding.evidence ?? '');
+  return /non_test_callers/.test(evidence) && /\bgit grep\b|\brg\b|\bgrep\b|\bGrep\b|\bag\b|\back\b/.test(evidence);
+}

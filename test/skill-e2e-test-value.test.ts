@@ -17,7 +17,7 @@ import { ROOT, runId, describeIfSelected, testIfSelected, copyDirSync, logCost,
   createEvalCollector, finalizeEvalCollector } from './helpers/e2e-helpers';
 import { extractSkillBody } from './helpers/skill-fixture';
 import { createCoverageAuditFixture } from './fixtures/coverage-audit-fixture';
-import { createTestValueFixture, lastJsonLine, jsonFindings, LOW_VALUE_TESTS } from './helpers/test-value-fixture';
+import { createTestValueFixture, lastJsonLine, jsonFindings, LOW_VALUE_TESTS, recordsNonTestCallerSearch } from './helpers/test-value-fixture';
 import { runRecordedOfficeHoursAttempt, OFFICE_HOURS_BUN_GRACE_MS } from './helpers/office-hours-attempt';
 import { resolveEvalModel } from '../lib/eval-model';
 import { RETIREMENT_FIELDS } from '../scripts/resolvers/test-value';
@@ -85,7 +85,7 @@ findings, one per line.`,
       const seam = about(new RegExp(`pricing-reset|${LOW_VALUE_TESTS.testOnlySymbol}`));
       if (!grep.length || !grep.every(finding => finding.severity === 'INFORMATIONAL')) throw new Error(`review: source-grep test needs an INFORMATIONAL finding, got ${JSON.stringify(grep)}`);
       if (!seam.length || !seam.every(finding => finding.severity === 'INFORMATIONAL')) throw new Error(`review: test-only export needs an INFORMATIONAL finding, got ${JSON.stringify(seam)}`);
-      if (!seam.some(finding => /non_test_callers/.test(JSON.stringify(finding.evidence ?? '')) && /git grep/.test(JSON.stringify(finding.evidence ?? '')))) throw new Error('review: test-only export evidence must record non_test_callers and the git grep search');
+      if (!seam.some(recordsNonTestCallerSearch)) throw new Error('review: test-only export evidence must record non_test_callers and the caller search');
       const golden = about(/skill-golden/);
       if (golden.length) throw new Error(`review: the SKILL.md golden test must not be flagged, got ${JSON.stringify(golden)}`);
       if (trackedChanges(cwd)) throw new Error('review: tracked files changed');
