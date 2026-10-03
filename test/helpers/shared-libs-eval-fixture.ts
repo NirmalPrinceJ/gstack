@@ -793,6 +793,11 @@ export function standaloneInstructions(f: SharedLibsFixture, codex = false): str
   return file;
 }
 
+/** The skill's instructions as a loaded skill delivers them: in context before any tool call. */
+export function loadedInstructions(file: string): string {
+  return `\n\nThe /deslop-shared-libs instructions (already loaded):\n<skill-instructions>\n${fs.readFileSync(file, 'utf8')}\n</skill-instructions>`;
+}
+
 export function reviewLifecycleInstructions(f: SharedLibsFixture): string {
   const root = SHARED_LIBS_ROOT;
   const core = extractSkillSections(path.join(root, 'review'), [
