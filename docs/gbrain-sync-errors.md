@@ -453,6 +453,25 @@ with `gbrain sources remove <id>` only if you are sure.
 
 ---
 
+## `dream: skipped — the installed gbrain cannot run only the resolve_symbol_edges phase, and the full dream cycle costs about 35 minutes (LLM phases).`
+
+**Problem.** `/sync-gbrain --dream` (or `--full`) did not build the call
+graph.
+
+**Cause.** The call graph needs only gbrain's `resolve_symbol_edges` phase.
+The installed gbrain cannot run that phase alone (no `dream --phase`, or no
+such phase), and gstack no longer starts gbrain's full maintenance cycle on
+its own: it takes about 35 minutes and runs LLM phases.
+
+**Fix.**
+```bash
+gstack-gbrain-install          # upgrade gbrain, then:
+/sync-gbrain --dream
+```
+Or run the full cycle yourself when you have the time: `gbrain dream --source <id>`.
+
+---
+
 ## Nothing is syncing but I expect it to
 
 **Not an error, but a common gotcha.** Check in order:

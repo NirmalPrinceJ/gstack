@@ -1690,6 +1690,16 @@ export function shouldRunDream(args: CliArgs, cycle: CycleStatus | null): boolea
  * binary / malformed env) — a broken install must be visible, not disguised as
  * optional maintenance.
  */
+/**
+ * A7: detected, not assumed. gbrain validates --phase values while parsing,
+ * before --help prints, so a gbrain without the phase exits non-zero and one
+ * without --phase prints help that never mentions it.
+ */
+export function gbrainSupportsSymbolEdgePhase(env: NodeJS.ProcessEnv = process.env): boolean {
+  const r = spawnGbrain(["dream", "--phase", "resolve_symbol_edges", "--help"], { baseEnv: env, timeout: 15_000 });
+  return r.status === 0 && /--phase\b/.test(`${r.stdout || ""}${r.stderr || ""}`);
+}
+
 export async function runDream(args: CliArgs): Promise<StageResult> {
   const t0 = Date.now();
 
@@ -1702,8 +1712,8 @@ export async function runDream(args: CliArgs): Promise<StageResult> {
       ok: true,
       duration_ms: 0,
       summary: sourceId
-        ? `would: gbrain dream --source ${sourceId}  (build this source's call graph)`
-        : "would: gbrain dream  (call-graph build)",
+        ? `would: gbrain dream --source ${sourceId} --phase resolve_symbol_edges  (build this source's call graph; skipped if gbrain cannot scope the phase)`
+        : "would: gbrain dream --phase resolve_symbol_edges  (call-graph build; skipped if gbrain cannot scope the phase)",
     };
   }
 
@@ -1744,7 +1754,24 @@ export async function runDream(args: CliArgs): Promise<StageResult> {
     // only when we can't derive the source id (not in a git repo).
     const root = repoRoot();
     const sourceId = root ? resolveCodeSourceId(root, gbrainEnv) : null;
-    const dreamArgs = sourceId ? ["dream", "--source", sourceId] : ["dream"];
+    // A7 (#2783): the call graph needs only the resolve_symbol_edges phase. A
+    // full `gbrain dream` runs every maintenance phase, LLM ones included
+    // (~35 min). Scope it when the installed gbrain can; never fall back to
+    // the full cycle on its own.
+    if (!gbrainSupportsSymbolEdgePhase()) {
+      return {
+        name: "dream",
+        ran: false,
+        ok: true,
+        duration_ms: Date.now() - t0,
+        summary:
+          "skipped — the installed gbrain cannot run only the resolve_symbol_edges phase, and the full dream cycle " +
+          `costs about 35 minutes (LLM phases). Upgrade with gstack-gbrain-install, or run it yourself: gbrain dream${sourceId ? ` --source ${sourceId}` : ""}`,
+      };
+    }
+    const dreamArgs = sourceId
+      ? ["dream", "--source", sourceId, "--phase", "resolve_symbol_edges"]
+      : ["dream", "--phase", "resolve_symbol_edges"];
 
     // spawnGbrain seeds DATABASE_URL from gbrain's config via buildGbrainEnv.
     //
