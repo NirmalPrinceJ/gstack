@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import { JUDGE_MS, CAPTURE_MS, CAPTURE_LONG_MS, PTY_MS } from './helpers/eval-budgets';
 import { runSkillTest } from './helpers/session-runner';
+import { getHermeticDirs, isHermeticEnabled, seedHermeticGstackHome } from './helpers/hermetic-env';
 import { EvalCollector } from './helpers/eval-store';
 import { OFFICE_HOURS_BUN_GRACE_MS, runRecordedOfficeHoursAttempt } from './helpers/office-hours-attempt';
 import {
@@ -379,6 +380,9 @@ Focus on architecture, code quality, tests, and performance sections.`,
 
 describeIfSelected('Plan-Eng-Review Test-Plan Artifact E2E', ['plan-eng-review-artifact'], () => {
   let planDir: string;
+  let gstackHome: string;
+  let ownsGstackHome = false;
+  let slug: string;
   let projectDir: string;
 
   beforeAll(() => {
@@ -438,35 +442,38 @@ export function main() { return Dashboard(); }
     // Set up remote-slug shim and browse shims (plan-eng-review uses remote-slug for artifact path)
     setupBrowseShims(planDir);
 
-    // Create project directory for artifacts
-    projectDir = path.join(os.homedir(), '.gstack', 'projects', 'test-project');
-    fs.mkdirSync(projectDir, { recursive: true });
-
-    // Clean up stale test-plan files from previous runs
-    try {
-      const staleFiles = fs.readdirSync(projectDir).filter(f => f.includes('test-plan'));
-      for (const f of staleFiles) {
-        fs.unlinkSync(path.join(projectDir, f));
-      }
-    } catch {}
+    // The actor, this observer and cleanup share one isolated state root: the
+    // hermetic run's GSTACK_HOME (or a seeded temporary one when hermetic mode
+    // is off), and the slug gstack-slug resolves for this fixture. Nothing is
+    // read or deleted under the operator's real home.
+    if (isHermeticEnabled()) gstackHome = getHermeticDirs().gstackHome;
+    else {
+      gstackHome = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-plan-artifact-home-'));
+      seedHermeticGstackHome(gstackHome);
+      ownsGstackHome = true;
+    }
+    const slugOut = spawnSync(path.join(ROOT, 'bin', 'gstack-slug'), [], {
+      cwd: planDir, stdio: 'pipe', timeout: 5000, env: { ...process.env, GSTACK_HOME: gstackHome },
+    }).stdout.toString();
+    slug = /^SLUG=(.+)$/m.exec(slugOut)?.[1]?.trim() ?? '';
+    if (!slug) throw new Error(`plan-eng-review-artifact: gstack-slug resolved no slug: ${slugOut}`);
+    projectDir = path.join(gstackHome, 'projects', slug);
+    const realHome = path.resolve(os.homedir());
+    if (projectDir === realHome || projectDir.startsWith(realHome + path.sep) && !projectDir.startsWith(path.resolve(os.tmpdir()) + path.sep)) {
+      throw new Error(`plan-eng-review-artifact: state root ${projectDir} is under the real home directory`);
+    }
   });
 
   afterAll(() => {
     try { fs.rmSync(planDir, { recursive: true, force: true }); } catch {}
-    // Clean up test-plan artifacts (but not the project dir itself)
-    try {
-      const files = fs.readdirSync(projectDir);
-      for (const f of files) {
-        if (f.includes('test-plan')) {
-          fs.unlinkSync(path.join(projectDir, f));
-        }
-      }
-    } catch {}
+    // Remove only this fixture's project directory inside the isolated state root.
+    try { fs.rmSync(ownsGstackHome ? gstackHome : projectDir, { recursive: true, force: true }); } catch {}
   });
 
   testConcurrentIfSelected('plan-eng-review-artifact', async () => {
-    // Count existing test-plan files before
-    const beforeFiles = fs.readdirSync(projectDir).filter(f => f.includes('test-plan'));
+    const testPlans = () => fs.existsSync(projectDir)
+      ? fs.readdirSync(projectDir).filter(f => /eng-review-test-plan-.*\.md$/.test(f)) : [];
+    const beforeFiles = testPlans();
 
     const result = await runSkillTest({
       prompt: `Read plan-eng-review/SKILL.md for the review workflow.
@@ -476,10 +483,11 @@ Read plan.md — that's the plan to review. This is a standalone plan with sourc
 
 Proceed directly to the full review. Skip any AskUserQuestion calls — this is non-interactive.
 
-IMPORTANT: After your review, you MUST write the test-plan artifact as described in the "Test Plan Artifact" section of SKILL.md. The remote-slug shim is at ${planDir}/browse/bin/remote-slug.
+In this fixture the gstack state root is GSTACK_HOME=${gstackHome} and the project slug is ${slug}.
 
 Write your review to ${planDir}/review-output.md`,
       workingDirectory: planDir,
+      env: { GSTACK_HOME: gstackHome },
       maxTurns: 25,
       allowedTools: ['Bash', 'Read', 'Write', 'Glob', 'Grep'],
       timeout: CAPTURE_LONG_MS,
@@ -489,30 +497,19 @@ Write your review to ${planDir}/review-output.md`,
     });
 
     logCost('/plan-eng-review artifact', result);
+    // The QA test plan is a required discovery artifact of the review: exactly
+    // one new file under this fixture's project directory, about this plan.
+    const newFiles = testPlans().filter(f => !beforeFiles.includes(f));
+    const content = newFiles.length === 1 ? fs.readFileSync(path.join(projectDir, newFiles[0]!), 'utf-8') : '';
+    const aboutPlan = /dashboard|fetchStats|\/api\/stats/i.test(content);
+    console.log(`Test-plan artifacts in ${projectDir}: ${newFiles.length} new${newFiles.length ? ` (${newFiles[0]}, ${content.length} chars)` : ''}`);
     recordE2E(evalCollector, '/plan-eng-review test-plan artifact', 'Plan-Eng-Review Test-Plan Artifact E2E', result, {
-      passed: ['success', 'error_max_turns'].includes(result.exitReason),
+      passed: ['success', 'error_max_turns'].includes(result.exitReason) && newFiles.length === 1 && aboutPlan,
     });
 
     expect(['success', 'error_max_turns']).toContain(result.exitReason);
-
-    // Verify test-plan artifact was written
-    const afterFiles = fs.readdirSync(projectDir).filter(f => f.includes('test-plan'));
-    const newFiles = afterFiles.filter(f => !beforeFiles.includes(f));
-    console.log(`Test-plan artifacts: ${beforeFiles.length} before, ${afterFiles.length} after, ${newFiles.length} new`);
-
-    if (newFiles.length > 0) {
-      const content = fs.readFileSync(path.join(projectDir, newFiles[0]), 'utf-8');
-      console.log(`Test-plan artifact (${newFiles[0]}): ${content.length} chars`);
-      expect(content.length).toBeGreaterThan(50);
-    } else {
-      console.warn('No test-plan artifact found — agent may not have followed artifact instructions');
-    }
-
-    // Soft assertion: we expect an artifact but agent compliance is not guaranteed.
-    // Log rather than fail — the test-plan artifact is a bonus output, not the core test.
-    if (newFiles.length === 0) {
-      console.warn('SOFT FAIL: No test-plan artifact written — agent did not follow artifact instructions');
-    }
+    expect(newFiles, `expected one new eng-review test plan in ${projectDir}`).toHaveLength(1);
+    expect(aboutPlan, 'the test plan covers the reviewed dashboard change').toBe(true);
   }, CAPTURE_LONG_MS);
 });
 
@@ -717,9 +714,7 @@ Read plan.md — that's the plan to review. This is a standalone plan document, 
 Proceed directly to the full review. Skip any AskUserQuestion calls — this is non-interactive.
 Skip the preamble bash block, lake intro, telemetry, and contributor mode sections.
 
-CRITICAL REQUIREMENT: plan.md IS the plan file for this review session. After completing your review, you MUST write a "## GSTACK REVIEW REPORT" section to the END of plan.md, exactly as described in the "Plan File Review Report" section of plan-eng-review/sections/review-sections.md. Use that canonical table, with all five review rows and honest not-run entries when review history is unavailable. The report MUST end with the mandatory unresolved-decisions status as its final line — the exact unbolded line NO UNRESOLVED DECISIONS when nothing is open, or a "**UNRESOLVED DECISIONS:**" block of bullets when items remain. Nothing may follow it. Use the Edit tool to append to plan.md — do NOT overwrite the existing plan content.
-
-This review report at the bottom of the plan is the MOST IMPORTANT deliverable of this test.`,
+plan.md is the plan file for this review session.`,
             workingDirectory: planDir,
             maxTurns: 20,
             timeout: CAPTURE_LONG_MS,
