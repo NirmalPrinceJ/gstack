@@ -43,12 +43,25 @@ export function validateCodexDiscovery(result: CodexResult): void {
   requireCondition(/review|gstack|skill/.test(result.output.toLowerCase()), 'Codex discovery did not reference the skill');
 }
 
+/** Commands Codex reported as completed with exit 0 in its `exec --json` events. */
+function succeededCommands(rawLines: string[]): number {
+  return rawLines.filter(line => {
+    try {
+      const event = JSON.parse(line);
+      return event?.type === 'item.completed' && event.item?.type === 'command_execution'
+        && event.item.status === 'completed' && event.item.exit_code === 0;
+    } catch { return false; }
+  }).length;
+}
+
 export function validateCodexReview(result: CodexResult): void {
-  // A review whose commands never ran (sandbox could not start) is not a review.
+  // A review whose commands never ran (sandbox could not start) is not a review:
+  // it must show a completed command, and nothing may classify it unavailable.
   const ran = classifyOutsideReview({ text: result.output, gate: 'execution', stderr: result.stderr,
     exit: result.exitCode, events: result.rawLines.join('\n') });
   requireCondition(ran.execution.state === 'ran',
     `Codex review did not execute: ${ran.reason}${ran.detail ? ` (${ran.detail})` : ''}`);
+  requireCondition(succeededCommands(result.rawLines) > 0, 'Codex review did not execute: no command completed (exec --json events)');
   requireCondition(result.output.length > 50, 'Codex review output must contain more than 50 characters');
   requireCondition(/finding|issue|review|change|diff|clean|no issues|p1|p2/.test(result.output.toLowerCase()),
     'Codex output did not contain review findings or a clean-review result');

@@ -310,6 +310,9 @@ mock.module('child_process', () => ({
     queueMicrotask(() => {
       const { child, scenario } = current;
       child.stdout.write(JSON.stringify({ type: 'item.completed', item: {
+        type: 'command_execution', command: 'git diff', aggregated_output: '', exit_code: 0, status: 'completed',
+      } }) + '\\n');
+      child.stdout.write(JSON.stringify({ type: 'item.completed', item: {
         type: 'agent_message', text: 'The gstack review found no issues in the current branch diff.',
       } }) + '\\n');
       child.stderr.write('retained fixture stderr\\n');

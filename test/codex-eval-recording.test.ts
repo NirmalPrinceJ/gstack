@@ -19,10 +19,12 @@ import { CODEX_DRAIN_GRACE_MS, CodexHarnessError, type CodexResult } from './hel
 import { EvalCollector, findPreviousRun, listEvalJsonFiles, isFinalizedEvalResultFile, type EvalTestEntry } from './helpers/eval-store';
 import { isPaidTestFile } from './helpers/paid-test-set';
 
+const gitDiffRan = JSON.stringify({ type: 'item.completed', item: { id: 'item_1', type: 'command_execution',
+  command: "/bin/bash -lc 'git diff'", aggregated_output: '', exit_code: 0, status: 'completed' } });
 const result = (overrides: Partial<CodexResult> = {}): CodexResult => ({
   output: 'The gstack review found no issues in the current branch diff.',
   reasoning: [], toolCalls: ['git diff'], tokens: 31, exitCode: 0,
-  durationMs: 25, sessionId: 'fixture', rawLines: [], stderr: '', ...overrides,
+  durationMs: 25, sessionId: 'fixture', rawLines: [gitDiffRan], stderr: '', ...overrides,
 });
 const prose = 'This explanation describes what the choice means for the project. '.repeat(8);
 const kindQuestion = `${prose}\nRECOMMENDATION: Choose A\nThese options differ in kind.`;
@@ -54,6 +56,11 @@ describe('Codex assertion and record parity', () => {
     ['skipped skill', { stderr: 'Skipped loading gstack-review' }, validateCodexDiscovery, 'validation_failed'],
     ['missing skill reference', { output: 'Nothing available.' }, validateCodexDiscovery, 'validation_failed'],
     ['tool error saying invalid is not a skill problem', { stderr: 'ERROR codex_core::tools::router: error=apply_patch verification failed: invalid hunk at line 4' }, validateCodexDiscovery, 'success'],
+    ['review whose tool errors never became command events', {
+      // Run 37158847998: "bwrap: Failed to make / slave" reached only the agent text; stderr and events were clean.
+      output: "I couldn't run the review because the execution sandbox failed before any command could run:\n\n```text\nbwrap: Failed to make / slave: Permission denied\n```\n\nNo files were changed, and I have no review findings to report.",
+      rawLines: [], stderr: 'Reading additional input from stdin...\n',
+    }, validateCodexReview, 'validation_failed'],
     ['review whose sandbox never started', {
       // Periodic run 37151477069 recorded this as a passing review; its only command failed in bwrap.
       output: "I couldn't run the review because the sandbox failed before executing the command to read the gstack-review skill:\n\n> `bwrap: No permissions to create a new namespace`\n\nNo repository files or branch diff were inspected, so I have no findings to report.",
