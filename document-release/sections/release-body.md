@@ -103,11 +103,11 @@ preserved them. This skill must NEVER do that.
 
 **If CHANGELOG was modified in this branch**, review the entry for voice:
 
-- **Sell test (Diataxis rubric):** Score each CHANGELOG entry 0-3:
-  - **1 point** — answers "What changed?" (reference: names the feature/fix)
-  - **1 point** — answers "Why should I care?" (explanation: user impact, pain removed)
-  - **1 point** — answers "How do I use it?" (how-to: command, flag, or link to docs)
-  - Entries scoring <2 need attention, not replacement. Report missing facts or user impact; polish existing wording only. A score of 3 passes all three checks.
+- **Sell test (Diataxis):** a good entry answers "What changed?" (names the
+  feature/fix), "Why should I care?" (user impact, pain removed) and "How do I use
+  it?" (command, flag, or link to docs). An entry that answers fewer than two of these needs
+  attention, not replacement: report the missing facts or user impact, and polish
+  existing wording only.
 - Lead with what the user can now **do** — not implementation details.
 - "You can now..." not "Refactored the..."
 - Flag commit-message-style entries and polish wording without removing facts.
@@ -277,7 +277,7 @@ fi
 When the mode is anything except `disabled`, print one line so the off-switch
 stays discoverable: "Running the Codex doc review automatically (standard step). Disable: `gstack-config set codex_reviews disabled`."
 
-**Determine the release diff range (D3 — reuse the method, do not invent one).**
+**Determine the release diff range (reuse the method, do not invent one).**
 Recompute the SAME range document-release used in its pre-flight / diff analysis, with the
 documented merge-base method:
 
@@ -363,7 +363,7 @@ A native result never supplies outside coverage.
 Dispatch via the Agent tool with the same prompt, passing `run_in_background: false` (subagents default to background since Claude Code v2.1.198). Bound it at a 5-minute timeout; if it never completes, treat the review as unavailable and continue.
 Present findings under `DOCUMENTATION REVIEW (Claude subagent):`. If it fails: "Doc review unavailable. Continuing to Step 9." Skip the apply gate, persist `status: unavailable`, `outside_status: unavailable`, and `source: none` below, then continue; unavailable is not a clean review.
 
-**Apply decision (T3B — informational, never auto-edit, but findings don't evaporate).**
+**Apply decision (informational, never auto-edit, but findings don't evaporate).**
 If at least one reviewer completed and there are zero findings, say "Docs match what shipped — no gaps." and state which reviewer supplied that coverage. If neither completed, report "Doc review unavailable", skip the apply question, and persist unavailability below before Step 9. Otherwise
 present the findings, then use AskUserQuestion ONCE:
 
@@ -407,7 +407,7 @@ modified by this run (including approved VERSION/manifest updates), skip commit/
 git commit -m "$(cat <<'EOF'
 docs: update project documentation for vX.Y.Z.W
 
-Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>
+Co-Authored-By: Claude <noreply@anthropic.com>
 EOF
 )"
 ```

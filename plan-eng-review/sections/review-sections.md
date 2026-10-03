@@ -43,7 +43,7 @@ path authorizes no other; implementation edits require explicit authority.
 | Required Review Log | The helper's state location | Present its fields as **not persisted**; at Review Log, use **Blocked outcome** instead of publishing a saved review. The final gate cannot pass without this log. |
 | Best-effort metadata/learning logs | Helper-defined locations | Skip forbidden writes; otherwise keep their best-effort behavior. |
 
-QA Test Plan/task JSONL keep discovery paths `~/.gstack/projects/{slug}/`:
+QA Test Plan/task JSONL keep discovery paths `$GSTACK_STATE_ROOT/projects/{slug}/`:
 `{user}-{branch}-eng-review-test-plan-{datetime}.md` and
 `tasks-eng-review-{datetime}.jsonl`. Keep their formats; do not relocate.
 
@@ -142,7 +142,7 @@ Example:
 `[P1] (confidence: 9/10) app/models/user.rb:42 — SQL injection via string interpolation in where clause`
 `[P2] (confidence: 5/10) app/controllers/api/v1/users_controller.rb:18 — Possible N+1 query, verify with production logs`
 
-### Pre-emit verification gate (#1539 — kills the "field doesn't exist" FP class)
+### Pre-emit verification gate
 
 Before any finding is promoted to the report, the gate requires:
 
@@ -166,12 +166,9 @@ TypeORM decorators, Sequelize `init`/`belongsTo`, Prisma generated client),
 quote the meta-construct (the `Meta` block, the migration, the decorator,
 the schema file) instead of expecting the literal name in the class body.
 The verification is "I read the source that creates this symbol", not "I
-grep'd for the name and didn't find it." Deeper framework-aware verification
-(model introspection, migration-history-aware checks, ORM dialect detection)
-is deliberately out of scope for the lighter gate — see the deferred
-`~/.gstack-dev/plans/1539-framework-aware-review.md` design doc.
+grep'd for the name and didn't find it."
 
-The FP classes the gate kills (measured against Django Sprint 2.5 #1539):
+False-positive classes the gate catches:
 
 | FP class | Why the gate catches it |
 |---|---|
@@ -487,8 +484,8 @@ abbreviate or skip a section, including strategy/spec/infra plans.
 
 After each of Sections 1–4, resolve new or reopened choices through Decision
 procedure, report findings and dispositions, then continue. Per section, output
-at most 8 findings in the Confidence Calibration format (or "No issues found"),
-one question per new or reopened choice, then `Dispositions:` (accepted, rejected,
+every main-report finding in the Confidence Calibration format, most severe first
+(or "No issues found"), one question per new or reopened choice, then `Dispositions:` (accepted, rejected,
 deferred or pending, with D-number or answer) for each finding.
 
 ### 1. Architecture review
@@ -600,13 +597,13 @@ Read the plan document. For each new feature, service, endpoint, or component de
    - Every call to another function (trace into it — does IT have untested branches?)
    - Every edge: what happens with null input? Empty array? Invalid type?
 
-This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs a test.
+This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs coverage that would catch a real regression; the test value bar below decides whether that is a new test, an extension of an existing one, or already covered.
 
 **Step 2. Map user flows, interactions, and error states:**
 
 Code coverage isn't enough — you need to cover how real users interact with the selected target. For each existing or proposed feature, think through:
 
-- **User flows:** What sequence of actions does a user take that touches this code? Map the full journey (e.g., "user clicks 'Pay' → form validates → API call → success/failure screen"). Each step in the journey needs a test.
+- **User flows:** What sequence of actions does a user take that touches this code? Map the full journey (e.g., "user clicks 'Pay' → form validates → API call → success/failure screen"). Each step in the journey needs coverage.
 - **Interaction edge cases:** What happens when the user does something unexpected?
   - Double-click/rapid resubmit
   - Navigate away mid-operation (back button, close tab, click another link)

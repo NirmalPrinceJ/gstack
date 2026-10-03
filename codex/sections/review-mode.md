@@ -178,7 +178,7 @@ GATE: UNVERIFIED (Codex completed and tagged nothing; read the output above)
 
 5a. **Synthesis recommendation (REQUIRED).** After presenting Codex's verbatim
 output and the GATE verdict, emit ONE recommendation line summarizing what the
-user should do, in the canonical format the AskUserQuestion judge grades:
+user should do, in this format:
 
 ```
 Recommendation: <action> because <one-line reason that names the most actionable finding>

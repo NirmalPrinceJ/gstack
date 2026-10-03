@@ -101,13 +101,13 @@ context. Base the diagram on that read.
    - Every call to another function (trace into it — does IT have untested branches?)
    - Every edge: what happens with null input? Empty array? Invalid type?
 
-This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs a test.
+This is the critical step — you're building a map of every line of code that can execute differently based on input. Every branch in this diagram needs coverage that would catch a real regression; the test value bar below decides whether that is a new test, an extension of an existing one, or already covered.
 
 **2. Map user flows, interactions, and error states:**
 
 Code coverage isn't enough — you need to cover how real users interact with the changed code. For each changed feature, think through:
 
-- **User flows:** What sequence of actions does a user take that touches this code? Map the full journey (e.g., "user clicks 'Pay' → form validates → API call → success/failure screen"). Each step in the journey needs a test.
+- **User flows:** What sequence of actions does a user take that touches this code? Map the full journey (e.g., "user clicks 'Pay' → form validates → API call → success/failure screen"). Each step in the journey needs coverage.
 - **Interaction edge cases:** What happens when the user does something unexpected?
   - Double-click/rapid resubmit
   - Navigate away mid-operation (back button, close tab, click another link)
@@ -258,7 +258,7 @@ If test framework detected (or bootstrapped in Step 4):
 - Write the value card as a header comment in each generated or extended test.
 - Prioritize error handlers and edge cases first (happy paths are more likely already tested)
 - Read 2-3 existing test files to match conventions exactly
-- Generate unit tests. Mock all external dependencies (DB, API, Redis).
+- Generate the smallest native test for each path: unit tests for logic, mocking only services unrelated to the behavior under test (integration points where mocking hides real failures go to [→E2E]).
 - For paths marked [→E2E]: generate integration/E2E tests using the project's E2E framework (Playwright, Cypress, Capybara, etc.)
 - For paths marked [→EVAL]: generate eval tests using the project's eval framework, or flag for manual eval if none exists
 - Write tests that exercise the specific uncovered path with real assertions

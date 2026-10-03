@@ -21,7 +21,7 @@ If `$PRIOR` exists, the new doc gets a `Supersedes:` field referencing it. This 
 
 Write to `<PROJECT_DIR>/{user}-{branch}-design-{datetime}.md` (`PROJECT_DIR` printed by the setup block above).
 
-**Repo copy (dual-write, #703 + #2000).** When the session runs inside a git
+**Repo copy (dual-write).** When the session runs inside a git
 repository, ALSO write the doc to `docs/designs/{topic-slug}.md` in the repo —
 visible, committable, team-shareable. The `~/.gstack` copy is still written
 (memory ingest and cross-session discovery depend on it); the repo copy is
@@ -38,7 +38,7 @@ what teammates and plan reviews read. Rules:
 3. **Name the repo path** in the handoff line and any approval questions when
    the repo copy exists — that's the copy the user can open and commit.
 
-**Decision-record concision (#2000).** The doc is a decision record, not a
+**Decision-record concision.** The doc is a decision record, not a
 transcript: one bullet per decision with its why; an approach the user ruled
 out DURING the session gets one line (name + rejection reason), never a
 resurrected full section that re-argues the case; omit template sections that
@@ -449,9 +449,10 @@ Design trajectory with interpretation:
 "You started this as a side project. But you've named specific users, pushed back when challenged, and your designs keep getting sharper each time. I don't think this is a side project anymore. Have you thought about whether this could be a company?"
 This must feel earned, not broadcast. If the evidence doesn't support it, skip entirely.
 
-**Builder Journey Summary** (session 5+): Auto-generate `~/.gstack/builder-journey.md`
-with a narrative arc (not a data table). The arc tells the STORY of their journey in
-second person, referencing specific things they said across sessions. Then open it:
+**Builder Journey Summary** (session 5+): Auto-generate `builder-journey.md` in the
+gstack state root (`$GSTACK_STATE_ROOT`, resolved by the block below) with a narrative
+arc (not a data table). The arc tells the STORY of their journey in second person,
+referencing specific things they said across sessions. Then open it:
 ```bash
 eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 open "$GSTACK_STATE_ROOT/builder-journey.md"
@@ -469,7 +470,7 @@ The data speaks. No pitch needed.
 
 Full accumulated signal summary from the profile.
 
-Auto-generate updated `~/.gstack/builder-journey.md` with narrative arc. Open it.
+Auto-generate updated `$GSTACK_STATE_ROOT/builder-journey.md` with narrative arc (resolve the state root and open it as in the regular tier).
 
 Then proceed to Founder Resources below.
 
@@ -477,7 +478,7 @@ Then proceed to Founder Resources below.
 
 ### Founder Resources (all tiers)
 
-**Standing opt-out check (#538) — run FIRST:**
+**Standing opt-out check — run FIRST:**
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-config get founder_resources 2>/dev/null || echo "true"
@@ -645,13 +646,14 @@ D) Not now — I'll run a review later
 Net: 15 minutes of structured review now against rework risk later.
 
 On the user's SELECTION of A/B/C (not on invocation success), log the handoff, then invoke
-the chosen skill via the **Skill tool** (it auto-discovers the design doc):
+the chosen skill via the **Skill tool** (it auto-discovers the design doc). In both log
+commands, replace `SESSION_ID` with the value the skill-start output echoed:
 ```bash
-~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type handoff --skill office-hours --outcome accepted --session-id "$_SESSION_ID" 2>/dev/null || true
+~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type handoff --skill office-hours --outcome accepted --session-id "SESSION_ID" 2>/dev/null || true
 ```
 On D, log declined and stop:
 ```bash
-~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type handoff --skill office-hours --outcome declined --session-id "$_SESSION_ID" 2>/dev/null || true
+~/.claude/skills/gstack/bin/gstack-telemetry-log --event-type handoff --skill office-hours --outcome declined --session-id "SESSION_ID" 2>/dev/null || true
 ```
 
 The design doc at `~/.gstack/projects/` is automatically discoverable by downstream skills — they will read it during their pre-review system audit.

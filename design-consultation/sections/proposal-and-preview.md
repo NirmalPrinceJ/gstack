@@ -205,6 +205,8 @@ Propose a surprising indie-studio direction beyond conventional enterprise UI.
 - 2 deliberate departures from category norms
 - What emotional reaction should the user have in the first 3 seconds?
 
+Do not fall back on these defaults: a cream ground with a high-contrast serif and terracotta accent; near-black with one neon accent and glowing edges; broadsheet hairlines with an italic display serif and tiny tracked mono labels; italic accent words inside headlines; numbered 01 / 02 / 03 section labels; pill-shaped buttons; purple gradient palette, the 3-column feature grid, centered everything, decorative blobs and dividers, nested cards, kicker above heading, icon tile above every heading, dark-mode glow. If your first idea is one of these, name it and choose again.
+
 Be bold and specific."
 
 **Error handling (all non-blocking):**
@@ -554,10 +556,9 @@ Use real token values, no placeholders; omit invented `components` entries and u
 
 ```markdown
 ## Design System
-Always read DESIGN.md before making any visual or UI decisions.
-All font choices, colors, spacing, and aesthetic direction are defined there.
-Do not deviate without explicit user approval.
-In QA mode, flag any code that doesn't match DESIGN.md.
+Read DESIGN.md before visual or UI work: it defines the fonts, colors, spacing, and
+aesthetic direction. Ask the user before departing from it. When reviewing or QA-ing
+UI, flag code that doesn't match DESIGN.md.
 ```
 
 After shipping DESIGN.md, if the session produced screen-level mockups or page layouts

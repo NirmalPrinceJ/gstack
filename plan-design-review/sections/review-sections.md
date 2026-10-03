@@ -259,7 +259,7 @@ AskUserQuestion: "The review passes changed [list major design changes]. Want me
 
 If yes, use `$D iterate` with feedback summarizing the changes, or `$D variants` with an updated brief. Save to the same `$_DESIGN_DIR` directory.
 
-## CRITICAL RULE — How to ask questions
+## How to ask questions
 Follow the AskUserQuestion format from the Preamble above. Additional rules for plan design reviews:
 * **One issue = one AskUserQuestion call.** Never combine multiple issues into one question. Each call contains exactly one question; multiple question tabs in one call are also batching. If a user could choose either remedy without choosing the other, ask separately, even when both affect the same component or token file. Shared implementation work does not make independent design choices inseparable.
 * Describe the design gap concretely — what's missing, what the user will experience if it's not specified.
@@ -324,7 +324,7 @@ Rules:
 - P1 blocks ship; P2 should land same branch; P3 is a follow-up TODO.
 - If a finding produced no actionable task, do not invent one.
 - If a section had zero findings, emit `_No new tasks from <section>._`
-- Effort uses the AI-compression table from CLAUDE.md.
+- Show human-team and CC+gstack effort estimates. Default task-type ratios (human ÷ CC time): scaffolding ~100x, tests ~50x, features ~30x, bug fix with regression ~20x, architecture ~5x, research ~3x. Adjust to the actual work and state the assumption.
 
 ### JSONL artifact (always write, even if zero tasks)
 
@@ -518,10 +518,8 @@ Use a single delete-then-append flow:
    `## GSTACK REVIEW REPORT` as the last section. If writing or verification fails,
    report the error and stop before Review Log or decision logging.
 
-Do NOT replace the section in place. The "replace mid-file" path is what allowed
-prior versions to leave the report mid-file when an older report already lived
-there — the user then sees a plan whose review report is not at the bottom and
-(correctly) rejects it.
+Do NOT replace the section in place; delete it and append the new report at EOF,
+so the review report is always the plan's last section.
 
 ## Review Log
 

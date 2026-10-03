@@ -130,15 +130,14 @@ Use the install type and directory detected in Step 2:
 
 **For git installs** (global-git, local-git):
 
-Fast-forward first (#2517) — the same policy the session-update auto-upgrade
+Fast-forward first — the same policy the session-update auto-upgrade
 uses. `--autostash` carries local edits over the pull; render-footprint dirt
-is discarded first because it is regenerable and poisons stashes (#2569):
+is discarded first because it is regenerable and poisons stashes:
 ```bash
 cd "$INSTALL_DIR"
-# Discard render-footprint dirt (#2569): pre-v1.67 gbrain-enabled installs
-# ran gen:skill-docs:user IN PLACE, leaving generated SKILL.md / sections
-# files permanently modified. They are regenerable (setup re-renders to
-# ~/.gstack/render), so discarding is lossless.
+# Discard render-footprint dirt: older gbrain-enabled installs rendered
+# generated SKILL.md / sections files IN PLACE. They are regenerable (setup
+# re-renders to ~/.gstack/render), so discarding is lossless.
 git checkout -- 'SKILL.md' '*/SKILL.md' '*/sections/*.md' 2>/dev/null || true
 git fetch origin
 PRE_UPGRADE_COMMIT=$(git rev-parse HEAD)
@@ -156,7 +155,7 @@ On `SETUP_FAILED`, STOP; keep user changes and report the recovery commit. There
 
 **Fallback (ff-only refused — local commits or divergence).** `git reset
 --hard` DESTROYS things: a clean tree with unpushed local commits still loses
-those commits. Gate it (#2517):
+those commits. Gate it:
 
 1. Run `git status --porcelain` and `git rev-list origin/main..HEAD --oneline`
    in `$INSTALL_DIR`.
@@ -286,7 +285,7 @@ for how to add new migrations.
 
 A browse daemon started before the upgrade keeps serving the OLD binary's code
 until it is stopped — it survives `git reset --hard` and `./setup` because the
-running process holds the old executable (#2551). Always run this step, using
+running process holds the old executable. Always run this step, using
 the install directory detected in Step 2.
 
 ```bash

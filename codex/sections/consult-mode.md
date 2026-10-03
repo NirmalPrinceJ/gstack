@@ -195,8 +195,8 @@ Session saved — run /codex again to continue this conversation.
    "Note: Claude Code disagrees on X because Y."
 
 8. **Synthesis recommendation (REQUIRED).** Emit ONE recommendation line
-summarizing what the user should do based on Codex's consult output, in the
-canonical format the AskUserQuestion judge grades:
+summarizing what the user should do based on Codex's consult output, in this
+format:
 
 ```
 Recommendation: <action> because <one-line reason that names the most actionable insight from Codex>

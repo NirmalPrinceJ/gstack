@@ -30,8 +30,7 @@ gbrain:
       render_as: "## Prior office-hours sessions in this repo"
     - id: builder-profile
       kind: filesystem
-      glob: "~/.gstack/builder-profile.jsonl"
-      tail: 1
+      glob: "~/.gstack/developer-profile.json"
       render_as: "## Your builder profile snapshot"
     - id: design-doc-history
       kind: filesystem
@@ -99,7 +98,7 @@ In plan mode, allowed because they inform the plan: `$B`, `$D`, `codex exec`/`co
 
 If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; any AskUserQuestion the skill fires is the workflow operating within plan mode, not a violation of it — and a skill whose instructions resolve a question themselves (e.g. a plan-mode auto-select) may legitimately not ask it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If AskUserQuestion is unavailable or a call fails, follow the AskUserQuestion Format failure fallback: `headless` → BLOCKED; `interactive` → the prose fallback (also satisfies end-of-turn). At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
 
-If `PROACTIVE` is `"false"`, do not auto-invoke or proactively suggest skills. If a skill seems useful, ask: "I think /skillname might help here — want me to run it?"
+If `PROACTIVE` is `false`, do not auto-invoke or suggest skills, including by asking whether to run one. Only run skills the user explicitly invokes.
 
 If `SKILL_PREFIX` is `"true"`, suggest/invoke `/gstack-*` names. Disk paths stay `~/.claude/skills/gstack/[skill-name]/SKILL.md`.
 
@@ -242,8 +241,9 @@ turns out to be unnecessary, mark it skipped with a one-line reason.
 non-trivial new features), briefly state your approach before executing. This lets
 the user course-correct cheaply instead of mid-flight.
 
-**Dedicated tools over Bash.** Prefer Read, Edit, Write, Glob, Grep over shell
-equivalents (cat, sed, find, grep). The dedicated tools are cheaper and clearer.
+**Dedicated tools over Bash.** Prefer the host's dedicated file tools (Read, Edit,
+Write, and its search tools when it has them) over shell equivalents (cat, sed,
+find, grep). The dedicated tools are cheaper and clearer.
 
 ## Voice
 
@@ -312,7 +312,7 @@ Applies to AskUserQuestion, user replies, and findings. AskUserQuestion Format i
 - User-turn override wins: if the current message asks for terse / no explanations / just the answer, skip this section.
 - Terse mode (EXPLAIN_LEVEL: terse): no glosses, no outcome-framing layer, shorter responses.
 
-Curated jargon list lives at `~/.claude/skills/gstack/scripts/jargon-list.json` (80+ terms). On the first jargon term you encounter this session, Read that file once; treat the `terms` array as the canonical list. The list is repo-owned and may grow between releases.
+Curated jargon list lives at `~/.claude/skills/gstack/scripts/jargon-list.json`. On the first jargon term you encounter this session, Read that file once; treat the `terms` array as the canonical list. The list is repo-owned and may grow between releases.
 
 
 ## Completeness Principle — Boil the Ocean
@@ -331,13 +331,13 @@ A claimed limitation or requirement ("the API can't do this", "X requires a cred
 
 ## Context Health (soft directive)
 
-During long-running skill sessions, periodically write a brief `[PROGRESS]` summary: done, next, surprises.
+During long-running skill sessions, when you finish a phase or change direction, tell the user in a sentence or two what is done, what is next, and anything surprising.
 
 If you are looping on the same diagnostic, same file, or failed fix variants, STOP and reassess. Consider escalation or /context-save. Progress summaries must NEVER mutate git state.
 
 ## Question Tuning (skip entirely if `QUESTION_TUNING: false`)
 
-Before each decision brief (AskUserQuestion or Conductor/fallback prose), choose `question_id` from `~/.claude/skills/gstack/scripts/question-registry.ts` or `{skill}-{slug}`, then run `printf '%s' "<question summary>" | ~/.claude/skills/gstack/bin/gstack-question-preference --check "<id>" --summary-stdin` (piped summary feeds the one-way keyword net, #2024). `AUTO_DECIDE` means choose the recommended option and say "Auto-decided [summary] → [option] (your preference). Change with /plan-tune." `ASK_NORMALLY` means ask.
+Before each decision brief (AskUserQuestion or Conductor/fallback prose), choose `question_id` from `~/.claude/skills/gstack/scripts/question-registry.ts` or `{skill}-{slug}`, then run `printf '%s' "<question summary>" | ~/.claude/skills/gstack/bin/gstack-question-preference --check "<id>" --summary-stdin` (so the one-way-door keyword check sees the text). `AUTO_DECIDE` means choose the recommended option and say "Auto-decided [summary] → [option] (your preference). Change with /plan-tune." `ASK_NORMALLY` means ask.
 
 **Embed the question_id as a marker in every asked brief**, including ad hoc IDs. Use the same ID for its preference check, question marker, and log. Include `<gstack-qid:{question_id}>` once in the question text itself, not only a command or log. On prose paths, use the explicit reply line. Without the marker, the PreToolUse hook treats AskUserQuestion as observed-only and never auto-decides.
 
@@ -400,13 +400,12 @@ Escalate after 3 failed attempts, uncertain security-sensitive changes, or scope
 
 ## Operational Self-Improvement
 
-Before completing, review the session for durable learnings and log each one —
-this step ALWAYS runs, it is not conditional on something feeling noteworthy
-(#2402: 43 of 44 learnings came from explicit /learn because "if you
-discovered" read as optional). A durable learning is a project quirk, command
-fix, pitfall, or pattern that would save 5+ minutes in a future session. If
-the review genuinely surfaces none, state "No durable learnings this session"
-in your completion summary — an explicit empty result, not a skipped step.
+Before completing, review the session for durable learnings and log each one.
+The review runs every time, not only when something felt noteworthy. A durable
+learning is a project quirk, command fix, pitfall, or pattern that would save
+5+ minutes in a future session. If the review genuinely surfaces none, state
+"No durable learnings this session" in your completion summary — an explicit
+empty result, not a skipped step.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
@@ -915,9 +914,9 @@ If A: revise the premise and note the revision. If B: proceed (and note that the
 
 ---
 
-## Phase 4: Alternatives Generation (MANDATORY)
+## Phase 4: Alternatives Generation
 
-Produce 2-3 distinct implementation approaches. This is NOT optional.
+Produce 2-3 distinct implementation approaches.
 
 For each approach:
 ```
@@ -1000,11 +999,15 @@ create and serve the comparison board:
 $D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
 ```
 
-This opens the board in the user's default browser and blocks until feedback is
-received. Read stdout for the structured JSON result. No polling needed.
+This publishes the board to the design daemon, opens it in the user's default
+browser, and exits; it does not wait for feedback. Read captured stderr for the
+`BOARD_URL: http://127.0.0.1:N/boards/<id>/` line, then wait with AskUserQuestion:
+"Review <BOARD_URL>, click Submit or Regenerate, then tell me (or paste your
+preferences here)." After the answer, read `feedback.json` or
+`feedback-pending.json` next to the board HTML.
 
-If `$D serve` is not available or fails, fall back to AskUserQuestion:
-"I've opened the design board. Which variant do you prefer? Any feedback?"
+If the command exits nonzero or prints no `BOARD_URL`, show each variant inline
+with Read and fall back to AskUserQuestion: "Which variant do you prefer? Any feedback?"
 
 **Step 5: Handle feedback**
 
@@ -1016,7 +1019,7 @@ If the JSON contains `"regenerated": true`:
    (`BOARD_URL: http://127.0.0.1:N/boards/<id>/` — the daemon path) or fall
    back to the legacy port (`SERVE_STARTED: port=N` — only emitted under
    `--no-daemon`, hits `/api/reload` root). Daemon path:
-   `curl -X POST "${BOARD_URL}api/reload" -H 'Content-Type: application/json' -d '{"html":"$_DESIGN_DIR/design-board.html"}'`
+   `jq -nc --arg html "$_DESIGN_DIR/design-board.html" '{html: $html}' | curl -sS -X POST "${BOARD_URL}api/reload" -H 'Content-Type: application/json' --data-binary @-`
 5. Board auto-refreshes in the same tab
 
 If `"regenerated": false`: proceed with the approved variant.
@@ -1177,7 +1180,7 @@ Show the full response in a `tool-output` fence. Require successful execution an
 Retain the historical review-log skill ID; add `"host":"claude","outside_provider":"codex","outside_status":"completed|unavailable|disabled|skipped","phase":"design-sketch"`. Record differing attempt outcomes separately. `source:"codex"` requires completed CLI output; native uses `source:"in-host"` (historical `source:"claude"`: native Claude). Availability/native fallback is not outside completion. Preserve all reported modelUsage; unknown model identity stays unknown.
 
 2. **Claude subagent** (via Agent tool, `run_in_background: false` — subagents default to background since Claude Code v2.1.198):
-"For this product approach, what design direction would you recommend? What aesthetic, typography, and interaction patterns fit? What would make this approach feel inevitable to the user? Be specific — font names, hex colors, spacing values."
+"For this product approach, what design direction would you recommend? What aesthetic, typography, and interaction patterns fit? What would make this approach feel inevitable to the user? Be specific — font names, hex colors, spacing values. Do not fall back on these defaults: a cream ground with a high-contrast serif and terracotta accent; near-black with one neon accent and glowing edges; italic accent words inside headlines; numbered 01 / 02 / 03 section labels; tiny tracked monospace labels; pill-shaped buttons. If your first idea is one of these, name it and choose again."
 
 Present Codex output under `CODEX SAYS (design sketch):` and subagent output under `CLAUDE SUBAGENT (design direction):`.
 Error handling: all non-blocking. On failure, skip and continue.
@@ -1224,7 +1227,7 @@ Append one JSON line with these fields (substitute actual values from this sessi
 
 The session entry is appended to `developer-profile.json`'s `sessions[]` array. A second
 session entry with `mode: "resources"` is appended via `--log-session` after resource
-selection in Phase 6 Beat 3.5.
+selection in Phase 6 (Founder Resources).
 
 ---
 

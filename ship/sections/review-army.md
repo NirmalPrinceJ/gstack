@@ -30,7 +30,7 @@ Example:
 \`[P1] (confidence: 9/10) app/models/user.rb:42 — SQL injection via string interpolation in where clause\`
 \`[P2] (confidence: 5/10) app/controllers/api/v1/users_controller.rb:18 — Possible N+1 query, verify with production logs\`
 
-### Pre-emit verification gate (#1539 — kills the "field doesn't exist" FP class)
+### Pre-emit verification gate
 
 Before any finding is promoted to the report, the gate requires:
 
@@ -54,12 +54,9 @@ TypeORM decorators, Sequelize `init`/`belongsTo`, Prisma generated client),
 quote the meta-construct (the `Meta` block, the migration, the decorator,
 the schema file) instead of expecting the literal name in the class body.
 The verification is "I read the source that creates this symbol", not "I
-grep'd for the name and didn't find it." Deeper framework-aware verification
-(model introspection, migration-history-aware checks, ORM dialect detection)
-is deliberately out of scope for the lighter gate — see the deferred
-`~/.gstack-dev/plans/1539-framework-aware-review.md` design doc.
+grep'd for the name and didn't find it."
 
-The FP classes the gate kills (measured against Django Sprint 2.5 #1539):
+False-positive classes the gate catches:
 
 | FP class | Why the gate catches it |
 |---|---|
@@ -82,7 +79,7 @@ This pass is static; defer product probes to Step 9.2.1.
 2. Before reading the diff, run `~/.claude/skills/gstack/bin/gstack-review-log --start review` and save its token as REVIEW_START. Then run `git diff origin/<base>`. Read non-ignored untracked source files too (`git ls-files --others --exclude-standard`); the snapshot includes them.
 
 3. Apply the review checklist in two passes:
-   - **Pass 1 (CRITICAL):** SQL & Data Safety, LLM Output Trust Boundary
+   - **Pass 1 (CRITICAL):** the checklist's Pass 1 categories
    - **Pass 2 (INFORMATIONAL):** All remaining categories
 
 ### Design-lite checklist

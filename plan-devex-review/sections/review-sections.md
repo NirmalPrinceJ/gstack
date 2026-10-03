@@ -541,7 +541,7 @@ Retain the historical review-log skill ID; add `"host":"claude","outside_provide
 
 ---
 
-## CRITICAL RULE — How to ask questions
+## How to ask questions
 
 Follow the AskUserQuestion format from the Preamble above. Additional rules for
 DX reviews:
@@ -691,7 +691,7 @@ Rules:
 - P1 blocks ship; P2 should land same branch; P3 is a follow-up TODO.
 - If a finding produced no actionable task, do not invent one.
 - If a section had zero findings, emit `_No new tasks from <section>._`
-- Effort uses the AI-compression table from CLAUDE.md.
+- Show human-team and CC+gstack effort estimates. Default task-type ratios (human ÷ CC time): scaffolding ~100x, tests ~50x, features ~30x, bug fix with regression ~20x, architecture ~5x, research ~3x. Adjust to the actual work and state the assumption.
 
 ### JSONL artifact (always write, even if zero tasks)
 
@@ -836,10 +836,8 @@ Use a single delete-then-append flow:
    `## GSTACK REVIEW REPORT` as the last section. If writing or verification fails,
    report the error and stop before Review Log or decision logging.
 
-Do NOT replace the section in place. The "replace mid-file" path is what allowed
-prior versions to leave the report mid-file when an older report already lived
-there — the user then sees a plan whose review report is not at the bottom and
-(correctly) rejects it.
+Do NOT replace the section in place; delete it and append the new report at EOF,
+so the review report is always the plan's last section.
 
 ## Review Log
 
@@ -1035,11 +1033,11 @@ Use AskUserQuestion with applicable options:
              | DX EXPANSION     | DX POLISH          | DX TRIAGE
 Scope        | Push UP (opt-in) | Maintain           | Critical only
 Posture      | Enthusiastic     | Rigorous           | Surgical
-Competitive  | Full benchmark   | Full benchmark     | Skip
-Magical      | Full design      | Verify exists      | Skip
+Competitive  | Full benchmark   | Full benchmark     | Target only
+Magical      | Full design      | Verify exists      | Verify exists
 Journey      | All stages +     | All stages         | Install + Hello
              | best-in-class    |                    | World only
-Passes       | All 8, expanded  | All 8, standard    | Pass 1 + 3 only
+Passes       | All 8, expanded  | All 8, standard    | All 8, blockers only
 Outside voice| Recommended      | Recommended        | Skip
 ```
 

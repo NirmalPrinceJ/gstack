@@ -74,7 +74,7 @@ In plan mode, allowed because they inform the plan: `$B`, `$D`, `codex exec`/`co
 
 If the user invokes a skill in plan mode, the skill takes precedence over generic plan mode behavior. **Treat the skill file as executable instructions, not reference.** Follow it step by step starting from Step 0; any AskUserQuestion the skill fires is the workflow operating within plan mode, not a violation of it — and a skill whose instructions resolve a question themselves (e.g. a plan-mode auto-select) may legitimately not ask it. AskUserQuestion (any variant — `mcp__*__AskUserQuestion` or native; see "AskUserQuestion Format → Tool resolution") satisfies plan mode's end-of-turn requirement. If AskUserQuestion is unavailable or a call fails, follow the AskUserQuestion Format failure fallback: `headless` → BLOCKED; `interactive` → the prose fallback (also satisfies end-of-turn). At a STOP point, stop immediately. Do not continue the workflow or call ExitPlanMode there. Commands marked "PLAN MODE EXCEPTION — ALWAYS RUN" execute. Call ExitPlanMode only after the skill workflow completes, or if the user tells you to cancel the skill or leave plan mode.
 
-If `PROACTIVE` is `"false"`, do not auto-invoke or proactively suggest skills. If a skill seems useful, ask: "I think /skillname might help here — want me to run it?"
+If `PROACTIVE` is `false`, do not auto-invoke or suggest skills, including by asking whether to run one. Only run skills the user explicitly invokes.
 
 If `SKILL_PREFIX` is `"true"`, suggest/invoke `/gstack-*` names. Disk paths stay `~/.claude/skills/gstack/[skill-name]/SKILL.md`.
 
@@ -217,8 +217,9 @@ turns out to be unnecessary, mark it skipped with a one-line reason.
 non-trivial new features), briefly state your approach before executing. This lets
 the user course-correct cheaply instead of mid-flight.
 
-**Dedicated tools over Bash.** Prefer Read, Edit, Write, Glob, Grep over shell
-equivalents (cat, sed, find, grep). The dedicated tools are cheaper and clearer.
+**Dedicated tools over Bash.** Prefer the host's dedicated file tools (Read, Edit,
+Write, and its search tools when it has them) over shell equivalents (cat, sed,
+find, grep). The dedicated tools are cheaper and clearer.
 
 ## Voice
 
@@ -287,7 +288,7 @@ Applies to AskUserQuestion, user replies, and findings. AskUserQuestion Format i
 - User-turn override wins: if the current message asks for terse / no explanations / just the answer, skip this section.
 - Terse mode (EXPLAIN_LEVEL: terse): no glosses, no outcome-framing layer, shorter responses.
 
-Curated jargon list lives at `~/.claude/skills/gstack/scripts/jargon-list.json` (80+ terms). On the first jargon term you encounter this session, Read that file once; treat the `terms` array as the canonical list. The list is repo-owned and may grow between releases.
+Curated jargon list lives at `~/.claude/skills/gstack/scripts/jargon-list.json`. On the first jargon term you encounter this session, Read that file once; treat the `terms` array as the canonical list. The list is repo-owned and may grow between releases.
 
 
 ## Completeness Principle — Boil the Ocean
@@ -306,13 +307,13 @@ A claimed limitation or requirement ("the API can't do this", "X requires a cred
 
 ## Context Health (soft directive)
 
-During long-running skill sessions, periodically write a brief `[PROGRESS]` summary: done, next, surprises.
+During long-running skill sessions, when you finish a phase or change direction, tell the user in a sentence or two what is done, what is next, and anything surprising.
 
 If you are looping on the same diagnostic, same file, or failed fix variants, STOP and reassess. Consider escalation or /context-save. Progress summaries must NEVER mutate git state.
 
 ## Question Tuning (skip entirely if `QUESTION_TUNING: false`)
 
-Before each decision brief (AskUserQuestion or Conductor/fallback prose), choose `question_id` from `~/.claude/skills/gstack/scripts/question-registry.ts` or `{skill}-{slug}`, then run `printf '%s' "<question summary>" | ~/.claude/skills/gstack/bin/gstack-question-preference --check "<id>" --summary-stdin` (piped summary feeds the one-way keyword net, #2024). `AUTO_DECIDE` means choose the recommended option and say "Auto-decided [summary] → [option] (your preference). Change with /plan-tune." `ASK_NORMALLY` means ask.
+Before each decision brief (AskUserQuestion or Conductor/fallback prose), choose `question_id` from `~/.claude/skills/gstack/scripts/question-registry.ts` or `{skill}-{slug}`, then run `printf '%s' "<question summary>" | ~/.claude/skills/gstack/bin/gstack-question-preference --check "<id>" --summary-stdin` (so the one-way-door keyword check sees the text). `AUTO_DECIDE` means choose the recommended option and say "Auto-decided [summary] → [option] (your preference). Change with /plan-tune." `ASK_NORMALLY` means ask.
 
 **Embed the question_id as a marker in every asked brief**, including ad hoc IDs. Use the same ID for its preference check, question marker, and log. Include `<gstack-qid:{question_id}>` once in the question text itself, not only a command or log. On prose paths, use the explicit reply line. Without the marker, the PreToolUse hook treats AskUserQuestion as observed-only and never auto-decides.
 
@@ -346,13 +347,12 @@ Escalate after 3 failed attempts, uncertain security-sensitive changes, or scope
 
 ## Operational Self-Improvement
 
-Before completing, review the session for durable learnings and log each one —
-this step ALWAYS runs, it is not conditional on something feeling noteworthy
-(#2402: 43 of 44 learnings came from explicit /learn because "if you
-discovered" read as optional). A durable learning is a project quirk, command
-fix, pitfall, or pattern that would save 5+ minutes in a future session. If
-the review genuinely surfaces none, state "No durable learnings this session"
-in your completion summary — an explicit empty result, not a skipped step.
+Before completing, review the session for durable learnings and log each one.
+The review runs every time, not only when something felt noteworthy. A durable
+learning is a project quirk, command fix, pitfall, or pattern that would save
+5+ minutes in a future session. If the review genuinely surfaces none, state
+"No durable learnings this session" in your completion summary — an explicit
+empty result, not a skipped step.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
@@ -392,9 +392,11 @@ this skill in plain English and you interpret. Never require subcommand syntax.
 Shortcuts exist (`profile`, `vibe`, `stats`, etc.) but users don't have to
 memorize them.
 
-**v1 scope (observational):** typed question registry, per-question explicit
-preferences, question logging, dual-track profile (declared + inferred),
-plain-English inspection. No skills adapt behavior based on the profile yet.
+**Scope:** typed question registry, per-question explicit preferences,
+question logging, dual-track profile (declared + inferred), plain-English
+inspection. Per-question preferences take effect: the question-preference hook
+auto-decides `never-ask` questions (see Recent auto-decisions). The profile
+itself never changes a skill's defaults.
 
 Canonical reference: `docs/designs/PLAN_TUNING_V0.md`.
 
@@ -416,7 +418,7 @@ Each gate is guarded by a marker so the user is prompted at most once per choice
    `~/.gstack/developer-profile.json`'s `declared` object is empty AND
    `~/.gstack/.declared-setup-prompted` is missing → run `5-Q setup` below.
    Touch the marker after setup completes OR is declined.
-3. **Dream-cycle gate (Layer 8 / cathedral T10/T11).** If
+3. **Dream-cycle gate.** If
    `~/.gstack/projects/<slug>/distillation-proposals.json` exists AND has
    `applied_at` missing on any proposal → run `Dream cycle review` below.
    Marker: each proposal carries its own `applied_at` so re-firing this
@@ -480,8 +482,9 @@ explicit.
    > Question tuning is off. gstack can learn which of its prompts you find
    > valuable vs noisy — so over time, gstack stops asking questions you've
    > already answered the same way. It takes about 2 minutes to set up your
-   > initial profile. v1 is observational: gstack tracks your preferences
-   > and shows you a profile, but doesn't silently change skill behavior yet.
+   > initial profile. Questions you mark never-ask are answered with
+   > gstack's recommendation (one-way doors still ask); your profile is
+   > shown to you, not used to change defaults.
    > Logs stay local (`~/.gstack/projects/<slug>/question-log.jsonl`).
    >
    > RECOMMENDATION: Enable and set up your profile. Completeness: A=9/10.
@@ -496,7 +499,7 @@ explicit.
    > (skills adapting to your steering style). Enabling logs every
    > AskUserQuestion outcome locally to
    > `~/.gstack/projects/<slug>/question-log.jsonl` — nothing leaves your
-   > machine. v1 is observational only.
+   > machine. Questions auto-decide only where you set never-ask.
    >
    > RECOMMENDATION: Enable and set up your profile. Completeness: A=9/10.
    >
@@ -722,7 +725,7 @@ boil-the-ocean than 0.5 suggests", "I've gotten more careful about architecture"
 "bump detail_preference up".
 
 **Always confirm before writing.** Free-form input + direct profile mutation
-is a trust boundary (Codex #15 in the design doc).
+is a trust boundary.
 
 1. Parse the user's intent. Translate to `(dimension, new_value)`.
    - "more boil-the-ocean" → `scope_appetite` → pick a value 0.15 higher than
@@ -776,9 +779,8 @@ the user decides whether declared is wrong or behavior is wrong.
 
 ## Stats
 
-Cathedral T13 surfaces: host-aware breakdown (claude hook vs codex import
-vs agent-enriched), marked vs hash-only, auto-decided count, and dream
-cycle cost-to-date.
+Shows: host-aware breakdown (claude hook vs codex import vs agent-enriched),
+marked vs hash-only, auto-decided count, and dream cycle cost-to-date.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-question-preference --stats
@@ -821,9 +823,8 @@ echo '---DISTILL---'
 
 Present as a compact summary with plain-English calibration status ("5 more
 events across 2 more skills and you'll be calibrated" or "you're calibrated").
-Surface the source breakdown so the user can see capture is real (Codex
-correction — without source columns, the cathedral's "before:0 / after:>0"
-claim is invisible).
+Surface the source breakdown so the user can see which capture paths are
+actually logging.
 
 ---
 
@@ -860,9 +861,9 @@ Run `gstack-question-preference --write '{"question_id":"<id>","preference":
 
 ## Audit unmarked questions
 
-Top N hash-only question_ids by frequency. These are AUQ fires the cathedral
-hook captured but cannot enforce against (no `<gstack-qid:foo>` marker in
-the skill template — D18 progressive markers). Surfacing them drives marker
+Top N hash-only question_ids by frequency. These are AUQ fires the
+preference hook captured but cannot enforce against (no `<gstack-qid:foo>`
+marker in the skill template). Surfacing them drives marker
 adoption: high-traffic unmarked questions are the next candidates to retrofit.
 
 ```bash
@@ -942,20 +943,19 @@ invokes via `/plan-tune distill` / `dream`.
    ~/.claude/skills/gstack/bin/gstack-distill-apply --proposal N
    ```
 
-4. **On decline**: skip without marking. User can re-decide later (the
-   proposal stays in the file). To dismiss permanently, manually clear:
-   `gstack-distill-apply --proposal N --dismiss` (not implemented in T11;
-   for now, regenerate via next distill run with corrected free-text).
+4. **On decline**: skip without marking. The proposal stays in the file and
+   the gate offers it again. `gstack-distill-apply` has no dismiss flag; the
+   next distill run overwrites the proposals file.
 
 5. **gbrain integration.** When `mcp__gbrain__*` tools are available in
    this session:
    - On `memory-nugget` apply: `mcp__gbrain__put_page` with the nugget +
-     `mcp__gbrain__extract_facts` + `mcp__gbrain__add_tag` per the cathedral
-     plan D9 routing. Then pass `--gbrain-published true` to the bin so
+     `mcp__gbrain__extract_facts` + `mcp__gbrain__add_tag`. Then pass
+     `--gbrain-published true` to the bin so
      the proposals file records the mirror.
    - When gbrain isn't configured (no MCP tools), the bin's local file
      write is the durable source-of-truth and the PreToolUse hook reads it
-     via Layer 8 memory injection.
+     via memory injection.
 
 ---
 
@@ -1000,9 +1000,9 @@ For background mode (e.g., the user wants to keep working):
 - **One-way doors override never-ask.** Even with a never-ask preference, the
   binary returns ASK_NORMALLY for destructive/architectural/security questions.
   Surface the safety note to the user whenever it fires.
-- **No behavior adaptation in v1.** This skill INSPECTS and CONFIGURES. No
-  skills currently read the profile to change defaults. That's v2 work, gated
-  on the registry proving durable.
+- **The profile never changes defaults.** This skill inspects and configures.
+  Per-question preferences can auto-decide questions; the declared/inferred
+  profile is advisory only.
 - **Completion status:**
   - DONE — did what the user asked (enable/inspect/set/update/disable)
   - DONE_WITH_CONCERNS — action taken but flagging something (e.g., "your

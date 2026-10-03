@@ -93,7 +93,7 @@ Retain the historical review-log skill ID; add `"host":"claude","outside_provide
 
 - Architecture choices: explicit over clever (P5). If Codex disagrees with valid reason → TASTE DECISION. Scope changes both models agree on → USER CHALLENGE.
 - Evals: always include all relevant suites (P1)
-- Test plan: generate artifact at `~/.gstack/projects/$SLUG/{user}-{branch}-test-plan-{datetime}.md`
+- Test plan: generate artifact at `$GSTACK_STATE_ROOT/projects/$SLUG/{user}-{branch}-eng-review-test-plan-{datetime}.md` (the loaded eng skill's name and root)
 - TODOS.md: collect all deferred scope expansions from every prior phase (Eng runs last), auto-write
 
 **Required execution checklist (Eng):**

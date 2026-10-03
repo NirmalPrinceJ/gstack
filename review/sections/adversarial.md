@@ -55,7 +55,7 @@ Branch on the echoed `CODEX_MODE`:
 - **`ready`** — run the Codex pass below.
 
 `CODEX_MODE: disabled` means skip the Codex passes ONLY.
-`ready` runs them; `not_installed` / `not_authed` skip with the printed reason.
+`ready` runs them; every other mode skips them with the printed reason.
 The Claude adversarial subagent always runs.
 
 **User override:** If the user explicitly requested "full review", "structured review", or "P1 gate", also run the Codex structured review regardless of diff size (still requires `CODEX_MODE: ready`).
@@ -79,7 +79,7 @@ Subagent prompt:
 
 Read the diff for this branch. First list changed files: `DIFF_BASE=$(git merge-base origin/<base> HEAD) && git diff --name-status "$DIFF_BASE"`. For NON-fixture source code, read full content: `git diff "$DIFF_BASE" -- . ':(exclude)*test*' ':(exclude)*fixture*' ':(exclude)*.spec.*'`. For fixture/test files, review in SUMMARY mode only (`git diff --stat "$DIFF_BASE" -- '*test*' '*fixture*' '*.spec.*'`) — note that they changed and what they cover, but do not pull their raw payload bytes into adversarial reasoning. State explicitly in your output that fixtures were reviewed in summary mode so the coverage reduction is visible, not silent.
 
-Think like an attacker and a chaos engineer. Your job is to find ways this code will fail in production. Look for: edge cases, race conditions, security holes, resource leaks, failure modes, silent data corruption, logic errors that produce wrong results silently, error handling that swallows failures, and trust boundary violations. Be adversarial. Be thorough. No compliments — just the problems. For each finding, classify as FIXABLE (you know how to fix it) or INVESTIGATE (needs human judgment). After listing findings, end your output with ONE line in the canonical format `Recommendation: <action> because <one-line reason naming the most exploitable finding>` — examples: `Recommendation: Fix the unbounded retry at queue.ts:78 because it'll DoS the worker pool under sustained 429s` or `Recommendation: Ship as-is because the strongest finding is a theoretical race that requires conditions we can't trigger in production`. The reason must point to a specific finding (or no-fix rationale). Generic reasons like 'because it's safer' do not qualify."
+Think like an attacker and a chaos engineer. Your job is to find ways this code will fail in production. Look for: edge cases, race conditions, security holes, resource leaks, failure modes, silent data corruption, logic errors that produce wrong results silently, error handling that swallows failures, and trust boundary violations. No compliments — just the problems. For each finding, classify as FIXABLE (you know how to fix it) or INVESTIGATE (needs human judgment). After listing findings, end your output with ONE line in the canonical format `Recommendation: <action> because <one-line reason naming the most exploitable finding>` — examples: `Recommendation: Fix the unbounded retry at queue.ts:78 because it'll DoS the worker pool under sustained 429s` or `Recommendation: Ship as-is because the strongest finding is a theoretical race that requires conditions we can't trigger in production`. The reason must point to a specific finding (or no-fix rationale). Generic reasons like 'because it's safer' do not qualify."
 
 Present findings under an `ADVERSARIAL REVIEW (Claude subagent):` header. **FIXABLE findings** are queued for the parent's Fix-First handling at Step 5; do not edit during Step 4.8. **INVESTIGATE findings** are presented as informational.
 
