@@ -143,6 +143,9 @@ CONFIG_HEADER='# gstack configuration — edit freely, changes take effect on ne
 #                           #   plan/document reviews skip the entire extra review step.
 #                           #   Office hours/design/spec/manual wrappers keep their own
 #                           #   opt-in/skip controls. Invalid values preserve the old value.
+# browse_extension_id:      # Forks and self-built extensions: the 32-letter (a-p)
+#                           #   Chrome extension ID the browse sidebar terminal accepts.
+#                           #   Empty = the gstack extension. "" clears it.
 # design_detector_install_prompted: false
 #                           #   true once you answered the one-time offer from the
 #                           #   design skills to download the impeccable engine with

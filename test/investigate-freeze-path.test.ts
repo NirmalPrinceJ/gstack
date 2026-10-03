@@ -178,7 +178,7 @@ function withInstalledHome<T>(fn: (home: string) => T): T {
   }
 }
 
-const HOOKED = ['freeze/SKILL.md.tmpl', 'guard/SKILL.md.tmpl', 'careful/SKILL.md.tmpl'];
+const HOOKED = ['freeze/SKILL.md.tmpl', 'guard/SKILL.md.tmpl', 'careful/SKILL.md.tmpl', 'investigate/SKILL.md.tmpl'];
 
 describe('E1: registered hook commands run under cmd.exe and POSIX sh (#2354)', () => {
   for (const rel of HOOKED) {
