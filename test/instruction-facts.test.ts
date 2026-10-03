@@ -160,37 +160,27 @@ describe('/ship step references resolve to the step they mean', () => {
 
 // Every literal default-root state path in templates and resolvers. Writers
 // resolve $GSTACK_STATE_ROOT (docs/state-root.md); a literal ~/.gstack path
-// only matches them when the state root is the default. Rows are either
-// user-facing descriptions, manifest/legacy forms read literally, or
-// conversions still pending (tracked in TODOS.md). New hits fail.
+// only matches them when the state root is the default. Rows are user-facing
+// descriptions, source comments, or readers that must match a writer outside
+// the state root. Manifest globs use the `{gstack_state_root}/` prefix. New
+// hits fail.
 const STATE_ROOT_LITERAL = /~\/\.gstack\/(?:projects|analytics)\//g;
 const RATCHET_ALLOWLIST = JSON.parse(read('test/state-root-ratchet.allowlist.json')) as Array<{ path: string; match: string; reason: string }>;
 const readinessEvalReason = RATCHET_ALLOWLIST.find(entry => entry.path === 'land-and-deploy/sections/readiness-gate.md.tmpl')!.reason;
-const MANIFEST_GLOB = 'gbrain context_queries manifest glob: bin/gstack-brain-context-load.ts reads the legacy `~` form literally (default state root only); `{gstack_state_root}/` is the state-root form. Conversion pending (TODOS.md: state-root literals in templates)';
 const DESCRIPTION = 'user-facing description of where the data lives; no command reads or writes this literal';
-const PENDING = 'agent reads or writes this literal default-root path; it diverges from $GSTACK_STATE_ROOT writers under a non-default state root. Conversion pending (TODOS.md: state-root literals in templates)';
 const SOURCE_COMMENT = 'source comment, not rendered into any skill';
 
 const STATE_ROOT_ALLOWLIST: Array<{ file: string; match: string; reason: string }> = [
   { file: 'autoplan/SKILL.md.tmpl', match: 'test plan on disk at ~/.gstack/projects/$SLUG/', reason: DESCRIPTION },
   { file: 'careful/SKILL.md.tmpl', match: '`~/.gstack/projects/<slug>/careful-patterns.txt` (per-project)', reason: DESCRIPTION },
-  { file: 'design-consultation/SKILL.md.tmpl', match: 'glob: "~/.gstack/projects/{repo_slug}/*-design-*.md"', reason: MANIFEST_GLOB },
-  { file: 'design-shotgun/SKILL.md.tmpl', match: 'glob: "~/.gstack/projects/{repo_slug}/*-design-*.md"', reason: MANIFEST_GLOB },
   { file: 'design-shotgun/SKILL.md.tmpl', match: 'v1 schema at `~/.gstack/projects/$SLUG/taste-profile.json`', reason: DESCRIPTION },
-  { file: 'investigate/SKILL.md.tmpl', match: 'glob: "~/.gstack/projects/{repo_slug}/learnings.jsonl"', reason: MANIFEST_GLOB },
-  { file: 'investigate/SKILL.md.tmpl', match: 'glob: "~/.gstack/analytics/eureka.jsonl"', reason: MANIFEST_GLOB },
   { file: 'land-and-deploy/sections/readiness-gate.md.tmpl', match: 'eval store (`~/.gstack/projects/<slug>/evals/`', reason: readinessEvalReason },
   { file: 'land-and-deploy/sections/readiness-gate.md.tmpl', match: 'EVAL_DIR=~/.gstack/projects/$SLUG/evals', reason: readinessEvalReason },
-  { file: 'office-hours/SKILL.md.tmpl', match: 'glob: "~/.gstack/projects/{repo_slug}/*-design-*.md"', reason: MANIFEST_GLOB },
-  { file: 'office-hours/SKILL.md.tmpl', match: 'glob: "~/.gstack/analytics/eureka.jsonl"', reason: MANIFEST_GLOB },
   { file: 'office-hours/SKILL.md.tmpl', match: "see each other's design docs in `~/.gstack/projects/`", reason: DESCRIPTION },
   { file: 'office-hours/sections/design-and-handoff.md.tmpl', match: 'The design doc at `~/.gstack/projects/` is automatically discoverable', reason: DESCRIPTION },
-  { file: 'plan-ceo-review/SKILL.md.tmpl', match: 'glob: "~/.gstack/projects/{repo_slug}/*-design-*.md"', reason: MANIFEST_GLOB },
   { file: 'plan-ceo-review/sections/review-sections.md.tmpl', match: 'Keep in `~/.gstack/projects/` only (local, personal reference)', reason: DESCRIPTION },
   { file: 'plan-tune/SKILL.md.tmpl', match: 'Logs stay local (`~/.gstack/projects/<slug>/question-log.jsonl`)', reason: DESCRIPTION },
   { file: 'plan-tune/SKILL.md.tmpl', match: '`~/.gstack/projects/<slug>/question-log.jsonl` — nothing leaves your', reason: DESCRIPTION },
-  { file: 'retro/SKILL.md.tmpl', match: 'glob: "~/.gstack/projects/{repo_slug}/timeline.jsonl"', reason: MANIFEST_GLOB },
-  { file: 'retro/SKILL.md.tmpl', match: 'glob: "~/.gstack/projects/{repo_slug}/learnings.jsonl"', reason: MANIFEST_GLOB },
   { file: 'scripts/resolvers/learnings.ts', match: '* Learnings are stored per-project at ~/.gstack/projects/{slug}/learnings.jsonl', reason: SOURCE_COMMENT },
   { file: 'scripts/resolvers/preamble.ts', match: 'local JSONL append to ~/.gstack/analytics/ (inline, inspectable)', reason: SOURCE_COMMENT },
 ];

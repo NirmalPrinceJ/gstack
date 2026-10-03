@@ -36,7 +36,7 @@ gbrain:
       render_as: "## DESIGN.md (project design system)"
     - id: recent-design-docs
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/*-design-*.md"
+      glob: "{gstack_state_root}/projects/{repo_slug}/*-design-*.md"
       sort: mtime_desc
       limit: 3
       render_as: "## Recent design docs"
