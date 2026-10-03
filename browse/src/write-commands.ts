@@ -420,10 +420,32 @@ export async function handleWriteCommand(
     }
 
     case 'type': {
-      const text = args.join(' ');
-      if (!text) throw new Error('Usage: browse type <text>');
+      // #2936: bare `type` sends keystrokes to whatever has focus, so a selector
+      // given as the first word was typed as text. --selector targets an
+      // element; `--` ends flags so literal text may start with "--".
+      const usage = 'Usage: browse type [--selector <sel>] [--] <text>';
+      let rest = args;
+      let selector: string | undefined;
+      if (rest[0] === '--selector') {
+        selector = rest[1];
+        if (!selector) throw new Error(usage);
+        rest = rest.slice(2);
+      }
+      if (rest[0] === '--') rest = rest.slice(1);
+      const text = rest.join(' ');
+      if (!text) throw new Error(usage);
+      if (selector) {
+        const resolved = await session.resolveRef(selector);
+        const locator = 'locator' in resolved ? resolved.locator : target.locator(resolved.selector);
+        await locator.pressSequentially(text, { timeout: 5000 });
+        return `Typed ${text.length} characters into ${selector}`;
+      }
       await page.keyboard.type(text);
-      return `Typed ${text.length} characters`;
+      const first = rest[0];
+      const selectorLike = /^([#.][A-Za-z_-]|\[[^\]]+\]$|[A-Za-z][\w-]*[#.[][A-Za-z_-])/.test(first) || rest.includes('>');
+      return selectorLike
+        ? `Typed ${text.length} characters into the focused element\nhint: "${first}" looks like a CSS selector. To type into that element: browse type --selector '${first}' <text>`
+        : `Typed ${text.length} characters`;
     }
 
     case 'press': {

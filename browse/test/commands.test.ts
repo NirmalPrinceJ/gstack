@@ -559,6 +559,35 @@ describe('Interaction', () => {
     const val = await handleReadCommand('js', ['document.querySelector("#name").value'], bm);
     expect(val).toBe('John Doe');
   });
+
+  test('type --selector types into that element, not the focused one (#2936)', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
+    await handleWriteCommand('click', ['#email'], bm);
+    const result = await handleWriteCommand('type', ['--selector', '#name', 'Jane', 'Roe'], bm);
+    expect(result).toBe('Typed 8 characters into #name');
+    expect(await handleReadCommand('js', ['document.querySelector("#name").value'], bm)).toBe('Jane Roe');
+    expect(await handleReadCommand('js', ['document.querySelector("#email").value'], bm)).toBe('');
+  });
+
+  test('bare type keeps typing selector-looking text literally, with a hint and no refusal', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
+    await handleWriteCommand('click', ['#bio'], bm);
+    const result = await handleWriteCommand('type', ['#name', 'secret-value'], bm);
+    expect(result).toContain('Typed 18 characters into the focused element');
+    expect(result).toContain("hint: \"#name\" looks like a CSS selector. To type into that element: browse type --selector '#name' <text>");
+    expect(result).not.toContain('secret-value');
+    expect(await handleReadCommand('js', ['document.querySelector("#bio").value'], bm)).toBe('#name secret-value');
+    expect(await handleReadCommand('js', ['document.querySelector("#name").value'], bm)).toBe('');
+  });
+
+  test('type -- types text that starts with -- literally; plain text gets no hint', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
+    await handleWriteCommand('click', ['#bio'], bm);
+    expect(await handleWriteCommand('type', ['--', '--selector', 'x'], bm)).toBe('Typed 12 characters');
+    expect(await handleReadCommand('js', ['document.querySelector("#bio").value'], bm)).toBe('--selector x');
+    await expect(handleWriteCommand('type', ['--selector'], bm)).rejects.toThrow('Usage: browse type [--selector <sel>] [--] <text>');
+    await expect(handleWriteCommand('type', ['--selector', '#name'], bm)).rejects.toThrow('Usage');
+  });
 });
 
 // ─── SPA / Console / Network ───────────────────────────────────
