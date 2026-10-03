@@ -441,7 +441,7 @@ describe('gen-skill-docs', () => {
     expect(SKILL_END_SCRIPT).toContain('analytics/skill-usage.jsonl');
     // The render still tells the model where telemetry lands.
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('~/.gstack/analytics');
+    expect(content).toContain('$GSTACK_STATE_ROOT/analytics/');
   });
 
   test('plan-review generated preambles stay under the Option A budget', () => {

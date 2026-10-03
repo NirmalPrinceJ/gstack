@@ -193,7 +193,6 @@ const STATE_ROOT_ALLOWLIST: Array<{ file: string; match: string; reason: string 
   { file: 'retro/SKILL.md.tmpl', match: 'glob: "~/.gstack/projects/{repo_slug}/learnings.jsonl"', reason: MANIFEST_GLOB },
   { file: 'scripts/resolvers/learnings.ts', match: '* Learnings are stored per-project at ~/.gstack/projects/{slug}/learnings.jsonl', reason: SOURCE_COMMENT },
   { file: 'scripts/resolvers/preamble.ts', match: 'local JSONL append to ~/.gstack/analytics/ (inline, inspectable)', reason: SOURCE_COMMENT },
-  { file: 'scripts/resolvers/preamble/generate-completion-status.ts', match: '\\`~/.gstack/analytics/\\`, matching preamble analytics writes', reason: PENDING },
 ];
 
 describe('templates and resolvers name gstack state only through allowlisted literals', () => {
