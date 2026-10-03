@@ -73,6 +73,13 @@ describe('validateOutsideReview keeps the text-only shape for direct importers',
     expect(validateOutsideReview('[P2] nit', 'structured')).toEqual({ completed: true, gate: 'pass' });
     expect(validateOutsideReview('[P1] bug', 'structured')).toEqual({ completed: true, gate: 'fail' });
   });
+
+  test('B1b: the structured gate fails on P0 as well as P1', () => {
+    for (const text of ['[P0] corrupts every row', 'P0: corrupts every row', '**P0:** corrupts every row', '[P3] nit\n[P0] corrupts every row']) {
+      expect(validateOutsideReview(text, 'structured')).toEqual({ completed: true, gate: 'fail' });
+    }
+    expect(validateOutsideReview('[P2] naming\n[P3] nit', 'structured')).toEqual({ completed: true, gate: 'pass' });
+  });
 });
 
 describe('outside-review-result CLI', () => {

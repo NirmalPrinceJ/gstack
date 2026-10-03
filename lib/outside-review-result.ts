@@ -92,7 +92,7 @@ export function validateOutsideReview(text: string, gate: OutsideGate): { comple
     return { completed: false, reason };
   }
   if (gate === 'spec') return { completed: true, score: checked.score, gate: checked.verdict === 'clean' ? 'pass' : 'fail' };
-  if (gate === 'structured') return { completed: true, gate: /\[P1\]|^P1:/m.test(plainReview(text)) ? 'fail' : 'pass' };
+  if (gate === 'structured') return { completed: true, gate: checked.verdict === 'findings' ? 'fail' : 'pass' };
   return { completed: true };
 }
 
