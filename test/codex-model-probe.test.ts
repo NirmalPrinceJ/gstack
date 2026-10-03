@@ -53,6 +53,13 @@ case "\${STUB_MODE:-ok}" in
     echo 'ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The '"'"'gpt-6-astra'"'"' model is not supported when using Codex with a ChatGPT account."}}' >&2
     exit 1 ;;
   transient) echo "stream error: network unreachable" >&2; exit 7 ;;
+  retired404)
+    echo 'ERROR: unexpected status 404 Not Found: The model \`gpt-5.2-codex\` does not exist or you do not have access to it., url: https://chatgpt.com/backend-api/codex/responses' >&2
+    exit 1 ;;
+  baseurl404) echo 'ERROR: unexpected status 404 Not Found: <html><body>Not Found</body></html>, url: http://localhost:9999/v1/responses' >&2; exit 1 ;;
+  outdated400)
+    echo 'ERROR: {"type":"error","status":400,"error":{"type":"invalid_request_error","message":"The '"'"'gpt-6-astra'"'"' model requires a newer version of Codex. Please upgrade to the latest app or CLI and try again."}}' >&2
+    exit 1 ;;
 esac
 `;
 
@@ -445,4 +452,24 @@ describe('B1: codex sandbox preflight and unverified readiness', () => {
       } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
     }
   });
+});
+
+describe('B2: a 404 model rejection is unusable, never ready (#2843)', () => {
+  for (const [mode, hint, event] of [
+    ['retired404', "Codex answered 404: either the model is retired or not visible to this account, or a custom provider's base_url", 'codex_model_retired'],
+    ['baseurl404', "a custom provider's base_url", 'codex_model_retired'],
+    ['outdated400', 'this Codex CLI is too old', 'codex_cli_outdated'],
+  ] as const) {
+    test(`${mode} -> MODEL_UNUSABLE with a hint naming the cause and a ${event} event`, () => {
+      const f = makeFixture();
+      try {
+        const r = runProbe(f, mode, { _TEL: 'community' }, '_gstack_codex_model_probe; echo "rc=$?"');
+        expect(r.stdout).toContain('MODEL_UNUSABLE');
+        expect(r.stdout).toContain('rc=1');
+        expect(r.stdout).not.toContain('MODEL_PROBE_INCONCLUSIVE');
+        expect(r.stdout).toContain(hint);
+        expect(fs.readFileSync(path.join(f.gstackHome, 'analytics', 'skill-usage.jsonl'), 'utf-8')).toContain(`"event":"${event}"`);
+      } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
+    });
+  }
 });

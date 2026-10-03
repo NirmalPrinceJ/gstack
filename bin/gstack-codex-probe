@@ -118,8 +118,9 @@ _gstack_codex_model_probe() {
   #
   # Contract:
   #   MODEL_OK (exit 0)              — round trip succeeded; cached 1h.
-  #   MODEL_UNUSABLE (exit 1)        — deterministic model 400 or an invalid
-  #     model choice; hints printed. The 400 is cached 15 min: re-probing every
+  #   MODEL_UNUSABLE (exit 1)        — deterministic model rejection (400, or a
+  #     404 from a retired model or a wrong custom-provider base_url) or an
+  #     invalid model choice; hints name the cause. The 400 is cached 15 min: re-probing every
   #     preflight charged the affected user a 30s round trip + real tokens per
   #     review section, forever. Changing the model or config.toml changes the
   #     cache signature and re-probes immediately; the short TTL covers
@@ -202,13 +203,27 @@ _gstack_codex_model_probe() {
     echo "MODEL_OK"
     return 0
   fi
-  if printf '%s' "$_out" | grep -qiE 'model.{0,40}is not supported|"status":[[:space:]]*400'; then
+  # A model rejection is deterministic: a 400 ("is not supported", "requires a
+  # newer version of Codex") or a 404. A retired model answers 404 "does not
+  # exist or you do not have access to it", and a custom provider with a wrong
+  # base_url answers a bare 404; neither is network luck, so neither may fall
+  # through to the inconclusive branch below and report ready (#2843).
+  if printf '%s' "$_out" | grep -qiE 'model.{0,40}is not supported|"status":[[:space:]]*40[04]|requires a newer version of codex|does not exist or you do not have access|model.{0,40}does not exist|404 not found|status:?[[:space:]]*404'; then
     [ -n "$_cache" ] && { mkdir -p "$_gstack_home" 2>/dev/null; printf 'MODEL_UNUSABLE %s %s\n' "$_now" "$_sig" > "$_cache" 2>/dev/null; }
     echo "MODEL_UNUSABLE"
-    printf '%s\n' "$_out" | grep -i "model" | head -3
+    printf '%s\n' "$_out" | grep -iE "model|404" | head -3
     echo "HINT: gstack requested model '$_model' (source: $_GSTACK_CODEX_SEL_SRC)."
-    echo "HINT: choose a model your account can use: set GSTACK_CODEX_MODEL=<supported-model>, set model in $_codex_home/config.toml, or name one for this request."
-    _gstack_codex_log_event "codex_model_unusable" 2>/dev/null || true
+    if printf '%s' "$_out" | grep -qiE 'requires a newer version of codex|upgrade to the latest (app|version|cli)'; then
+      echo "HINT: the server refused it because this Codex CLI is too old; no model choice fixes that. Upgrade the CLI (\`codex doctor\` prints the command; usually npm install -g @openai/codex)."
+      _gstack_codex_log_event "codex_cli_outdated" 2>/dev/null || true
+    elif printf '%s' "$_out" | grep -qiE 'does not exist|404'; then
+      echo "HINT: Codex answered 404: either the model is retired or not visible to this account, or a custom provider's base_url in $_codex_home/config.toml is wrong."
+      echo "HINT: choose a current model (GSTACK_CODEX_MODEL=<supported-model> or model in config.toml), or fix that provider's base_url."
+      _gstack_codex_log_event "codex_model_retired" 2>/dev/null || true
+    else
+      echo "HINT: choose a model your account can use: set GSTACK_CODEX_MODEL=<supported-model>, set model in $_codex_home/config.toml, or name one for this request."
+      _gstack_codex_log_event "codex_model_unusable" 2>/dev/null || true
+    fi
     return 1
   fi
   # A CLI that cannot execute is deterministic, not transient: the fail-open
@@ -331,7 +346,8 @@ _gstack_codex_log_event() {
   # Emit a telemetry event to ~/.gstack/analytics/skill-usage.jsonl.
   # Gated on $_TEL != "off" (caller sets this from gstack-config).
   # Event types: codex_timeout, codex_auth_failed, codex_cli_missing,
-  #              codex_version_warning, codex_model_unusable, codex_sandbox_unavailable.
+  #              codex_version_warning, codex_model_unusable, codex_sandbox_unavailable,
+#              codex_model_retired, codex_cli_outdated.
   # Payload schema: {skill, event, duration_s, ts}. NEVER includes prompt
   # content, env var values, or auth tokens.
   local _event="$1"
