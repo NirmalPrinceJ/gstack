@@ -21,7 +21,7 @@ We ran Anthropic's `/claude-api prompt-audit` (target `claude-opus-5-5`) over ev
 #### Fixed
 - Skill instructions that contradicted the code. Examples: the router's empty telemetry session ID; the design board flow that waited on a command that now exits; an unexpanded `$_DESIGN_DIR` in the reload call; wrong Pretext API signatures in /design-html; a /make-pdf flag that doesn't exist; /land-and-deploy falling back to bare `bun test` and reading only the legacy eval store; stale /ship step numbers; hardcoded `main`/`origin/main`; "Mac only" claims the installer contradicts; tab-state fields the terminal agent misnamed; spec flags that aren't flags; autoplan skipping renamed sections.
 - The shared test bootstrap undoes only the changes it made, instead of a blanket `git checkout`.
-- Skills that read or wrote a literal `~/.gstack` path now use your configured state root (`GSTACK_STATE_ROOT` / `GSTACK_HOME`): design-doc discovery, canary and health history, plan-tune gates and proposals, retro reads, ship ledgers, the telemetry sink and gbrain context queries. Custom state directories no longer miss data.
+- Skills that read or wrote a literal `~/.gstack` path now use your configured state root (`GSTACK_STATE_ROOT` / `GSTACK_HOME`): canary and health history, plan-tune gates and proposals, retro reads, ship ledgers, the telemetry sink and gbrain context queries. Custom state directories no longer miss data.
 - The browse untrusted-content warning names both marker formats the binary prints.
 - The "never ingest transcripts" choice is enforced in code, not just described.
 - /plan-tune describes the never-ask hook accurately.
