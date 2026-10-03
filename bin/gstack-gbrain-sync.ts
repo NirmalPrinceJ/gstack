@@ -37,7 +37,7 @@ import { createHash } from "crypto";
 
 import "../lib/conductor-env-shim";
 import { detectEngineTier, withErrorContext, canonicalizeRemote } from "../lib/gstack-memory-helpers";
-import { ensureSourceRegistered, sourcePageCount, parseSourcesList, cycleCompleted, type CycleStatus } from "../lib/gbrain-sources";
+import { constrainSourceId, ensureSourceRegistered, sourcePageCount, parseSourcesList, cycleCompleted, type CycleStatus } from "../lib/gbrain-sources";
 import { detectAutopilot, decideSourceRemove, decideCodeSync } from "../lib/gbrain-guards";
 import { writeReceipt } from "../lib/egress-receipt";
 import { dbUnreachableReason, localEngineStatus, localEngineStatusDetail, type LocalEngineStatus } from "../lib/gbrain-local-status";
@@ -812,49 +812,6 @@ export function safeSourcesRemove(sourceId: string, env?: NodeJS.ProcessEnv): Gu
  */
 export function removeOrphanedSource(oldId: string, env?: NodeJS.ProcessEnv): boolean {
   return safeSourcesRemove(oldId, env).removed;
-}
-
-/**
- * Build a gbrain-valid source id (1-32 lowercase alnum + interior hyphens). Sanitizes
- * `raw`, prefixes with `prefix`, and falls back to a hashed-tail form when total length
- * would exceed 32 chars.
- *
- * Truncation cuts on hyphen boundaries (whole-word units) from the right, never
- * mid-word. Inputs like "drummerms-av-sow-wiz-skill-270c0001" produce
- * "${prefix}-270c0001-<hash>", not "${prefix}-kill-270c0001-<hash>".
- */
-function constrainSourceId(prefix: string, raw: string): string {
-  const MAX = 32;
-  const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  // Empty slug after sanitize (e.g. raw was all non-alnum like "___") would
-  // produce "${prefix}-" which fails gbrain's validator on the trailing
-  // hyphen. Fall back to a deterministic hash of the original input so the
-  // result is stable across runs of the same repo.
-  if (!slug) {
-    const hash = createHash("sha1").update(raw || "_empty").digest("hex").slice(0, 6);
-    return `${prefix}-${hash}`;
-  }
-  const full = `${prefix}-${slug}`;
-  if (full.length <= MAX) return full;
-  const hash = createHash("sha1").update(slug).digest("hex").slice(0, 6);
-  // Total budget: prefix + "-" + tail + "-" + hash
-  const tailBudget = MAX - prefix.length - 2 - hash.length;
-  if (tailBudget < 1) return `${prefix}-${hash}`;
-  // Cut on hyphen boundaries instead of mid-word. Walk tokens from the right,
-  // accumulating until adding the next token would exceed tailBudget. This
-  // preserves readable suffixes (pathhash, repo name) and avoids embarrassing
-  // mid-word artifacts like "skill" → "kill".
-  const tokens = slug.split("-").filter(Boolean);
-  const kept: string[] = [];
-  let len = 0;
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    const add = kept.length === 0 ? tokens[i].length : tokens[i].length + 1;
-    if (len + add > tailBudget) break;
-    kept.unshift(tokens[i]);
-    len += add;
-  }
-  const tail = kept.join("-");
-  return tail ? `${prefix}-${tail}-${hash}` : `${prefix}-${hash}`;
 }
 
 // ── Lock file (D1) ─────────────────────────────────────────────────────────

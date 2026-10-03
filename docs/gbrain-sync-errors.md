@@ -374,6 +374,40 @@ gbrain skips unchanged content.
 
 ---
 
+## `[memory-ingest] kept N unattributed transcript(s) on this machine: the brain is remote (Postgres or HTTP), ...`
+
+**Problem.** `--include-unattributed` transcripts (sessions with no git
+remote) were not imported.
+
+**Cause.** Transcripts that cannot be attributed to a repository go only to
+the machine-local, never-federated source `gstack-transcripts-unattributed`.
+Your brain is remote (a Postgres or Supabase `database_url`, or a remote-HTTP
+MCP brain), so sending them would take them off this machine. They are not
+marked ingested and are not written to the publishable `~/.gstack/transcripts/`
+staging either.
+
+**Fix.** Nothing to do if that is what you want. To include such a session,
+run it from a git repository with an `origin` remote so it is attributed.
+
+---
+
+## `[memory-ingest] kept N transcript page(s) for <repo> on this machine: could not register gbrain source <id> (...)`
+
+**Problem.** Transcripts from one repository were not imported.
+
+**Cause.** gstack imports each repository's transcripts into that
+repository's own gbrain source (`gstack-transcripts-...`, machine-local and
+not federated) and registers it before the first import. The installed gbrain
+refused `gbrain sources add`, so the pages stay local and unstamped.
+
+**Fix.**
+```bash
+gstack-gbrain-install      # upgrade gbrain
+/sync-gbrain               # the pages import on the next run
+```
+
+---
+
 ## Nothing is syncing but I expect it to
 
 **Not an error, but a common gotcha.** Check in order:

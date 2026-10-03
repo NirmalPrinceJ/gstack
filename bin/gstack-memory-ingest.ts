@@ -68,7 +68,8 @@ import {
   detectEngineTier,
   withErrorContext,
 } from "../lib/gstack-memory-helpers";
-import { execGbrainText, spawnGbrain, spawnGbrainAsync } from "../lib/gbrain-exec";
+import { execGbrainText, gbrainConfigDir, spawnGbrain, spawnGbrainAsync } from "../lib/gbrain-exec";
+import { constrainSourceId, parseSourcesList } from "../lib/gbrain-sources";
 import {
   BISECT_AFTER_REFUSALS,
   DEFAULT_GET_CAP,
@@ -2155,9 +2156,23 @@ async function ingestPass(args: CliArgs, state: IngestState): Promise<BulkResult
     skipped_policy_readonly: prep.skippedPolicyReadonly,
     skipped_policy_deny: prep.skippedPolicyDeny,
     partial_pages: prep.partialPages,
+    kept_local: 0,
   };
 
-  if (remoteHttpMode) return stageForRemoteBrain(args, prep.prepared, state, base, t0);
+  // A4: unattributed transcripts stay on this machine when the brain is
+  // remote, and never enter the publishable remote-http staging.
+  const remoteBrain = brainIsRemote(remoteHttpMode);
+  const keptLocal = remoteBrain ? prep.prepared.filter(isUnattributed) : [];
+  if (keptLocal.length > 0) {
+    reportPage(
+      `kept ${keptLocal.length} unattributed transcript(s) on this machine: the brain is remote (Postgres or HTTP), ` +
+        `and unattributed pages go only to the machine-local source ${UNATTRIBUTED_SOURCE_ID}.`,
+    );
+  }
+  const toImport = keptLocal.length > 0 ? prep.prepared.filter((p) => !isUnattributed(p)) : prep.prepared;
+  base.kept_local = keptLocal.length;
+
+  if (remoteHttpMode) return stageForRemoteBrain(args, toImport, state, base, t0);
 
   const enforceResumePolicy = resuming && hasRepoPolicyStore();
   let resumed: PreStaged | undefined;
@@ -2186,7 +2201,7 @@ async function ingestPass(args: CliArgs, state: IngestState): Promise<BulkResult
     writeReceipt({
       sink: "memory-ingest",
       host: "gbrain-db (user-configured DATABASE_URL)",
-      payloadClass: `transcript-pages count=${resumed ? resumed.staged.size : prep.prepared.length} (sent by gbrain subprocess)`,
+      payloadClass: `transcript-pages count=${resumed ? resumed.staged.size : toImport.length} (sent by gbrain subprocess)`,
       bytes: 0,
       sha256: null,
       consent: "gbrain setup consent (/setup-gbrain)",
@@ -2211,9 +2226,23 @@ async function ingestPass(args: CliArgs, state: IngestState): Promise<BulkResult
   // D6: one batch import per gbrain source, sequentially (PGLite is a single
   // writer). `--no-embed` matches the prior per-file behavior; `--json` gives
   // structured counts and per-file failures.
-  for (const batch of resumed ? [{ sourceId: resumed.sourceId, pages: [...resumed.staged.values()] }] : planBatches(prep.prepared)) {
+  // A4: one partition per gbrain source; a transcript source is registered
+  // (non-federated) before its first import, or its pages stay local.
+  const listed: { ids: Set<string> | null } = { ids: null };
+  for (const batch of resumed ? [{ sourceId: resumed.sourceId, pages: [...resumed.staged.values()] }] : planBatches(toImport, state)) {
+    if (!resumed && batch.sourceId?.startsWith("gstack-transcripts")) {
+      const repo = isUnattributed(batch.pages[0]) ? "(no repository)" : batch.pages[0].git_remote!;
+      const why = ensureTranscriptSource(state, batch.sourceId, repo, listed);
+      if (why) {
+        base.kept_local += batch.pages.length;
+        reportPage(`kept ${batch.pages.length} transcript page(s) for ${repo} on this machine: ${why}. They import once the source can be registered (upgrade gbrain with gstack-gbrain-install).`);
+        continue;
+      }
+    }
     await importPartition(run, batch.pages, batch.sourceId, resumed);
-    if (run.systemError) break;
+    // Other sources still import after one source's import fails; only a
+    // timeout (whose checkpoint a later import would overwrite) stops the run.
+    if (run.stopImports) break;
   }
 
   // Landing check: confirm what this run (and earlier runs) imported is in
@@ -2258,11 +2287,88 @@ interface RunContext {
   quarantined: number;
   importedThisRun: Set<string>;
   systemError?: string;
+  /** A timed-out import may have left a gbrain checkpoint; no later import may overwrite it. */
+  stopImports?: boolean;
 }
 
-/** Pages grouped by the gbrain source they import into; null = gbrain's own default routing. */
-function planBatches(pages: PreparedPage[]): Array<{ sourceId: string | null; pages: PreparedPage[] }> {
-  return pages.length > 0 ? [{ sourceId: null, pages }] : [];
+/**
+ * The gbrain source a page imports into (A4); null = gbrain's own default
+ * routing, which curated artifacts keep. A page's recorded source is sticky:
+ * pages stamped before per-repo sources existed ("default") keep going where
+ * they went, so a source never gains a duplicate of an older page. New
+ * transcripts go to their originating repository's own transcript source;
+ * transcripts with no repository go to the machine-local unattributed source.
+ */
+function targetSource(p: PreparedPage, entry: StateEntry | undefined): string | null {
+  if (entry && entry.source_id !== "remote-http") return entry.source_id === LEGACY_SOURCE_ID ? null : entry.source_id;
+  if (p.type !== "transcript") return null;
+  return isUnattributed(p) ? UNATTRIBUTED_SOURCE_ID : transcriptSourceId(p.git_remote!);
+}
+
+function isUnattributed(p: PreparedPage): boolean {
+  return p.type === "transcript" && (!p.git_remote || p.git_remote === "_unattributed");
+}
+
+/** Per-repository transcript source id: gbrain-valid, stable per canonical remote. */
+export function transcriptSourceId(remote: string): string {
+  return constrainSourceId("gstack-transcripts", remote);
+}
+
+/**
+ * The brain is remote when gbrain's config names a database URL (Postgres or
+ * Supabase) or a remote MCP, or the agent host talks to a remote-HTTP brain.
+ * Unattributed transcripts never leave the machine (A4).
+ */
+function brainIsRemote(remoteHttpMode: boolean): boolean {
+  if (remoteHttpMode) return true;
+  try {
+    const cfg = JSON.parse(readFileSync(join(gbrainConfigDir(), "config.json"), "utf-8"));
+    return (typeof cfg?.database_url === "string" && cfg.database_url.trim() !== "" && cfg.engine !== "pglite") || !!cfg?.remote_mcp;
+  } catch {
+    return false;
+  }
+}
+
+/** Pages grouped by the gbrain source they import into, in first-seen order. */
+function planBatches(pages: PreparedPage[], state: IngestState): Array<{ sourceId: string | null; pages: PreparedPage[] }> {
+  const groups = new Map<string | null, PreparedPage[]>();
+  for (const p of pages) {
+    const id = targetSource(p, state.sessions[p.source_path]);
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id)!.push(p);
+  }
+  return [...groups].map(([sourceId, group]) => ({ sourceId, pages: group }));
+}
+
+/**
+ * Register a transcript source before its first import: machine-local and
+ * never federated. Registration is cached in state so it runs once per
+ * repository. Returns null when the source is usable, else why it is not.
+ */
+function ensureTranscriptSource(
+  state: IngestState,
+  id: string,
+  repo: string,
+  listed: { ids: Set<string> | null },
+): string | null {
+  if (state.sources?.[id]) return null;
+  if (!listed.ids) {
+    const r = spawnGbrain(["sources", "list", "--json"], { timeout: 30_000 });
+    let raw: unknown = null;
+    try {
+      raw = r.status === 0 ? JSON.parse(r.stdout || "null") : null;
+    } catch {}
+    listed.ids = new Set(parseSourcesList(raw).map((row) => row.id).filter((x): x is string => typeof x === "string"));
+  }
+  if (!listed.ids.has(id)) {
+    const add = spawnGbrain(["sources", "add", id, "--no-federated", "--name", `gstack transcripts: ${repo}`], { timeout: 30_000 });
+    if (add.status !== 0) {
+      return `could not register gbrain source ${id} (${(add.stderr || add.stdout || `exit ${add.status}`).trim().split("\n")[0].slice(0, 200)})`;
+    }
+    listed.ids.add(id);
+  }
+  (state.sources ??= {})[id] = { repo, registered_at: new Date().toISOString() };
+  return null;
 }
 
 /** Print even under --quiet: a page that did not land must never be silent (A1). */
@@ -2356,7 +2462,13 @@ async function importAndApply(run: RunContext, pages: PreparedPage[], sourceId: 
   const r = await importBatch(args, pages, sourceId, pre);
   run.failed += r.stageErrors;
   if (r.systemError) {
+    // A source removed outside gstack: forget the cached registration so the
+    // next run registers it again.
+    if (sourceId && run.state.sources?.[sourceId] && /source/i.test(r.systemError) && /not found|unknown|does not exist/i.test(r.systemError)) {
+      delete run.state.sources[sourceId];
+    }
     run.systemError ??= r.systemError;
+    if (r.timedOut) run.stopImports = true;
     run.failed += r.staged.size;
     return { kind: "error" };
   }
@@ -2409,6 +2521,7 @@ interface BatchRun {
   staged: Map<string, PreparedPage>;
   stagingDir: string;
   stageErrors: number;
+  timedOut?: boolean;
   report?: ImportReport;
   verdict?: BatchVerdict;
   systemError?: string;
@@ -2468,7 +2581,7 @@ async function importBatch(args: CliArgs, pages: PreparedPage[], sourceId: strin
           : `gbrain import timed out after ${mins}min before writing a checkpoint; ` +
             `re-run /sync-gbrain to restage (raise GSTACK_INGEST_TIMEOUT_MS for big brains)`;
         console.error(`[memory-ingest] ${msg}`);
-        return { staged, stagingDir, stageErrors, systemError: msg };
+        return { staged, stagingDir, stageErrors, systemError: msg, timedOut: true };
       }
       const tail = (stderr.trim().split("\n").pop() || "").slice(0, 300);
       const msg = `gbrain import exited ${importResult.status}: ${tail}`;

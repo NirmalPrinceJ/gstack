@@ -61,7 +61,14 @@ else if (args[0] === 'import') {
     }
   }
   walk(args[1]);
-  writeFileSync(join(process.env.HOME, 'imported.json'), JSON.stringify(files));
+  // One import per gbrain source (A4): pages of one ingest run accumulate;
+  // a new run (different parent pid) starts a fresh list.
+  const log = join(process.env.HOME, 'imported.json');
+  const owner = join(process.env.HOME, 'imported.ppid');
+  let prior = [];
+  try { if (readFileSync(owner, 'utf8') === String(process.ppid)) prior = JSON.parse(readFileSync(log, 'utf8')); } catch {}
+  writeFileSync(owner, String(process.ppid));
+  writeFileSync(log, JSON.stringify([...prior, ...files]));
   if (process.env.SNAPSHOT_STAGE) {
     if (!process.env.SNAPSHOT_STAGE.startsWith(process.env.GSTACK_HOME + '/.staging-ingest-')) process.exit(2);
     cpSync(args[1], process.env.SNAPSHOT_STAGE, { recursive: true });
@@ -192,6 +199,20 @@ if (process.env.LIMIT_STAGE_WRITES === '1') {
     return dir;
   }
 
+  // A4: unattributed transcripts never enter the publishable remote-http
+  // staging, so remote-http cases use a transcript from a repository.
+  function attributed(path: string): string {
+    const repo = join(home, "remote-repo");
+    if (!existsSync(repo)) {
+      expect(spawnSync("git", ["init", "-q", repo], { env, cwd: home, timeout: 10000 }).status).toBe(0);
+      expect(spawnSync("git", ["-C", repo, "remote", "add", "origin", "https://example.com/remote.git"], { env, cwd: home, timeout: 10000 }).status).toBe(0);
+    }
+    const records = readFileSync(path, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    records[0].payload.cwd = repo;
+    writeFileSync(path, records.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
+    return path;
+  }
+
   function appendRecord(): string {
     return JSON.stringify({ type: "response_item", timestamp: new Date().toISOString(), payload: {
       type: "message", role: "user", content: [{ type: "input_text", text: "late ordinary update" }],
@@ -291,6 +312,9 @@ if (process.env.LIMIT_STAGE_WRITES === '1') {
           writeFileSync(allowed, records.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
           const dir = interruptedStage();
           expect(imported()).toHaveLength(2);
+          // A4: the two pages import into two sources, so the interrupted run
+          // made one (failed) import per source.
+          const importsBefore = readFileSync(join(home, "imports"), "utf8");
           const policy = spawnSync(join(import.meta.dir, "..", "bin", "gstack-gbrain-repo-policy"), ["set", "_unattributed", tier], {
             env, cwd: home, encoding: "utf8", timeout: 10000,
           });
@@ -301,7 +325,7 @@ if (process.env.LIMIT_STAGE_WRITES === '1') {
           expect(result.stderr).toContain("[repo policy] staged page is not a current permitted source");
           expect(result.stderr).toContain("resumed import refused");
           expect(imported()).toEqual([]);
-          expect(readFileSync(join(home, "imports"), "utf8")).toBe("import\n");
+          expect(readFileSync(join(home, "imports"), "utf8")).toBe(importsBefore);
           expect(sessions()).toEqual({});
           expect(existsSync(dir)).toBe(true);
           delete env.GSTACK_INGEST_RESUME_DIR;
@@ -401,7 +425,7 @@ if (process.env.LIMIT_STAGE_WRITES === '1') {
 
     it("does not stamp an append during the remote-http scan", () => {
       scanner("clean");
-      const path = source();
+      const path = attributed(source());
       writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { gbrain: { type: "http", url: "http://fixture.invalid/mcp" } } }));
       env.APPEND_DURING_SCAN = path;
       env.APPEND_RECORD = appendRecord();
@@ -452,7 +476,8 @@ if (process.env.LIMIT_STAGE_WRITES === '1') {
       (process.platform === "linux" ? it : it.skip)(`keeps OS-limited partial writes out of outgoing pages (remote-http: ${remote})`, () => {
         scanner("clean");
         if (remote) writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { gbrain: { type: "http", url: "http://fixture.invalid/mcp" } } }));
-        const path = source("ordinary conversation ".repeat(300));
+        const created = source("ordinary conversation ".repeat(300));
+        const path = remote ? attributed(created) : created;
         env.LIMIT_STAGE_WRITES = "1";
         const result = run(["--scan-secrets"]);
         expect(result.stderr).toContain("EFBIG");
@@ -644,11 +669,27 @@ process.stdout.write(execFileSync(process.execPath, ['-e', 'process.stdout.write
     expect(sessions()[path]).toBeDefined();
   });
 
+  it("never stages unattributed transcripts for a remote-http brain (A4)", () => {
+    scanner("clean");
+    writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { gbrain: { type: "http", url: "http://fixture.invalid/mcp" } } }));
+    const local = source("unattributed ordinary text");
+    const shared = attributed(source("attributed ordinary text"));
+    const result = run([]);
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain("kept 1 unattributed transcript(s) on this machine: the brain is remote");
+    expect(sessions()[local]).toBeUndefined();
+    expect(sessions()[shared]).toMatchObject({ status: "staged" });
+    const outgoing = join(env.GSTACK_HOME, "transcripts");
+    const staged = readdirSync(outgoing, { recursive: true }).map(String).filter((f) => f.endsWith(".md"));
+    expect(staged).toHaveLength(1);
+    expect(staged[0]).not.toContain("_unattributed");
+  });
+
   it("scans remote-http pages before persistent staging", () => {
     scanner("clean");
     writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { gbrain: { type: "http", url: "http://fixture.invalid/mcp" } } }));
-    const bad = source('UNSAFE="synthetic"');
-    const clean = source();
+    const bad = attributed(source('UNSAFE="synthetic"'));
+    const clean = attributed(source());
     expect(run(["--scan-secrets"]).status).toBe(0);
     expect(imported()).toEqual([]);
     expect(sessions()[bad]).toBeUndefined();
@@ -1220,6 +1261,14 @@ EOF
     fi
     exit 0
     ;;
+  sources)
+    # A4: transcript sources are registered before their first import.
+    case "\${2:-}" in
+      list) echo '{"sources":[]}' ;;
+      add) echo "Source added: \${3:-}" ;;
+    esac
+    exit 0
+    ;;
   put|put_page|put-page)
     # If new ingest code ever regresses to per-file puts, fail loudly so the
     # test signals a real architectural regression.
@@ -1312,7 +1361,7 @@ describe("gstack-memory-ingest writer (gbrain v0.20+ batch `import` interface)",
     // Verify gbrain was called exactly ONCE with import, not per-file put.
     const calls = readFileSync(logFile, "utf-8").trim().split("\n").filter(Boolean);
     expect(calls.length).toBe(1);
-    expect(calls[0]).toMatch(/^import\s+\/.+\/\.staging-ingest-\d+-\d+$/);
+    expect(calls[0]).toMatch(/^import\s+\/.+\/\.staging-ingest-\d+-\d+(-src-[a-z0-9-]+)?$/);
 
     // Verify args: --no-embed and --json both present.
     const argDump = readFileSync(argsFile, "utf-8");
@@ -1436,6 +1485,7 @@ case "\${1:-}" in
       echo '{"status":"success","duration_s":0.1,"imported":1,"skipped":0,"errors":0,"chunks":1,"total_files":1}'
     fi
     exit 0 ;;
+  sources) [ "\${2:-}" = list ] && echo '{"sources":[]}'; exit 0 ;;
   *) echo "unknown"; exit 2 ;;
 esac
 `;
@@ -1504,6 +1554,7 @@ case "\${1:-}" in
       echo '{"status":"success","duration_s":0.1,"imported":1,"skipped":0,"errors":0,"chunks":1,"total_files":1}'
     fi
     exit 0 ;;
+  sources) [ "\${2:-}" = list ] && echo '{"sources":[]}'; exit 0 ;;
   *) echo "unknown"; exit 2 ;;
 esac
 `;
@@ -1589,6 +1640,7 @@ case "\${1:-}" in
       echo '{"status":"success","duration_s":0.1,"imported":1,"skipped":0,"errors":1,"chunks":1,"total_files":2}'
     fi
     exit 0 ;;
+  sources) [ "\${2:-}" = list ] && echo '{"sources":[]}'; exit 0 ;;
   *) echo "unknown"; exit 2 ;;
 esac
 `;
