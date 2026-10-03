@@ -48,7 +48,7 @@ describe('CI workflow clarity regressions', () => {
     const requirements = [
       /name the fixed target in the report header/i,
       /read an existing destination and preserve its content/i,
-      /do not add findings or fixes before Scope Challenge C/i,
+      /findings and fixes first enter through Scope Challenge C's ledger saves, never earlier/i,
       /before an existing `## GSTACK REVIEW REPORT`, or at EOF/i,
       /create that terminal report only at Plan File Review Report/i,
     ];

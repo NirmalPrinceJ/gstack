@@ -157,6 +157,17 @@ export function recordedShardMs(recorded: Record<string, number>, key: string): 
   return recorded[durationKey(rel)] ?? (shardTrial(rel) === null ? undefined : recorded[shardFile(rel)]);
 }
 
+/** Longest recorded wall a PR-lane (gate) shard may have: the lane's ~10-minute case target. */
+export const PR_LANE_SHARD_LIMIT_MS = 600_000;
+
+/** One line per planned shard whose recorded wall exceeds `limitMs` (split or shorten it; never raise the limit). */
+export function shardDurationViolations(keys: readonly string[], recorded: Record<string, number>, limitMs = PR_LANE_SHARD_LIMIT_MS): string[] {
+  return keys.flatMap(key => {
+    const ms = recorded[durationKey(key)];
+    return ms !== undefined && ms > limitMs ? [`${key}: recorded ${Math.round(ms / 1000)}s > ${limitMs / 1000}s`] : [];
+  });
+}
+
 /**
  * Merge a report's executed single-file outcomes into the seed; all-skipped
  * shards carry no cost signal. Trials of one case record their longest wall

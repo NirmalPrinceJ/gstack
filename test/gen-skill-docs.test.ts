@@ -1024,8 +1024,11 @@ describe('TEST_COVERAGE_AUDIT placeholders', () => {
     expect(planSkill).toContain('eng-review-test-plan');
     expect(planSkill).toContain('Test Plan Artifact');
     const artifact = planSkill.split('\n#### Test Plan Artifact\n')[1]!;
-    expect(artifact).toContain('After resolving the Test review decisions');
-    expect(artifact).toContain('List any unresolved choices separately as pending, not required implementation');
+    // The artifact is written even when Test review choices are still unanswered (periodic run 37151477069).
+    const step5 = planSkill.split('**Step 5. Add missing tests to the plan:**')[1]!.split('\n#### Test Plan Artifact\n')[0]!;
+    expect(step5).toMatch(/write the Test Plan Artifact below, even while some choices are still unanswered/);
+    expect(artifact).toMatch(/Write it even when choices are still pending/);
+    expect(artifact).toContain('list any unresolved choices separately as pending, not required implementation');
     expect(artifact).toContain('Update this artifact if later approved decisions change the tests');
     expect(artifact).toContain('Use the Review record and write policy above.');
     expect(artifact).toContain('TEST_PLAN_USER=$(whoami)');

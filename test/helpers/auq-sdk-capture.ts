@@ -44,14 +44,18 @@ export function scoreAuqFormat(text: string): { present: number; total: number; 
 
 /**
  * Format problems that fail a first-question matrix run: only the fields
- * software reads (a `Recommendation:` line and exactly one `(recommended)`
- * option). ELI10, Pros / cons, ✅/❌ and Net: are reported, not failed.
+ * software reads. The question text needs a `Recommendation:` line, and
+ * exactly one option label ends in `(recommended)`, the suffix the AUTO_DECIDE
+ * hook parses from labels (hosts/claude/hooks/question-preference-hook.ts).
+ * The format's `Pros / cons:` block in the question text repeats the marker
+ * by design, so it is not counted. ELI10, Pros / cons, ✅/❌ and Net: are
+ * reported, not failed.
  */
-export function auqMachineFormatProblems(text: string): string[] {
+export function auqMachineFormatProblems(question: NativePlanQuestion): string[] {
   const problems: string[] = [];
-  if (!/^[*_]*[ \t]*recommendation[ \t]*[*_]*[ \t]*:[*_ \t]*\S/im.test(text)) problems.push('missing Recommendation: line');
-  const recommended = text.match(/\(recommended\)/gi)?.length ?? 0;
-  if (recommended !== 1) problems.push(`expected exactly one (recommended) option, found ${recommended}`);
+  if (!/^[*_]*[ \t]*recommendation[ \t]*[*_]*[ \t]*:[*_ \t]*\S/im.test(question.question)) problems.push('missing Recommendation: line');
+  const recommended = question.options.filter(option => /\(recommended\)\s*$/i.test(option.label)).length;
+  if (recommended !== 1) problems.push(`expected exactly one (recommended) option label, found ${recommended}`);
   return problems;
 }
 
