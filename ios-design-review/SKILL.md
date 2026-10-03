@@ -441,9 +441,16 @@ For each screen in the app, score 0-10 and explain what would push it to 10:
 ## Output
 
 Write a markdown report to
-`~/.gstack/projects/<slug>/ios-design-review-<date>.md`. Include the
-screenshots inline. The CEO/eng review skills can reference this report
-when planning UI changes.
+`$GSTACK_STATE_ROOT/projects/<slug>/ios-design-review-<date>.md`, using the
+`PROJECT_DIR` this block prints:
+
+```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$GSTACK_STATE_ROOT/projects/$SLUG" && echo "PROJECT_DIR: $GSTACK_STATE_ROOT/projects/$SLUG"
+```
+
+Include the screenshots inline. The CEO/eng review skills can reference this
+report when planning UI changes.
 
 ## Failure modes
 
