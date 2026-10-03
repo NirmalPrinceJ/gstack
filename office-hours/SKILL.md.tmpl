@@ -41,8 +41,7 @@ gbrain:
       render_as: "## Prior office-hours sessions in this repo"
     - id: builder-profile
       kind: filesystem
-      glob: "~/.gstack/builder-profile.jsonl"
-      tail: 1
+      glob: "~/.gstack/developer-profile.json"
       render_as: "## Your builder profile snapshot"
     - id: design-doc-history
       kind: filesystem
@@ -237,9 +236,9 @@ Use AskUserQuestion to confirm. If the user disagrees with a premise, revise und
 
 ---
 
-## Phase 4: Alternatives Generation (MANDATORY)
+## Phase 4: Alternatives Generation
 
-Produce 2-3 distinct implementation approaches. This is NOT optional.
+Produce 2-3 distinct implementation approaches.
 
 For each approach:
 ```
@@ -319,7 +318,7 @@ Append one JSON line with these fields (substitute actual values from this sessi
 
 The session entry is appended to `developer-profile.json`'s `sessions[]` array. A second
 session entry with `mode: "resources"` is appended via `--log-session` after resource
-selection in Phase 6 Beat 3.5.
+selection in Phase 6 (Founder Resources).
 
 ---
 

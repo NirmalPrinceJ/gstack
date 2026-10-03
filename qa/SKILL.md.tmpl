@@ -238,19 +238,12 @@ Healthy-contract commits use `test(qa): regression test for {contract}`.
 
 ### 8f. Self-Regulation (STOP AND EVALUATE)
 
-Every 5 fixes (or after any revert), compute the WTF-likelihood:
+Every 5 fixes (or after any revert), judge the WTF-likelihood: is the loop now doing
+more harm than good? Reverts, edits to unrelated files, fixes spanning many files, a
+long run of fixes, and a queue of only Low issues all raise it.
 
-```
-WTF-LIKELIHOOD:
-  Start at 0%
-  Each revert:                +15%
-  Each fix touching >3 files: +5%
-  After fix 15:               +1% per additional fix
-  All remaining Low severity: +10%
-  Touching unrelated files:   +20%
-```
-
-**If WTF > 20%:** STOP immediately. Show the user what you've done so far. Ask whether to continue.
+**If it is high** (two reverts or one unrelated-file edit is enough): STOP immediately.
+Show the user what you've done so far. Ask whether to continue.
 
 **Hard cap: 50 fixes.** After 50 fixes, stop regardless of remaining issues.
 

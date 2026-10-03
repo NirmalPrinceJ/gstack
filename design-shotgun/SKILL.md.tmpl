@@ -122,6 +122,7 @@ ls src/ app/ pages/ components/ 2>/dev/null | head -30
 ```
 
 ```bash
+eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)"
 eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 setopt +o nomatch 2>/dev/null || true
 ls "$GSTACK_STATE_ROOT"/projects/$SLUG/*office-hours* 2>/dev/null | head -5
@@ -213,14 +214,14 @@ C) "Name" — one-line visual description of this direction
 
 Draw on DESIGN.md, taste memory, and the user's request to make each concept distinct.
 
-**Anti-convergence directive (hard requirement):** Each variant MUST use a different
-font family, color palette, and layout approach. If two variants look like siblings
-— same typographic feel, overlapping color temperature, comparable layout rhythm —
-one of them failed. Regenerate the weaker one with a deliberately different direction.
+**Anti-convergence directive:** each concept is a distinct direction. When a DESIGN.md
+exists, it decides what varies: keep its fonts and palette and vary layout and
+composition. Without one, vary font family, color palette, and layout approach. If two
+variants look like siblings, rework the weaker one with a deliberately different direction.
 
 Concrete test: if someone could swap the headline text between two variants without
-noticing, they're too similar. Variants should feel like they came from three
-different design teams, not the same team at three different coffee levels.
+noticing, they're too similar. Variants should feel like separate design teams made
+them, not one team on different days.
 
 ### Step 3b: Concept Confirmation
 
@@ -259,10 +260,9 @@ sees what you're evolving from.
 
 **Launch N Agent subagents in a single message** (parallel execution). Use the Agent
 tool with `subagent_type: "general-purpose"` and `run_in_background: false` for each
-variant (parallel foreground calls in one message still run concurrently; subagents
-default to background since Claude Code v2.1.198, and the comparison board needs every
-variant's result). Each agent is independent
-and handles its own generation, quality check, verification, and retry.
+variant (parallel foreground calls in one message still run concurrently, and the
+comparison board needs every variant's result). Each agent is independent and handles
+its own generation, quality check, verification, and retry.
 
 **Important: $D path propagation.** The `$D` variable from DESIGN SETUP is a shell
 variable that agents do NOT inherit. Substitute the resolved absolute path (from the
@@ -298,9 +298,8 @@ For the evolve path, replace step 1 with:
 {$D path} evolve --screenshot {_DESIGN_DIR}/current.png --brief "{brief}" --output /tmp/variant-{letter}.png
 ```
 
-**Why /tmp/ then cp?** In observed sessions, `$D generate --output ~/.gstack/...`
-failed with "The operation was aborted" while `--output /tmp/...` succeeded. This is
-a sandbox restriction. Always generate to `/tmp/` first, then `cp`.
+**Generate to `/tmp/`, then `cp`:** in sandboxed sessions `$D generate --output` under
+`~/.gstack/` can abort ("The operation was aborted"), while `/tmp/` works.
 
 ### Step 3d: Results
 

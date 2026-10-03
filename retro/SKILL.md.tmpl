@@ -23,9 +23,7 @@ gbrain:
   context_queries:
     - id: prior-retros
       kind: filesystem
-      # #2552: /retro writes .context/retros/*.json (repo-local; see the save
-      # step below) — the old ~/.gstack/.../retros/*.md glob matched a
-      # directory and extension nothing ever writes, so this query was dead.
+      # /retro writes .context/retros/*.json (repo-local; see Step 13).
       glob: ".context/retros/*.json"
       sort: mtime_desc
       limit: 5
@@ -193,7 +191,7 @@ Use the analyzed ref in the commit-count label (not always `main`). Test health 
 | Test Health | N test files · M changed this period · K regression test commits |
 
 Lead with user-visible features, then commit and logical-SLOC metrics; raw LOC
-is only context, not impact (PLAN_TUNING_V1.md, Workstream C).
+is only context, not impact.
 
 Then show a **per-author leaderboard** immediately below, from the `AUTHOR:` lines:
 
@@ -291,7 +289,7 @@ For each contributor (including the current user), the `AUTHOR:` line carries co
 - **Praise** (1-2 specifics): cite commits and what was good, not generic praise.
 - **Opportunity for growth** (1 specific): tie an actionable suggestion to data, not criticism. Step 14 supplies examples.
 
-**If only one contributor (solo repo):** Skip the team breakdown and proceed as before — the retro is personal.
+**If only one contributor (solo repo):** Skip the team breakdown — the retro is personal.
 
 **Co-author credit:** `COAUTHOR:` lines carry human `Co-Authored-By:` trailers — credit those authors for the commit alongside the primary author. AI co-authors (e.g., `noreply@anthropic.com`) are counted in `AI_ASSISTED_COMMITS` instead — track "AI-assisted commits" as a separate metric, never as a team member.
 
@@ -747,13 +745,13 @@ When the user runs `/retro compare` (or `/retro compare 14d`):
 - **Praise should feel like something you'd actually say in a 1:1** — specific, earned, genuine
 - **Growth suggestions should feel like investment advice** — "this is worth your time because..." not "you failed at..."
 - Never compare teammates against each other negatively. Each person's section stands on its own.
-- Keep total output around 3000-4500 words (slightly longer to accommodate team sections)
+- Size the report to the window and the team: every section carries specific evidence, and a section with nothing to say is cut, not padded
 - Use markdown tables and code blocks for data, prose for narrative
-- Output directly to the conversation — do NOT write to filesystem (except the `.context/retros/` JSON snapshot)
+- Output the narrative directly to the conversation; the only report file is the JSON snapshot (`.context/retros/` for repo retros, `$GSTACK_STATE_ROOT/retros/` for global)
 
 ## Important Rules
 
-- ALL narrative output goes directly to the user in the conversation. The ONLY file written is the `.context/retros/` JSON snapshot.
+- ALL narrative output goes directly to the user in the conversation. Besides the JSON snapshot, only the learnings and gbrain capture steps write anything.
 - The metrics script analyzes `origin/<default>` (not local main which may be stale); when `RETRO_REF` says otherwise, disclose it
 - Display all timestamps in the user's local timezone (do not override `TZ`)
 - If `COMMITS: 0`, say so and suggest a different window

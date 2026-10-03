@@ -200,7 +200,7 @@ describe('/spec redaction at every sink (scan-at-sink, carved: gate-and-file sec
 
 describe('/spec quality gate secret-sink invariant (carved: gate-and-file section)', () => {
   test('declares "raw spec must NOT be persisted" when the scan BLOCKS', () => {
-    expect(SEC_TMPL).toMatch(/raw spec must NOT[\s\S]*be persisted/i);
+    expect(SEC_TMPL).toMatch(/raw spec must not\s+be\s+persisted/i);
   });
   test('BLOCK path stops before dispatch/archive/file', () => {
     expect(SEC_TMPL).toMatch(/no archive write, no transcript log, no outside\s*\n?\s*dispatch/i);
@@ -311,7 +311,9 @@ describe('/spec plan-mode-aware Phase 5 (DX7/DX11/F1, carved: gate-and-file sect
 
 describe('/spec Phase 3 hard-grep with fallback', () => {
   test('Phase 3 mandates reading evidence before asking', () => {
-    expect(TMPL).toMatch(/Mandatory:[\s\S]*MUST read at least one[\s\S]*evidence/i);
+    const phase3 = TMPL.slice(TMPL.indexOf('### Phase 3:'), TMPL.indexOf('### Phase 4:'));
+    expect(phase3).toMatch(/before asking[\s\S]{0,40}question/i);
+    expect(phase3).toMatch(/read at least one\s+piece of evidence/i);
   });
   test('project-level fallback prose for prompts with no concrete file', () => {
     expect(TMPL).toMatch(/Project-level prompt/);

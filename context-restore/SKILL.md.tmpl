@@ -7,9 +7,7 @@ description: |
   saved state (preferring the current branch, falling back across branches) so
   you can pick up where you left off — even across Conductor workspace handoffs.
   Use when asked to "resume", "restore context", "where was I", or
-  "pick up where I left off". Pair with /context-save.
-  Formerly /checkpoint resume — renamed because Claude Code treats /checkpoint
-  as a native rewind alias in current environments. (gstack)
+  "pick up where I left off". Pair with /context-save. (gstack)
 allowed-tools:
   - Bash
   - Read
@@ -55,7 +53,7 @@ branch.)
 
 Parse the user's input:
 
-- `/context-restore` → load the most recent saved context (any branch)
+- `/context-restore` → load the most recent saved context (current branch first, then any branch)
 - `/context-restore <title-fragment-or-number>` → load a specific saved context
 - `/context-restore list` → tell the user "Use `/context-save list` — listing
   lives on the save side" and exit. No mode detection here.
@@ -234,9 +232,9 @@ in the old bucket until the user copies them with `gstack-slug --adopt-legacy`.
 
 - **Never modify code.** This skill only reads saved files and presents them.
 - **Prefer the current branch's own checkpoint, but keep all branches in the
-  fallback set.** Cross-branch resume (Conductor handoff) still works when the
-  current branch has no checkpoint; it just no longer lets a sibling worktree's
-  newer save shadow this branch's own.
+  fallback set.** Cross-branch resume (Conductor handoff) works when the
+  current branch has no checkpoint, and a sibling worktree's newer save never
+  shadows this branch's own.
 - **Never present another project's checkpoint as "latest".** Identity is the
   canonical remote (the root only when there is no remote); a mismatch is
   reported before any summary.

@@ -1247,7 +1247,7 @@ describe('Phase 8e.5 regression test generation', () => {
     const content = fs.readFileSync(path.join(ROOT, 'qa', 'SKILL.md'), 'utf-8');
     expect(content).toContain('8e.5. Regression Test');
     expect(content).toContain('test(qa): regression test');
-    expect(content).toContain('WTF-likelihood exclusion');
+    expect(content).toMatch(/test-only commits do not count/i);
   });
 
   test('qa/SKILL.md Rule 13 is amended for regression tests', () => {

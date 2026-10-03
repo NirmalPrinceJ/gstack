@@ -35,9 +35,6 @@ checks, and deploy status commands — then persist everything to CLAUDE.md.
 
 After this runs once, `/land-and-deploy` reads CLAUDE.md and skips detection entirely.
 
-## User-invocable
-When the user types `/setup-deploy`, run this skill.
-
 ## Instructions
 
 ### Step 1: Check existing configuration
@@ -108,7 +105,7 @@ If `render.yaml` detected:
 5. Set health check: the inferred URL
 
 Ask the user to confirm. Render uses auto-deploy from the connected git branch — after
-merge to main, Render picks it up automatically. The "deploy wait" in /land-and-deploy
+merge to the default branch, Render picks it up automatically. The "deploy wait" in /land-and-deploy
 should poll the Render URL until it responds with the new version.
 
 #### Vercel
@@ -117,7 +114,7 @@ If vercel.json or .vercel detected:
 
 1. Check for `vercel` CLI: `which vercel 2>/dev/null`
 2. If installed: `vercel ls --prod 2>/dev/null | head -3`
-3. Vercel deploys automatically on push — preview on PR, production on merge to main
+3. Vercel deploys automatically on push — preview on PR, production on merge to the default branch
 4. Set health check: the production URL from vercel project settings
 Ask for the production URL if not available from the CLI, then confirm it before writing.
 
@@ -149,7 +146,7 @@ If nothing detected:
 Use AskUserQuestion to gather the information:
 
 1. **How are deploys triggered?**
-   - A) Automatically on push to main (Fly, Render, Vercel, Netlify, etc.)
+   - A) Automatically on push to the default branch (Fly, Render, Vercel, Netlify, etc.)
    - B) Via GitHub Actions workflow
    - C) Via a deploy script or CLI command (describe it)
    - D) Manually (SSH, dashboard, etc.)
@@ -186,7 +183,7 @@ if it exists, or append it at the end.
 
 ### Custom deploy hooks
 - Pre-merge: {command or "none"}
-- Deploy trigger: {command or "automatic on push to main"}
+- Deploy trigger: {command or "automatic on push to <default branch>"}
 - Deploy status: {command or "poll production URL"}
 - Health check: {URL or command}
 ```

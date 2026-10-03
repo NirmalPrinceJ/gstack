@@ -108,10 +108,6 @@ The probe multi-signal auth logic accepts: `$CODEX_API_KEY` set, `$OPENAI_API_KE
 set, or `${CODEX_HOME:-~/.codex}/auth.json` exists. Avoids false-negatives for
 env-auth users (CI, platform engineers) that file-only checks would reject.
 
-**Update the known-bad list** in `bin/gstack-codex-probe` when a new Codex CLI version
-regresses. Current entries (`0.120.0`, `0.120.1`, `0.120.2`) trace to the stdin
-deadlock fixed in #972.
-
 ---
 
 ## Step 0.6: Resolve portable roots
@@ -190,7 +186,7 @@ mode sections.
 ## Synthesis recommendation (REQUIRED) — all modes
 
 Every mode ends by emitting ONE synthesis recommendation line after presenting
-Codex's verbatim output, in the canonical format the AskUserQuestion judge grades:
+Codex's verbatim output, in this format:
 
 ```
 Recommendation: <action> because <one-line reason that names the most actionable finding>
