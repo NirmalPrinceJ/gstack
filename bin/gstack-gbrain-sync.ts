@@ -29,7 +29,7 @@
  * than building a gstack-side daemon.
  */
 
-import { existsSync, statSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, renameSync, realpathSync } from "fs";
+import { existsSync, statSync, mkdirSync, writeFileSync, readFileSync, unlinkSync, renameSync, realpathSync, readdirSync, appendFileSync } from "fs";
 import { join, dirname } from "path";
 import { execSync, spawnSync } from "child_process";
 import { homedir, hostname } from "os";
@@ -37,7 +37,18 @@ import { createHash } from "crypto";
 
 import "../lib/conductor-env-shim";
 import { detectEngineTier, withErrorContext, canonicalizeRemote } from "../lib/gstack-memory-helpers";
-import { constrainSourceId, ensureSourceRegistered, sourcePageCount, parseSourcesList, cycleCompleted, type CycleStatus } from "../lib/gbrain-sources";
+import {
+  constrainSourceId,
+  ensureSourceRegistered,
+  sourcePageCount,
+  parseSourcesList,
+  cycleCompleted,
+  decidePrune,
+  trackUnavailableSources,
+  type CodeSourceRecord,
+  type CycleStatus,
+  type UnavailableSource,
+} from "../lib/gbrain-sources";
 import { detectAutopilot, decideSourceRemove, decideCodeSync } from "../lib/gbrain-guards";
 import { writeReceipt } from "../lib/egress-receipt";
 import { dbUnreachableReason, localEngineStatus, localEngineStatusDetail, type LocalEngineStatus } from "../lib/gbrain-local-status";
@@ -66,6 +77,8 @@ export interface CliArgs {
   allowReclone: boolean;
   /** #2922: `--sources <list|all>` for the memory stage; wins over GSTACK_MEMORY_INGEST_SOURCES. */
   memorySources?: string;
+  /** A6: remove gstack code sources whose worktree is provably gone (with --dry-run: report only). */
+  pruneGone?: boolean;
 }
 
 interface CodeStageDetail {
@@ -474,6 +487,11 @@ Options:
                        Runs lock-free AFTER the sync stages. ~minutes. Default
                        timeout 45min, override GSTACK_SYNC_DREAM_TIMEOUT_MS.
   --no-dream           Opt out of the dream cycle that --full would auto-run.
+  --prune-gone-worktrees  Remove gstack code sources whose worktree is provably
+                       gone: missing on 2 consecutive syncs, created on this
+                       host (its id recomputes from host + path), and no
+                       longer listed by its repository. Prints the plan first;
+                       add --dry-run to only print it. Never automatic.
   --allow-reclone      Permit the code walk for URL-managed sources (remote_url set)
                        even though gbrain may auto-reclone the working tree (#1734).
   --sources <list>     Memory types to ingest (comma-separated, or \`all\`):
@@ -508,6 +526,7 @@ function parseArgs(): CliArgs {
   let noDream = false;
   let allowReclone = false;
   let memorySources: string | undefined;
+  let pruneGone = false;
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
@@ -536,6 +555,7 @@ function parseArgs(): CliArgs {
       // --no-dream can override) — do NOT set dream from --full here.
       case "--dream": dream = true; break;
       case "--no-dream": noDream = true; break;
+      case "--prune-gone-worktrees": pruneGone = true; break;
       case "--help":
       case "-h":
         printUsage();
@@ -547,7 +567,7 @@ function parseArgs(): CliArgs {
     }
   }
 
-  return { mode, quiet, noCode, noMemory, noBrainSync, codeOnly, dream, noDream, allowReclone, memorySources };
+  return { mode, quiet, noCode, noMemory, noBrainSync, codeOnly, dream, noDream, allowReclone, memorySources, pruneGone };
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -589,10 +609,9 @@ function originUrl(): string | null {
  * optional interior hyphens. `constrainSourceId` handles the 32-char cap
  * with a hashed-tail fallback when the combined slug exceeds budget.
  */
-function deriveCodeSourceId(repoPath: string): string {
+export function deriveCodeSourceId(repoPath: string, remote: string = canonicalizeRemote(originUrl())): string {
   const host = process.env.GSTACK_HOSTNAME || hostname();
   const hostPathHash = createHash("sha1").update(`${host}::${repoPath}`).digest("hex").slice(0, 8);
-  const remote = canonicalizeRemote(originUrl());
   if (remote) {
     const segs = remote.split("/").filter(Boolean);
     const slugSource = segs.slice(-2).join("-");
@@ -1890,6 +1909,10 @@ interface SyncState {
   last_sync?: string;
   last_full_sync?: string;
   last_stages?: StageResult[];
+  /** A6: gstack code sources whose path was missing, with consecutive-miss counts. */
+  unavailable_sources?: Record<string, UnavailableSource>;
+  /** A6: what this machine knew about each code source it synced (ownership proof). */
+  code_sources?: Record<string, CodeSourceRecord>;
 }
 
 function loadSyncState(): SyncState {
@@ -1948,8 +1971,124 @@ export function formatStage(s: StageResult): string {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
+// ── Gone worktree sources (A6, #2688) ──────────────────────────────────────
+
+function gitCommonDir(root: string): string | null {
+  const r = spawnSync("git", ["-C", root, "rev-parse", "--path-format=absolute", "--git-common-dir"], { encoding: "utf-8", timeout: 5000 });
+  return r.status === 0 && r.stdout.trim() ? r.stdout.trim() : null;
+}
+
+function currentCodeSourceRecord(): CodeSourceRecord | null {
+  const root = repoRoot();
+  return root ? { path: root, remote: canonicalizeRemote(originUrl()), git_common_dir: gitCommonDir(root) } : null;
+}
+
+/** Remember which repository a synced code source belongs to (the prune ownership proof). */
+function recordCodeSource(state: SyncState, stages: StageResult[]): void {
+  const code = stages.find((s) => s.name === "code" && s.ran && s.ok);
+  const id = code?.detail?.source_id;
+  const record = currentCodeSourceRecord();
+  if (!id || !record || code?.detail?.source_path !== record.path) return;
+  (state.code_sources ??= {})[id] = record;
+}
+
+/**
+ * Count consecutive syncs that find a gstack code source's path missing, and
+ * say so once per source. gstack never removes such a source on its own.
+ */
+function trackGoneSources(state: SyncState, quiet: boolean): void {
+  const raw = execGbrainJson(["sources", "list", "--json"], { timeout: 10_000 });
+  if (raw === null) return;
+  const { next, newlyUnavailable } = trackUnavailableSources(parseSourcesList(raw), state.unavailable_sources ?? {}, existsSync, new Date().toISOString());
+  state.unavailable_sources = next;
+  for (const id of newlyUnavailable) {
+    console.error(
+      `[gbrain-sync] gbrain source ${id}: path unavailable (${next[id].path}); gstack skips it. ` +
+        `If that worktree was deleted, review removal with: gstack-gbrain-sync --prune-gone-worktrees --dry-run`,
+    );
+  }
+  if (!quiet && newlyUnavailable.length === 0 && Object.keys(next).length > 0) {
+    console.error(`[gbrain-sync] ${Object.keys(next).length} gbrain source(s) still have an unavailable path (see --prune-gone-worktrees --dry-run)`);
+  }
+}
+
+function readableDir(p: string): boolean {
+  try {
+    readdirSync(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function worktreeListed(gitDir: string, path: string): boolean | null {
+  const r = spawnSync("git", [`--git-dir=${gitDir}`, "worktree", "list", "--porcelain"], { encoding: "utf-8", timeout: 10_000 });
+  if (r.status !== 0) return null;
+  return r.stdout.split("\n").some((line) => line === `worktree ${path}`);
+}
+
+/**
+ * `--prune-gone-worktrees`: remove gstack code sources whose worktree is
+ * provably gone (lib/gbrain-sources.ts decidePrune). Prints the plan first;
+ * with --dry-run that is all it does. Each removal re-checks the path right
+ * before removing and is logged to ~/.gstack/.gbrain-prune.log.
+ */
+function pruneGoneWorktrees(dryRun: boolean): number {
+  const raw = execGbrainJson(["sources", "list", "--json"], { timeout: 10_000 });
+  if (raw === null) {
+    console.error("[prune] gbrain sources list failed; nothing removed. Fix: run /setup-gbrain, then retry.");
+    return 1;
+  }
+  if (!dryRun && !acquireLock()) {
+    console.error(`[prune] another /sync-gbrain is running (lock at ${LOCK_PATH}); nothing removed.`);
+    return 2;
+  }
+  try {
+    const state = loadSyncState();
+    const ctx = {
+      unavailable: state.unavailable_sources ?? {},
+      records: state.code_sources ?? {},
+      current: currentCodeSourceRecord(),
+      deriveId: deriveCodeSourceId,
+      exists: existsSync,
+      readableDir,
+      worktreeListed,
+    };
+    const rows = parseSourcesList(raw).filter((r) => r.id?.startsWith("gstack-code-") && r.local_path && !existsSync(r.local_path));
+    if (rows.length === 0) {
+      console.log("[prune] no gstack code source has a missing path; nothing to do.");
+      return 0;
+    }
+    const plan = rows.map((r) => ({ id: r.id!, path: r.local_path!, ...decidePrune(r.id!, r.local_path!, ctx) }));
+    for (const p of plan) console.log(`[prune]${dryRun ? " (dry run)" : ""} ${p.remove ? "would remove" : "keep"} ${p.id} (${p.path}): ${p.reason}`);
+    if (dryRun) return 0;
+    let failed = 0;
+    for (const p of plan.filter((x) => x.remove)) {
+      if (existsSync(p.path)) {
+        console.log(`[prune] keep ${p.id}: ${p.path} exists again`);
+        continue;
+      }
+      const r = safeSourcesRemove(p.id);
+      const line = `${new Date().toISOString()} ${r.removed ? "removed" : "not removed"} ${p.id} ${p.path}: ${r.removed ? p.reason : r.reason}`;
+      console.log(`[prune] ${line}`);
+      try {
+        appendFileSync(join(GSTACK_HOME, ".gbrain-prune.log"), line + "\n");
+      } catch {}
+      if (r.removed) {
+        delete state.unavailable_sources?.[p.id];
+        delete state.code_sources?.[p.id];
+      } else failed++;
+    }
+    saveSyncState(state);
+    return failed > 0 ? 1 : 0;
+  } finally {
+    if (!dryRun) releaseLock();
+  }
+}
+
 async function main(): Promise<void> {
   const args = parseArgs();
+  if (args.pruneGone) process.exit(pruneGoneWorktrees(args.mode === "dry-run"));
   // Read once at sync start: a config change made while the sync runs never
   // adds transcripts to this run.
   const consent = args.noMemory ? null : normalizeTranscriptConsent();
@@ -1998,6 +2137,8 @@ async function main(): Promise<void> {
       state.last_sync = new Date().toISOString();
       if (args.mode === "full") state.last_full_sync = state.last_sync;
       state.last_stages = stages;
+      recordCodeSource(state, stages);
+      trackGoneSources(state, args.quiet);
       saveSyncState(state);
     }
 
@@ -2055,6 +2196,10 @@ async function main(): Promise<void> {
     const okCount = allStages.filter((s) => s.ok).length;
     const errCount = allStages.filter((s) => !s.ok && s.ran).length;
     console.log(`\n  ${okCount} ok, ${errCount} error, ${allStages.length - okCount - errCount} skipped`);
+    const gone = Object.keys(loadSyncState().unavailable_sources ?? {}).length;
+    if (gone > 0) {
+      console.log(`  ${gone} gbrain source(s) have an unavailable path; review with: gstack-gbrain-sync --prune-gone-worktrees --dry-run`);
+    }
   }
 
   process.exit(exitCode);

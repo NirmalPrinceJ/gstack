@@ -12,6 +12,7 @@
 import { execFileSync, spawnSync } from "child_process";
 import { createHash } from "crypto";
 import { realpathSync } from "fs";
+import { dirname } from "path";
 import { withErrorContext } from "./gstack-memory-helpers";
 import { execGbrainJson, gbrainChildCwd, gbrainInvocation } from "./gbrain-exec";
 import {
@@ -392,4 +393,88 @@ export function constrainSourceId(prefix: string, raw: string): string {
   }
   const tail = kept.join("-");
   return tail ? `${prefix}-${tail}-${hash}` : `${prefix}-${hash}`;
+}
+
+// ── Gone worktree sources (A6, #2688) ──────────────────────────────────────
+
+/** A gstack code source whose registered path is missing on this machine. */
+export interface UnavailableSource {
+  path: string;
+  /** Consecutive syncs that found the path missing. */
+  misses: number;
+  since: string;
+}
+
+/** What gstack knew about a code source the last time it synced it here. */
+export interface CodeSourceRecord {
+  path: string;
+  /** Canonical origin remote ("" for a repo without one). */
+  remote: string;
+  /** Absolute git common dir of the repository the worktree belongs to. */
+  git_common_dir: string | null;
+}
+
+/**
+ * Track gstack code sources whose path is missing. Absence on this machine
+ * is not proof a source is dead (machines sharing a federated brain register
+ * their own paths), so this only counts consecutive misses for the explicit
+ * prune command and reports each newly unavailable source once.
+ */
+export function trackUnavailableSources(
+  rows: GbrainSourceRow[],
+  prev: Record<string, UnavailableSource>,
+  exists: (p: string) => boolean,
+  now: string,
+): { next: Record<string, UnavailableSource>; newlyUnavailable: string[] } {
+  const next: Record<string, UnavailableSource> = {};
+  const newlyUnavailable: string[] = [];
+  for (const r of rows) {
+    if (!r.id?.startsWith("gstack-code-") || !r.local_path || exists(r.local_path)) continue;
+    const before = prev[r.id];
+    next[r.id] = { path: r.local_path, misses: (before?.misses ?? 0) + 1, since: before?.since ?? now };
+    if (!before) newlyUnavailable.push(r.id);
+  }
+  return { next, newlyUnavailable };
+}
+
+export interface PruneContext {
+  unavailable: Record<string, UnavailableSource>;
+  /** Records from earlier syncs on this machine, by source id. */
+  records: Record<string, CodeSourceRecord>;
+  /** The current checkout's repository, a candidate owner for its deleted worktrees. */
+  current: CodeSourceRecord | null;
+  /** deriveCodeSourceId() for an explicit path and remote, on this host. */
+  deriveId: (path: string, remote: string) => string;
+  exists: (p: string) => boolean;
+  readableDir: (p: string) => boolean;
+  /** Whether `git worktree list` in the common dir still lists the path; null when git failed. */
+  worktreeListed: (gitCommonDir: string, path: string) => boolean | null;
+}
+
+/**
+ * Decide whether `gstack-gbrain-sync --prune-gone-worktrees` may remove a
+ * source. Its indexed pages may be the only copy of uncommitted work, so
+ * every condition must hold: the path is gone for two consecutive syncs, its
+ * parent is readable (not an unmounted volume), recomputing
+ * deriveCodeSourceId() for the path on this host yields the id (this machine
+ * created it), and the repository still exists but no longer lists the
+ * worktree.
+ */
+export function decidePrune(id: string, path: string, ctx: PruneContext): { remove: boolean; reason: string } {
+  if (ctx.exists(path)) return { remove: false, reason: "path exists" };
+  const parent = dirname(path);
+  if (!ctx.readableDir(parent)) return { remove: false, reason: `parent directory ${parent} is not readable (unmounted volume?)` };
+  const misses = ctx.unavailable[id]?.misses ?? 0;
+  if (misses < 2) return { remove: false, reason: `path missing on ${misses} sync(s) so far; needs 2 consecutive syncs` };
+  const record = [ctx.records[id], ctx.current].find((r) => r && ctx.deriveId(path, r.remote) === id);
+  if (!record) {
+    return { remove: false, reason: "not proven to be this machine's source (its id does not recompute from this host and path)" };
+  }
+  if (!record.git_common_dir || !ctx.exists(record.git_common_dir)) {
+    return { remove: false, reason: `its repository (${record.git_common_dir ?? "unknown git dir"}) is not available to confirm the worktree was removed` };
+  }
+  const listed = ctx.worktreeListed(record.git_common_dir, path);
+  if (listed === null) return { remove: false, reason: "git worktree list failed" };
+  if (listed) return { remove: false, reason: "git still lists this worktree (run `git worktree prune` if it was deleted)" };
+  return { remove: true, reason: `missing on ${misses} syncs; created on this host; ${record.git_common_dir} no longer lists it` };
 }

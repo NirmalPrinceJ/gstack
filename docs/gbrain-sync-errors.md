@@ -427,6 +427,32 @@ If it stays at zero, re-register the source with `gstack-gbrain-source-wireup`.
 
 ---
 
+## `[gbrain-sync] gbrain source <id>: path unavailable (<path>); gstack skips it.`
+
+**Problem.** A gbrain code source points at a directory that no longer
+exists on this machine, usually a deleted Conductor worktree. gbrain's
+autopilot keeps failing on it.
+
+**Cause.** Each worktree gets its own `gstack-code-<repo>-<hash>` source.
+Deleting the worktree leaves the source behind. gstack does not remove it on
+its own: its indexed pages may be the only copy of work that was never
+committed, and a source can belong to another machine sharing the brain.
+
+**Fix.** Review, then remove the ones gstack can prove are gone:
+```bash
+gstack-gbrain-sync --prune-gone-worktrees --dry-run
+gstack-gbrain-sync --prune-gone-worktrees
+```
+A source is removed only when its path was missing on two consecutive syncs,
+its parent directory is readable, its id recomputes from this host and path
+(so this machine created it), and its repository still exists but no longer
+lists the worktree. Each removal is logged to `~/.gstack/.gbrain-prune.log`.
+Run it from the main checkout of the same repository so gstack can find the
+repository. Anything it keeps prints the reason; remove such a source by hand
+with `gbrain sources remove <id>` only if you are sure.
+
+---
+
 ## Nothing is syncing but I expect it to
 
 **Not an error, but a common gotcha.** Check in order:
