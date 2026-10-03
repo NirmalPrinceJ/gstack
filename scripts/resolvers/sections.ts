@@ -54,11 +54,17 @@ function findSection(skill: string, id: string): SectionEntry {
   return entry;
 }
 
+/**
+ * Pointer to a carved section file. Claude keeps its global-root path; QA and
+ * every external host point relative to the installed skill directory, because
+ * external runtime roots (`$GSTACK_ROOT`) carry no `<skill>/sections/` tree
+ * while setup links or copies whole skill directories.
+ */
 export function sectionPath(ctx: TemplateContext, skill: string, id: string): string {
   const entry = findSection(skill, id);
-  if (skill === 'qa' || skill === 'qa-only') {
+  if (ctx.host !== 'claude' || skill === 'qa' || skill === 'qa-only') {
     fs.accessSync(path.join(ROOT, skill, 'sections', `${entry.file}.tmpl`), fs.constants.R_OK);
-    const installedName = ctx.host === 'claude' ? `\`${skill}\`/\`gstack-${skill}\`` : `\`gstack-${skill}\``;
+    const installedName = ctx.host === 'claude' ? `\`${skill}\`/\`gstack-${skill}\`` : `\`${skill.startsWith('gstack-') ? skill : `gstack-${skill}`}\``;
     return `\`sections/${entry.file}\` relative to the installed ${installedName} SKILL.md directory`;
   }
   return `\`${ctx.paths.skillRoot}/${skill}/sections/${entry.file}\``;
