@@ -18,7 +18,7 @@ let stdout: string[] = [];
 
 /** Each paid call returns distinct bytes, so a later round overwriting an earlier file is visible. */
 function stubFetch(): typeof globalThis.fetch {
-  return (async () => {
+  return (async (_input: unknown, _init?: unknown) => {
     calls++;
     const bytes = Buffer.from(`image-${calls}`).toString("base64");
     return new Response(JSON.stringify({ output: [{ type: "image_generation_call", result: bytes }] }), {
