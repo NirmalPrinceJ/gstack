@@ -644,6 +644,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // W1 safety-rule evals (test/helpers/safety-rules.ts registry; E3).
   'safety-codex-consult-embed': ['codex/**', 'bin/gstack-codex-probe', 'bin/gstack-paths', 'scripts/resolve-codex-generation-model.ts', 'test/skill-e2e-safety-codex-consult.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
   'safety-pair-agent-block': ['pair-agent/**', 'browse/src/cli.ts', 'test/skill-e2e-safety-pair-agent.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
+  'safety-ship-stale-evidence': ['ship/SKILL.md.tmpl', 'ship/SKILL.md', 'bin/gstack-evidence', 'bin/gstack-wtree', 'test/skill-e2e-safety-ship-evidence.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts', 'test/helpers/llm-judge.ts'],
 
   // Session Intelligence (timeline, context recovery, /context-save + /context-restore)
   'timeline-event-flow':            ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'bin/gstack-timeline-log', 'bin/gstack-timeline-read', 'test/skill-e2e-session-intelligence.test.ts'],
@@ -1336,6 +1337,7 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   // W1 safety-rule evals.
   'safety-codex-consult-embed': 'gate',
   'safety-pair-agent-block': 'gate',
+  'safety-ship-stale-evidence': 'gate',
 
   // Document-release — gate (CHANGELOG guardrail)
   'document-release': 'gate',
@@ -1704,6 +1706,7 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   // W1 safety-rule evals.
   'safety-codex-consult-embed': 'rule',
   'safety-pair-agent-block': 'rule',
+  'safety-ship-stale-evidence': 'rule',
   'document-release': 'rule',
   'codex-review': 'rule',
   'codex-discover-skill': 'rule',
