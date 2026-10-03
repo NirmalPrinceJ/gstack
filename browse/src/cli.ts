@@ -1605,7 +1605,21 @@ async function handlePairAgent(state: ServerState, args: string[]): Promise<void
 }
 
 // ─── Main ──────────────────────────────────────────────────────
+/**
+ * #494: the CLI talks to its daemon over loopback, but Bun's fetch sends those
+ * calls through HTTP(S)_PROXY, so the daemon never looks healthy behind a
+ * corporate proxy. Append the loopback names to the user's NO_PROXY (never
+ * replace it). Bun reads NO_PROXY when the first fetch runs, so this must run
+ * before any fetch. The daemon inherits the same value.
+ */
+export function withLoopbackNoProxy(env: Record<string, string | undefined>): string {
+  const entries = (env.NO_PROXY ?? env.no_proxy ?? '').split(',').map(e => e.trim()).filter(Boolean);
+  for (const host of ['127.0.0.1', 'localhost', '::1']) if (!entries.includes(host)) entries.push(host);
+  return entries.join(',');
+}
+
 async function main() {
+  process.env.NO_PROXY = process.env.no_proxy = withLoopbackNoProxy(process.env);
   const rawArgs = process.argv.slice(2);
 
   // ─── Global flags (--proxy, --headed) ───────────────────────
