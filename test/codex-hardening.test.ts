@@ -51,6 +51,44 @@ function tempHome(): string {
 }
 
 describe('gstack-codex-probe: auth probe', () => {
+  // #2192: custom OpenAI-compatible providers name their credential variable
+  // in config.toml [model_providers.<id>] env_key; a set variable is auth.
+  const withConfig = (toml: string, env: Record<string, string | undefined> = {}) => {
+    const home = tempHome();
+    try {
+      fs.mkdirSync(path.join(home, '.codex'), { recursive: true });
+      fs.writeFileSync(path.join(home, '.codex', 'config.toml'), toml);
+      return runProbe({ snippet: '_gstack_codex_auth_probe', env, home });
+    } finally { fs.rmSync(home, { recursive: true, force: true }); }
+  };
+  const MIMO = '[model_providers.mimo]\nenv_key = "MIMO_API_KEY"\n';
+
+  test('#2192: a provider env_key whose variable is set → AUTH_OK', () => {
+    const r = withConfig(MIMO, { MIMO_API_KEY: 'tp-test-key' });
+    expect([r.stdout.trim(), r.status]).toEqual(['AUTH_OK', 0]);
+    const several = withConfig('[model_providers.a]\nenv_key = "MISSING_A"\n\n[model_providers.b]\nenv_key = \'MIMO_API_KEY\'  # inline comment\n', { MIMO_API_KEY: 'k' });
+    expect(several.stdout.trim()).toBe('AUTH_OK');
+  });
+
+  test('#2192: a provider env_key that is unset or blank → AUTH_FAILED naming the key', () => {
+    for (const value of [undefined, '   \t\n']) {
+      const r = withConfig(MIMO, { MIMO_API_KEY: value });
+      expect([r.stdout.trim(), r.status]).toEqual(['AUTH_FAILED', 1]);
+      expect(r.stderr).toContain('custom provider key (MIMO_API_KEY)');
+    }
+  });
+
+  test('#2192: commented env_key lines and env_key outside [model_providers.*] never count', () => {
+    const toml = '[model_providers.mimo]\n# env_key = "DEPRECATED_KEY"\nenv_key = "MIMO_API_KEY"\n[profiles.work]\nenv_key = "PROFILE_KEY"\n';
+    expect(withConfig(toml, { DEPRECATED_KEY: 'old', PROFILE_KEY: 'p' }).stdout.trim()).toBe('AUTH_FAILED');
+  });
+
+  test('#2192: malformed config.toml or a non-identifier env_key → AUTH_FAILED, no crash', () => {
+    expect(withConfig('\x00\x01 garbage \xff[broken\n=no=\n').stdout.trim()).toBe('AUTH_FAILED');
+    const injected = withConfig('[model_providers.x]\nenv_key = "A;touch /tmp/never"\n');
+    expect([injected.stdout.trim(), injected.status]).toEqual(['AUTH_FAILED', 1]);
+  });
+
   test('CODEX_API_KEY set → AUTH_OK', () => {
     const home = tempHome();
     try {
