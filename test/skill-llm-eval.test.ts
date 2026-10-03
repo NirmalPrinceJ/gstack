@@ -14,7 +14,7 @@ import { afterAll, expect } from 'bun:test';
 import { JUDGE_MS } from './helpers/eval-budgets';
 import * as fs from 'fs';
 import * as path from 'path';
-import { callJudge, judge, JudgeRefusalError, JUDGE_SCORE_SCHEMA, QA_ANTI_REFUSAL_JUDGE_SCHEMA, buildQaWorkflowJudgePrompt, buildQaHealthRubricJudgePrompt, buildQaAntiRefusalJudgePrompt, buildCrossSkillConsistencyJudgePrompt, buildVoiceDirectiveJudgePrompt, DEFAULT_JUDGE_MAX_TOKENS, judgePanel, judgePanelMean, judgePanelMajority, judgePanelReasoning, JUDGE_SCORE_DIMENSIONS } from './helpers/llm-judge';
+import { callJudge, judge, JudgeRefusalError, JUDGE_SCORE_SCHEMA, QA_ANTI_REFUSAL_JUDGE_SCHEMA, VOICE_DIRECTIVE_JUDGE_SCHEMA, buildQaWorkflowJudgePrompt, buildQaHealthRubricJudgePrompt, buildQaAntiRefusalJudgePrompt, buildCrossSkillConsistencyJudgePrompt, buildVoiceDirectiveJudgePrompt, DEFAULT_JUDGE_MAX_TOKENS, judgePanel, judgePanelMean, judgePanelMajority, judgePanelReasoning, JUDGE_SCORE_DIMENSIONS } from './helpers/llm-judge';
 import { ASK_QUESTIONS_HEADING, ENG_REVIEW_EXCERPT } from './helpers/workflow-excerpt';
 import type { JudgeScore } from './helpers/llm-judge';
 import { readWorkflowJudgeInput, buildWorkflowJudgePrompt, QA_DISCOVERY_REFERENCES, WORKFLOW_JUDGE_RESPONSE_SCHEMA, type WorkflowJudgeInput } from './helpers/workflow-judge-input';
@@ -732,7 +732,7 @@ describeIfSelected('Voice directive eval', ['voice directive tone'], () => {
       avoids_ai_vocabulary: number;
       connects_user_outcomes: number;
       reasoning: string;
-    }>(buildVoiceDirectiveJudgePrompt(voiceSection)));
+    }>(buildVoiceDirectiveJudgePrompt(voiceSection), undefined, { jsonSchema: VOICE_DIRECTIVE_JUDGE_SCHEMA }));
     const result = judgePanelMean(samples, ['directness', 'concreteness', 'avoids_corporate', 'avoids_ai_vocabulary', 'connects_user_outcomes'] as const);
 
     console.log('Voice directive panel:', JSON.stringify({ mean: result, samples }, null, 2));
