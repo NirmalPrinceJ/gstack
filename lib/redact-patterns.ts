@@ -392,6 +392,28 @@ export function isDotenvFilename(match: RegExpExecArray): boolean {
   return spanStart > 0 && input[spanStart - 1] === ".";
 }
 
+/** Extensions that mark a `<name>.local.<ext>` span as a file. Closed on
+ * purpose: `.md` is also Moldova's TLD, but no internal suffix sits in front
+ * of a public one, so after `.local` it can only be an extension. */
+const LOCAL_CONFIG_EXTENSIONS = /^\.(?:md|json|jsonc|ya?ml|toml|ini|conf|txt)\b/i;
+
+/**
+ * True when an `internal.hostname` span is the stem of a per-machine config
+ * FILENAME (`CLAUDE.local.md`, `settings.local.json`, `values.staging.yaml`)
+ * rather than a host (#2962). The pattern's `\b` stops at the dot before the
+ * extension, so `CLAUDE.local.md` reported `CLAUDE.local`. Claude Code's own
+ * per-user files are named this way, so any decision or doc that mentions
+ * them failed closed in the non-interactive stores.
+ *
+ * Exempts ONLY a span immediately followed by `.<known extension>` and a word
+ * boundary. `printer.local.` at the end of a sentence still reports, and so
+ * do `printer.local`, `printer.local/md` and `printer.local.mdx`.
+ */
+export function isLocalConfigFilename(match: RegExpExecArray): boolean {
+  const { end } = spanBounds(match);
+  return LOCAL_CONFIG_EXTENSIONS.test((match.input ?? "").slice(end, end + 8));
+}
+
 /**
  * True when the matched span sits ENTIRELY inside a UUID.
  *
@@ -894,8 +916,9 @@ export const PATTERNS: RedactPattern[] = [
     category: "internal",
     description: "Internal hostname (*.internal/.corp/.local/.prod/.staging)",
     regex: /\b([a-z0-9][a-z0-9\-]*\.(?:internal|corp|local|lan|prod|staging))\b/i,
-    // `.env.local` and friends are filenames, not hosts. See isDotenvFilename.
-    validate: (_span, match) => !isDotenvFilename(match),
+    // `.env.local`, `CLAUDE.local.md` and friends are filenames, not hosts.
+    // See isDotenvFilename and isLocalConfigFilename.
+    validate: (_span, match) => !isDotenvFilename(match) && !isLocalConfigFilename(match),
   },
   {
     id: "internal.url_private",

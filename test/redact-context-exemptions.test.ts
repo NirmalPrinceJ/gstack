@@ -105,3 +105,28 @@ describe("env.kv: a function call assigned to a credential name is code (#2899)"
     ],
   );
 });
+
+describe("internal.hostname: per-machine config filenames are not hosts (#2962, #2740)", () => {
+  table(
+    "internal.hostname",
+    "MEDIUM",
+    [
+      "Edit CLAUDE.local.md and settings.local.json",
+      "no `CLAUDE.local.md`, no @import",
+      "edit .claude/settings.local.json",
+      "helm -f values.staging.yaml",
+      "config.prod.toml is read first",
+      "npm run dev -- --env-file=.env.local",
+      "copy .env.local to .env.staging",
+    ],
+    [
+      "ssh build.local",
+      "ping printer.local.",
+      "http://printer.local/md",
+      "printer.local.mdx is odd",
+      "curl http://settings.local:8080/health",
+      "the api.corp gateway",
+      "connect to build-7.internal",
+    ],
+  );
+});
