@@ -1,11 +1,13 @@
 /**
- * INV-3 render-level conformance for env-var hosts (C1, #1159).
+ * INV-3 render-level conformance (C1, #1159).
  *
  * Codex and every `usesEnvVars` host run each fenced bash block in a fresh
  * shell, so a block that uses `$GSTACK_*`, `$B` or `$D` must resolve them
  * itself. Renders every host once into a temp dir and checks every fence of
- * every SKILL.md and section file; executes the shared prelude under `env -i`
- * and `set -u` against temp install layouts.
+ * every SKILL.md and section file: the prelude is present and within budget,
+ * every fence passes `bash -n` (placeholders normalized), the prelude and its
+ * B/D consumers run under `env -i` and `set -u` with stub binaries, and the
+ * generated-bash lint passes on every host's render, Claude included.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'child_process';
@@ -16,8 +18,11 @@ import { ALL_HOST_CONFIGS } from '../hosts';
 import { runGeneration } from '../scripts/gen-skill-docs';
 import { binaryAssignment, fencePrelude, insertRuntimePreludes, PRELUDE_BYTE_BUDGET, runtimeRootPrelude } from '../scripts/resolvers/runtime-root';
 import { HOST_PATHS, type TemplateContext } from '../scripts/resolvers/types';
+import { lintFence, normalizePlaceholders } from './helpers/generated-bash-lint';
 
 const ENV_HOSTS = ALL_HOST_CONFIGS.filter(h => h.usesEnvVars);
+const FORBIDDEN = /^(?:\/bin\/|\/browse|\/design|\/gstack-)/;
+const PRELUDE_LINE = /^\[ -d "\$\{GSTACK_ROOT:-\/-\}\/bin" \]|^(?:GSTACK_(?:BIN|BROWSE|DESIGN|MAKE_PDF)=\$GSTACK_ROOT\/\S+ ?)+$|^[BD]=\$GSTACK_ROOT\//;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-env-fences-'));
 const renderDir = path.join(tmp, 'render');
 
@@ -57,6 +62,22 @@ function renderedDocs(root: string, hostSubdir: string | null): string[] {
   return out;
 }
 
+/** A fence that uses runtime variables must resolve them itself, once, within budget. */
+function fenceProblems(fence: Fence): string[] {
+  const problems: string[] = [];
+  const where = `${fence.file}:${fence.line}`;
+  const assigned = (name: string) => new RegExp(`(?:^|[\\s;&|(])${name}=`, 'm').test(fence.body);
+  if (/\$\{?GSTACK_(?:ROOT|BIN|BROWSE|DESIGN|MAKE_PDF)\b/.test(fence.body) && !assigned('GSTACK_ROOT')) problems.push(`${where} uses GSTACK_* without resolving GSTACK_ROOT`);
+  if (/\$\{?B\b/.test(fence.body) && !assigned('B')) problems.push(`${where} uses $B without deriving it`);
+  if (/\$\{?D\b/.test(fence.body) && !assigned('D')) problems.push(`${where} uses $D without deriving it`);
+  if (fence.body.includes('gstack: no install found')) {
+    const bytes = Buffer.byteLength(fence.body.split('\n').filter(l => PRELUDE_LINE.test(l)).join('\n') + '\n');
+    if (bytes > PRELUDE_BYTE_BUDGET) problems.push(`${where} prelude is ${bytes} bytes (budget ${PRELUDE_BYTE_BUDGET})`);
+    if (fence.body.split('gstack: no install found').length !== 2) problems.push(`${where} carries the prelude more than once`);
+  }
+  return problems;
+}
+
 const ctx = (host: string, installRoot: string | null = null): TemplateContext => ({ host, skillName: 'review', tmplPath: '', paths: HOST_PATHS[host], installRoot });
 
 function sh(script: string, cwd: string, env: Record<string, string>) {
@@ -80,21 +101,9 @@ describe('C1: every env-var host fence resolves its own runtime paths', () => {
     for (const host of ENV_HOSTS) {
       for (const file of renderedDocs(renderDir, host.hostSubdir)) {
         for (const fence of bashFences(fs.readFileSync(file, 'utf8'), path.relative(renderDir, file))) {
-          const usesRoot = /\$\{?GSTACK_(?:ROOT|BIN|BROWSE|DESIGN|MAKE_PDF)\b/.test(fence.body);
-          const usesB = /\$\{?B\b/.test(fence.body);
-          const usesD = /\$\{?D\b/.test(fence.body);
-          if (!usesRoot && !usesB && !usesD) continue;
+          if (!/\$\{?(?:GSTACK_(?:ROOT|BIN|BROWSE|DESIGN|MAKE_PDF)|B|D)\b/.test(fence.body)) continue;
           checked++;
-          const assigned = (name: string) => new RegExp(`(?:^|[\\s;&|(])${name}=`, 'm').test(fence.body);
-          if (usesRoot && !assigned('GSTACK_ROOT')) problems.push(`${fence.file}:${fence.line} uses GSTACK_* without resolving GSTACK_ROOT`);
-          if (usesB && !assigned('B')) problems.push(`${fence.file}:${fence.line} uses $B without deriving it`);
-          if (usesD && !assigned('D')) problems.push(`${fence.file}:${fence.line} uses $D without deriving it`);
-          if (fence.body.includes('gstack: no install found')) {
-            const prelude = fence.body.split('\n').filter(l => /^\[ -d "\$\{GSTACK_ROOT:-\/-\}\/bin" \]|^(?:GSTACK_(?:BIN|BROWSE|DESIGN|MAKE_PDF)=\$GSTACK_ROOT\/\S+ ?)+$|^[BD]=\$GSTACK_ROOT\//.test(l));
-            const bytes = Buffer.byteLength(prelude.join('\n') + '\n');
-            if (bytes > PRELUDE_BYTE_BUDGET) problems.push(`${fence.file}:${fence.line} prelude is ${bytes} bytes (budget ${PRELUDE_BYTE_BUDGET})`);
-            if (fence.body.split('gstack: no install found').length !== 2) problems.push(`${fence.file}:${fence.line} carries the prelude more than once`);
-          }
+          problems.push(...fenceProblems(fence));
         }
       }
     }
@@ -181,5 +190,115 @@ describe('C1: the prelude resolves the right root in a fresh shell (env -i, set 
     const missing = sh(prelude + echo, w, { HOME: path.join(w, 'home'), PATH: `${stub}:/usr/bin:/bin` });
     expect(missing.status).not.toBe(0);
     expect(missing.stderr).toContain(`gstack: no install found (tried ${root})`);
+  });
+});
+
+/** Every host's rendered fences, Claude included. */
+function allFences(): Array<Fence & { host: string }> {
+  const out: Array<Fence & { host: string }> = [];
+  for (const host of ALL_HOST_CONFIGS) {
+    for (const file of renderedDocs(renderDir, host.name === 'claude' ? null : host.hostSubdir)) {
+      for (const fence of bashFences(fs.readFileSync(file, 'utf8'), path.relative(renderDir, file))) out.push({ ...fence, host: host.name });
+    }
+  }
+  return out;
+}
+
+describe('INV-3: every rendered fence parses, runs its prelude and passes the lint', () => {
+  test('bash -n passes on every fence of every host (angle-bracket placeholders normalized)', () => {
+    const fences = allFences();
+    expect(fences.length).toBeGreaterThan(5000);
+    const unique = new Map<string, string>();
+    for (const f of fences) {
+      const body = normalizePlaceholders(f.body);
+      if (!unique.has(body)) unique.set(body, `${f.file}:${f.line}`);
+    }
+    const dir = fs.mkdtempSync(path.join(tmp, 'syntax-'));
+    const where: string[] = [];
+    [...unique.keys()].forEach((body, n) => { fs.writeFileSync(path.join(dir, `${n}.sh`), body + '\n'); where[n] = unique.get(body)!; });
+    const r = spawnSync('bash', ['-c', `ls | xargs -P 4 -n 200 bash -c 'for f; do bash -n "$f" 2>/dev/null || echo "$f"; done' _`],
+      { cwd: dir, encoding: 'utf8', timeout: 120_000 });
+    expect(r.status, r.stderr).toBe(0);
+    const failed = r.stdout.split('\n').filter(Boolean).map(f => {
+      const err = spawnSync('bash', ['-n', path.join(dir, f)], { encoding: 'utf8', timeout: 10_000 }).stderr.trim().split('\n')[0];
+      return `${where[Number(f.replace('.sh', ''))]}: ${err}`;
+    });
+    expect(failed).toEqual([]);
+  }, 180_000);
+
+  test('the prelude and its B/D consumers run under env -i and set -u with stub binaries', () => {
+    const w = fs.mkdtempSync(path.join(tmp, 'exec-'));
+    const home = path.join(w, 'home');
+    const problems: string[] = [];
+    let ran = 0;
+    for (const host of ENV_HOSTS) {
+      const root = mkroot(path.join(home, host.name === 'codex' ? '.codex/skills/gstack' : host.globalRoot));
+      for (const tool of ['browse', 'design']) fs.writeFileSync(path.join(root, tool, 'dist', tool), `#!/bin/sh\necho "STUB_${tool}"\n`, { mode: 0o755 });
+      const preludes = new Set<string>();
+      for (const file of renderedDocs(renderDir, host.hostSubdir)) {
+        for (const fence of bashFences(fs.readFileSync(file, 'utf8'))) {
+          const lines = fence.body.split('\n').filter(l => PRELUDE_LINE.test(l));
+          if (lines.length) preludes.add(lines.join('\n'));
+        }
+      }
+      expect(preludes.size).toBeGreaterThan(0);
+      for (const prelude of preludes) {
+        ran++;
+        const vars = [...new Set([...prelude.matchAll(/(?:^|\s)(GSTACK_[A-Z_]+|[BD])=/gm)].map(m => m[1]))];
+        const consumers = vars.filter(v => v === 'B' || v === 'D').map(v => `"$${v}"`).join('\n');
+        const script = `${prelude}\n${vars.map(v => `printf '%s=%s\\n' ${v} "$${v}"`).join('\n')}\n${consumers}`;
+        const r = spawnSync('env', ['-i', `HOME=${home}`, 'PATH=/usr/bin:/bin', 'bash', '-uc', script], { cwd: w, encoding: 'utf8', timeout: 10_000 });
+        if (r.status !== 0) { problems.push(`${host.name}: exit ${r.status}: ${r.stderr.trim()}\n${prelude}`); continue; }
+        for (const line of r.stdout.split('\n').filter(l => /^[A-Z_]+=/.test(l))) {
+          const value = line.slice(line.indexOf('=') + 1);
+          if (!value || FORBIDDEN.test(value)) problems.push(`${host.name}: ${line}`);
+        }
+        for (const v of vars.filter(x => x === 'B' || x === 'D')) {
+          if (!r.stdout.includes(`STUB_${v === 'B' ? 'browse' : 'design'}`)) problems.push(`${host.name}: $${v} did not run the stub binary`);
+        }
+      }
+    }
+    expect(ran).toBeGreaterThan(ENV_HOSTS.length);
+    expect(problems).toEqual([]);
+  });
+
+  test('the generated-bash lint passes on every host, Claude included', () => {
+    const findings = allFences().flatMap(f => lintFence(f.body).map(x => `${f.file}:${f.line + x.line} ${x.rule}: ${x.detail}`));
+    expect(findings).toEqual([]);
+  });
+});
+
+describe('INV-3: negative controls (planted bad fences fail each check)', () => {
+  test('lint rules', () => {
+    const rules = (body: string) => lintFence(body).map(f => f.rule);
+    expect(rules('SLUG=$("~/.claude/skills/gstack/bin/gstack-slug" 2>/dev/null)')).toEqual(['tilde-in-quotes']);
+    expect(rules('echo "see ~/.gstack for logs"; ls ~/.gstack "$HOME/x"')).toEqual([]);
+    expect(rules('F=$(mktemp)')).toEqual(['mktemp-template']);
+    expect(rules('D=$(mktemp -d /tmp/x.XXXXXX)')).toEqual(['mktemp-template']);
+    expect(rules('F=$(mktemp "${TMPDIR:-/tmp}/x.XXXXXX"); G=$(mktemp "$TMP_ROOT/codex-err-XXXXXX"); H=$(mktemp -t x.XXXX)')).toEqual([]);
+    expect(rules('cd "$INSTALL_DIR"\ngit reset --hard origin/main')).toEqual(['unguarded-var']);
+    expect(rules('rm -rf "$LOCAL_GSTACK/.git"')).toEqual(['unguarded-var']);
+    expect(rules('mv "$A" "$A.bak"')).toEqual(['unguarded-var', 'unguarded-var']);
+    expect(rules('git -C "$REPO" stash')).toEqual(['unguarded-var']);
+    expect(rules('cd -- "${INSTALL_DIR:?unset}"')).toEqual(['unguarded-var']);
+    expect(rules('cd -- "${INSTALL_DIR:?unset}" || exit 1\nrm -rf "$INSTALL_DIR/x"')).toEqual([]);
+    expect(rules('X=$(pwd)\ncd "$X" && rm -r "$X/y"; rm -f "$TMPFILE"')).toEqual([]);
+    expect(rules('ls | while IFS= read -r d; do rm -rf "$d"; done')).toEqual([]);
+    expect(rules('cat <<EOF\ncd "$NOT_CODE"\nEOF\necho ok')).toEqual([]);
+    expect(rules("echo 'cd \"$QUOTED\"'")).toEqual([]);
+  });
+
+  test('placeholder normalization keeps real syntax errors', () => {
+    const ok = spawnSync('bash', ['-n', '-c', normalizePlaceholders('git push -u origin <branch-name>\nkill <PID> 2>/dev/null\ndiff <(echo a) <(echo b)')], { timeout: 10_000 });
+    expect(ok.status).toBe(0);
+    const bad = spawnSync('bash', ['-n', '-c', normalizePlaceholders('if [ -f <file> ]; then echo')], { timeout: 10_000 });
+    expect(bad.status).not.toBe(0);
+  });
+
+  test('a fence that uses runtime variables without the prelude is reported', () => {
+    expect(fenceProblems({ file: 'x', line: 1, body: '"$GSTACK_BIN/gstack-slug"' })).toEqual(['x:1 uses GSTACK_* without resolving GSTACK_ROOT']);
+    expect(fenceProblems({ file: 'x', line: 1, body: '$B goto https://example.com' })).toEqual(['x:1 uses $B without deriving it']);
+    const twice = `${runtimeRootPrelude(ctx('codex'))}\n${runtimeRootPrelude(ctx('codex'))}\n"$GSTACK_BIN/x"`;
+    expect(fenceProblems({ file: 'x', line: 1, body: twice })).toContain('x:1 carries the prelude more than once');
   });
 });
