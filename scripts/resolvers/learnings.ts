@@ -26,8 +26,8 @@ const QUERY_SAFE_RE = /^[A-Za-z0-9 _-]+$/;
  * exit status kept, so a missing bun or a failed script prints why instead of
  * reading as "nothing recorded". Two lines: the capture, then the verdict.
  */
-export const learningsCapture = (command: string) => `{ _LERR=$(${command} 2>&1 >&3 3>&-); _LRC=$?; } 3>&1`;
-export const LEARNINGS_VERDICT = `[ "$_LRC" = 0 ] || { _LERR=\${_LERR%%$'\\n'*}; echo "LEARNINGS: unavailable (\${_LERR:-exit $_LRC})"; }`;
+export const learningsCapture = (command: string) => `{ _LE=$(${command} 2>&1 >&3 3>&-); _LR=$?; } 3>&1`;
+export const LEARNINGS_VERDICT = `[ "$_LR" = 0 ] || { _LE=\${_LE%%$'\\n'*}; echo "LEARNINGS: unavailable (\${_LE:-exit $_LR})"; }`;
 
 export function generateLearningsSearch(ctx: TemplateContext, args?: string[]): string {
   // Parse query= arg. Empty value falls through to no-query (principle of least surprise:
