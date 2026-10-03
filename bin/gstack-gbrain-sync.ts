@@ -214,6 +214,13 @@ export function resolveMemoryIngestSources(
  * state root itself), if any. Its pages already cover FEDERATED_CURATED_TYPES.
  */
 export function federatedCuratedSourceId(env?: NodeJS.ProcessEnv): string | null {
+  const rows = parseSourcesList(execGbrainJson(["sources", "list", "--json"], { baseEnv: env, timeout: 10_000 }));
+  const row = rows.find((r) => (r as { federated?: boolean }).federated === true && isArtifactsSourceRow(r, env));
+  return row?.id ?? null;
+}
+
+/** A source this installation maintains for its curated artifacts (the worktree or the state root). */
+function isArtifactsSourceRow(r: { local_path?: string }, env?: NodeJS.ProcessEnv): boolean {
   const realOrSelf = (p: string): string => {
     try {
       return realpathSync(p);
@@ -226,9 +233,36 @@ export function federatedCuratedSourceId(env?: NodeJS.ProcessEnv): string | null
     realOrSelf((env ?? process.env).GSTACK_BRAIN_WORKTREE || join(home, ".gstack-brain-worktree")),
     realOrSelf(GSTACK_HOME),
   ]);
-  const rows = parseSourcesList(execGbrainJson(["sources", "list", "--json"], { baseEnv: env, timeout: 10_000 }));
-  const row = rows.find((r) => (r as { federated?: boolean }).federated === true && r.local_path && owned.has(realOrSelf(r.local_path)));
-  return row?.id ?? null;
+  return !!r.local_path && owned.has(realOrSelf(r.local_path));
+}
+
+/**
+ * A5 (#2670): after a successful artifacts push, report what gbrain actually
+ * holds. A git push is not indexing; a maintained artifacts source with zero
+ * pages is the one provably broken state and fails the stage.
+ */
+export function brainSyncIndexVerdict(env: NodeJS.ProcessEnv = process.env): { ok: boolean; summary: string } {
+  const raw = execGbrainJson(["sources", "list", "--json"], { baseEnv: env, timeout: 10_000 });
+  if (raw === null) {
+    return { ok: true, summary: "curated artifacts pushed to git; gbrain page count unavailable (gbrain sources list failed)" };
+  }
+  const explicit = env.GSTACK_BRAIN_SOURCE_ID;
+  const row = parseSourcesList(raw).find((r) => (explicit ? r.id === explicit : isArtifactsSourceRow(r, env)));
+  if (!row?.id) {
+    return { ok: true, summary: "curated artifacts pushed to git (no gbrain artifacts source on this machine, so indexing is not checked here)" };
+  }
+  if (typeof row.page_count !== "number") {
+    return { ok: true, summary: `curated artifacts pushed to git; gbrain source ${row.id} did not report a page count` };
+  }
+  if (row.page_count === 0) {
+    return {
+      ok: false,
+      summary:
+        `curated artifacts pushed to git, but gbrain source ${row.id} has 0 indexed pages. ` +
+        `Fix: gbrain sync --source ${row.id}, then re-run /sync-gbrain`,
+    };
+  }
+  return { ok: true, summary: `curated artifacts pushed; gbrain source ${row.id} has ${row.page_count} pages` };
 }
 
 export interface MemorySourceSelection {
@@ -1598,13 +1632,10 @@ function runBrainSyncPush(args: CliArgs): StageResult {
   spawnSync(discover.cmd, discover.argv, { stdio, timeout: 60 * 1000, shell: discover.shell });
   const result = spawnSync(once.cmd, once.argv, { stdio, timeout: 60 * 1000, shell: once.shell });
 
-  return {
-    name: "brain-sync",
-    ran: true,
-    ok: result.status === 0,
-    duration_ms: Date.now() - t0,
-    summary: result.status === 0 ? "curated artifacts pushed" : `gstack-brain-sync exited ${result.status}`,
-  };
+  if (result.status !== 0) {
+    return { name: "brain-sync", ran: true, ok: false, duration_ms: Date.now() - t0, summary: `gstack-brain-sync exited ${result.status}` };
+  }
+  return { name: "brain-sync", ran: true, duration_ms: Date.now() - t0, ...brainSyncIndexVerdict() };
 }
 
 /**

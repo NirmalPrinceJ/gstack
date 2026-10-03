@@ -408,6 +408,25 @@ gstack-gbrain-install      # upgrade gbrain
 
 ---
 
+## `curated artifacts pushed to git, but gbrain source <id> has 0 indexed pages. Fix: gbrain sync --source <id>, then re-run /sync-gbrain`
+
+**Problem.** `/sync-gbrain`'s brain-sync stage is `ERR` even though the git
+push worked.
+
+**Cause.** The push only moves your curated artifacts to git. gbrain indexes
+them separately, and the artifacts source this machine maintains reports zero
+pages, so searches return nothing from it. Before this release the stage said
+"curated artifacts pushed" and passed.
+
+**Fix.**
+```bash
+gbrain sync --source <id>
+/sync-gbrain
+```
+If it stays at zero, re-register the source with `gstack-gbrain-source-wireup`.
+
+---
+
 ## Nothing is syncing but I expect it to
 
 **Not an error, but a common gotcha.** Check in order:
