@@ -84,8 +84,8 @@ function loadGbrainOverride(respectDetection: boolean): boolean {
   const stateDir = resolveStateRoot();
   try {
     const json = JSON.parse(fs.readFileSync(path.join(stateDir, 'gbrain-detection.json'), 'utf-8'));
-    // Slow, remote, and locked engines are still usable (#1964/#2051/#2456).
-    return ['ok', 'timeout', 'thin-client', 'engine-locked'].includes(json.gbrain_local_status ?? '');
+    // Slow, remote, locked and briefly unreachable engines are still usable (#1964/#2051/#2456, A2).
+    return ['ok', 'timeout', 'db-unreachable', 'thin-client', 'engine-locked'].includes(json.gbrain_local_status ?? '');
   } catch {
     return false;
   }
