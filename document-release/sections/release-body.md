@@ -221,6 +221,7 @@ health summary and continue to Step 9. Ship-owned children already stopped at St
 **Preflight — decide whether and how the doc review runs:**
 
 ```bash
+
 # Codex preflight: one block (functions sourced here don't persist to later blocks).
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || echo off)
 _CODEX_CFG=$(~/.claude/skills/gstack/bin/gstack-config get codex_reviews 2>/dev/null || echo enabled)
@@ -274,6 +275,7 @@ shell and re-reads the control; enabled workflows never append a disabled record
 If logging fails, report the persistence failure and retain the disabled opt-out.
 
 ```bash
+
 _DISABLED_REVIEW_MODE=$("$HOME/.claude/skills/gstack/bin/gstack-config" get codex_reviews 2>/dev/null) || {
   echo 'Cannot read codex_reviews; disabled outside coverage was not recorded.' >&2
   exit 1
@@ -328,6 +330,7 @@ if { [ -n "${CODEX_THREAD_ID:-}" ] || [ -n "${CODEX_SANDBOX:-}" ] || [ "${GSTACK
   fi
   exit 78
 fi
+
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo 'ERROR: not in a git repo' >&2; exit 1; }
 _OUTSIDE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/gstack-outside.XXXXXXXX") || exit 1
 trap 'rm -rf "$_OUTSIDE_TMP"' EXIT

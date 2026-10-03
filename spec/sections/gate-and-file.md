@@ -114,6 +114,7 @@ dispatch. `spec-quality-gate-secret-sink.test.ts` enforces this.
 **Dispatch (only when redaction passes):** No reviewer preflight/dispatch before the redaction decision. When blocked, STOP before Phase 5 and all downstream sinks. On --no-gate record skipped after redaction succeeds.
 
 ```bash
+
 _OUTSIDE_CFG=enabled # This caller has its own opt-in/skip control.
 if [ "$_OUTSIDE_CFG" = disabled ]; then
   echo 'CODEX_MODE: disabled'
@@ -156,6 +157,7 @@ if { [ -n "${CODEX_THREAD_ID:-}" ] || [ -n "${CODEX_SANDBOX:-}" ] || [ "${GSTACK
   fi
   exit 78
 fi
+
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo 'ERROR: not in a git repo' >&2; exit 1; }
 _OUTSIDE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/gstack-outside.XXXXXXXX") || exit 1
 trap 'rm -rf "$_OUTSIDE_TMP"' EXIT

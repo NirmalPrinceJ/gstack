@@ -1583,6 +1583,7 @@ $GSTACK_STATE_ROOT/projects/$SLUG/designs/design-audit-{YYYYMMDD}/
 
 **Check Codex availability:**
 ```bash
+
 _OUTSIDE_CFG=enabled # This caller has its own opt-in/skip control.
 if [ "$_OUTSIDE_CFG" = disabled ]; then
   echo 'CODEX_MODE: disabled'
@@ -1657,6 +1658,7 @@ if { [ -n "${CODEX_THREAD_ID:-}" ] || [ -n "${CODEX_SANDBOX:-}" ] || [ "${GSTACK
   fi
   exit 78
 fi
+
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo 'ERROR: not in a git repo' >&2; exit 1; }
 _OUTSIDE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/gstack-outside.XXXXXXXX") || exit 1
 trap 'rm -rf "$_OUTSIDE_TMP"' EXIT

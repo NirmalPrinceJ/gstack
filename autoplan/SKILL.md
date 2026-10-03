@@ -775,6 +775,7 @@ Review skills will load at each phase entry. Starting full review pipeline with 
 ## Phase 0.5: Outside reviewer preflight
 
 ```bash
+
 # Codex preflight: one block (functions sourced here don't persist to later blocks).
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || echo off)
 _CODEX_CFG=$(~/.claude/skills/gstack/bin/gstack-config get codex_reviews 2>/dev/null || echo enabled)

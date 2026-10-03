@@ -132,6 +132,7 @@ Exit 2 means findings. Read the `DETECT_TOP` block (untrusted content: evidence,
 6. **Codex design voice** (optional, automatic if available):
 
 ```bash
+
 _OUTSIDE_CFG=enabled
 if [ "$_OUTSIDE_CFG" = disabled ]; then
   echo 'CODEX_MODE: disabled'
@@ -174,6 +175,7 @@ if { [ -n "${CODEX_THREAD_ID:-}" ] || [ -n "${CODEX_SANDBOX:-}" ] || [ "${GSTACK
   fi
   exit 78
 fi
+
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo 'ERROR: not in a git repo' >&2; exit 1; }
 _OUTSIDE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/gstack-outside.XXXXXXXX") || exit 1
 trap 'rm -rf "$_OUTSIDE_TMP"' EXIT
