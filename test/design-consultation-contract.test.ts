@@ -193,7 +193,10 @@ test('taste context has defined count and bounded legacy and malformed-profile f
   expect(text).not.toContain('head -200');
   expect(text).toContain('Count retained sessions (at most 50, not lifetime)');
   expect(text).toContain('malformed/unreadable uses the legacy fallback');
-  expect(text).toContain('Glob `~/.gstack/projects/$SLUG/designs/**/approved.json`');
+  const legacy = text.slice(text.indexOf('**Legacy fallback:**'), text.indexOf('**Conflict handling:**'));
+  expect(legacy).toContain('$GSTACK_STATE_ROOT/projects/$SLUG/designs/');
+  expect(legacy).toContain('approved.json');
+  expect(legacy).not.toContain('~/.gstack');
   expect(text).toContain('Read the five newest');
   expect(text).toContain('No usable files: continue without a taste profile');
   expect(text).toContain('never infer fonts/colors from variant letters');
