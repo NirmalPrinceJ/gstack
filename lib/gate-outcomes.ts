@@ -78,6 +78,116 @@ export const GATE_OUTCOMES = {
     summary: 'outside reviews are turned off (codex_reviews=disabled)',
     fix: 'gstack-config set codex_reviews enabled',
   },
+  no_version_source: {
+    state: 'not_run', anchor: 'ship-no-version-source',
+    summary: 'no version source is configured, or release automation owns it',
+    fix: 'create VERSION, or write the version file path (for example package.json) to .gstack/version-path',
+  },
+  version_source_broken: {
+    state: 'unavailable', anchor: 'ship-version-source-broken',
+    summary: 'the configured version file is missing, empty, unreadable or malformed',
+    fix: 'fix that file, or correct --version-path / .gstack/version-path',
+  },
+  no_plan_bound: {
+    state: 'not_run', anchor: 'plan-audit-not-run',
+    summary: 'no plan is bound to this branch and no docs/designs/ file matches',
+    fix: 'add "Plan: <path>" to the PR body, or run /autoplan',
+  },
+  bun_missing: {
+    state: 'unavailable', anchor: 'learnings-bun-missing',
+    summary: 'bun not found on PATH, so learnings (or the timeline) could not be read',
+    fix: 'install Bun (https://bun.sh), then re-run ./setup',
+  },
+  learnings_unavailable: {
+    state: 'unavailable', anchor: 'learnings-unavailable',
+    summary: 'the learnings search failed, so prior learnings were not loaded',
+    fix: 'read the reason in parentheses; install Bun if it is missing, then re-run ./setup',
+  },
+  tmpdir_unwritable: {
+    state: 'unavailable', anchor: 'log-tmpdir-unwritable',
+    summary: 'could not create a temp file in ${TMPDIR:-/tmp}, so the entry was not recorded',
+    fix: 'point TMPDIR at a writable directory',
+  },
+  not_calibrated: {
+    state: 'not_run', anchor: 'plan-tune-not-calibrated',
+    summary: 'not calibrated: no recorded signals',
+    fix: 'answer more registered questions; run gstack-developer-profile --derive to recount',
+  },
+  variant_save_failed: {
+    state: 'unavailable', anchor: 'design-variant-save-failed',
+    summary: 'the image was generated but could not be saved to the output path (kept in the temp dir)',
+    fix: 'free disk space or fix permissions on the output dir, then copy the kept file from the printed path',
+  },
+  design_unavailable: {
+    state: 'unavailable', anchor: 'design-not-available',
+    summary: 'the design binary could not start (it exited, timed out, was killed at launch, or is not installed)',
+    fix: 'cd <gstack checkout> && ./setup',
+  },
+  taste_profile_unavailable: {
+    state: 'unavailable', anchor: 'design-taste-profile-unavailable',
+    summary: 'the project slug could not be resolved, so your taste profile was not loaded',
+    fix: 'run ./setup',
+  },
+  no_install_found: {
+    state: 'unavailable', anchor: 'gstack-no-install-found',
+    summary: 'no gstack install for this host was found from this shell',
+    fix: './setup --host <host> from your gstack checkout; ./setup --status shows it',
+  },
+  db_unreachable: {
+    state: 'unavailable', anchor: 'gbrain-db-unreachable',
+    summary: 'the gbrain database host is unreachable; your gbrain config is unchanged',
+    fix: 'check network or VPN, then re-run /sync-gbrain',
+  },
+  ingest_batch_refused: {
+    state: 'unavailable', anchor: 'memory-ingest-unattributed-failures',
+    summary: 'gbrain reported failures it did not attribute to a page, so nothing was marked saved',
+    fix: 're-run /sync-gbrain; after three refusals gstack finds and sets aside the page that breaks the batch',
+  },
+  reconcile_not_run: {
+    state: 'not_run', anchor: 'memory-reconcile-not-run',
+    summary: 'the post-upgrade transcript check did not run (gbrain missing, or the brain is remote over HTTP)',
+    fix: 'run /setup-gbrain, then gstack-memory-ingest --reconcile',
+  },
+  ingest_locked: {
+    state: 'not_run', anchor: 'memory-ingest-locked',
+    summary: 'another memory ingest is writing the state file',
+    fix: 'wait for it to finish, then re-run /sync-gbrain',
+  },
+  ingest_state_unsaved: {
+    state: 'unavailable', anchor: 'memory-ingest-state-unsaved',
+    summary: 'the ingest state file could not be saved',
+    fix: 'fix permissions or free disk space under your gstack state root, then re-run /sync-gbrain',
+  },
+  artifacts_not_indexed: {
+    state: 'unavailable', anchor: 'gbrain-artifacts-not-indexed',
+    summary: 'curated artifacts were pushed to git, but gbrain has 0 indexed pages for them',
+    fix: 'gbrain sync --source <id>, then re-run /sync-gbrain',
+  },
+  dream_unscoped: {
+    state: 'not_run', anchor: 'gbrain-dream-skipped',
+    summary: 'the installed gbrain cannot run only the call-graph phase, and the full dream cycle takes about 35 minutes',
+    fix: 'gstack-gbrain-install, then /sync-gbrain --dream',
+  },
+  cycle_freshness_unknown: {
+    state: 'unavailable', anchor: 'gbrain-cycle-freshness-unknown',
+    summary: 'the installed gbrain does not expose cycle_freshness, so call-graph status is unknown',
+    fix: 'gstack-gbrain-install',
+  },
+  update_incomplete: {
+    state: 'unavailable', anchor: 'auto-update-incomplete',
+    summary: 'auto-update pulled gstack, but setup or migrations did not finish',
+    fix: 'cd <gstack checkout> && ./setup',
+  },
+  cso_helper_unbuilt: {
+    state: 'unavailable', anchor: 'cso-windows-msvc-compile',
+    summary: 'MSVC is installed but the /cso native helper failed to compile',
+    fix: 'fix the printed compiler error, then re-run ./setup',
+  },
+  chromium_path_failed: {
+    state: 'unavailable', anchor: 'browse-chromium-path-failed',
+    summary: 'the Chromium at GSTACK_CHROMIUM_PATH could not launch',
+    fix: 'point GSTACK_CHROMIUM_PATH at a working Chromium, or unset GSTACK_CHROMIUM_PATH',
+  },
 } as const satisfies Record<string, GateOutcome>;
 
 export type GateReason = keyof typeof GATE_OUTCOMES;
