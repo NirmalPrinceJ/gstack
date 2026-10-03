@@ -4,6 +4,7 @@ import { createSharedPlanReuseSelector } from './helpers/shared-libs-plan-actor'
 import { createSharedInteractiveToolHandler } from './helpers/shared-libs-eval-fixture';
 import capturedNoHardening from './fixtures/shared-libs-plan-callers-no-hardening-36633323521.json';
 import capturedParity from './fixtures/shared-libs-plan-callers-parity-36776104571.json';
+import capturedOutOfScope from './fixtures/shared-libs-plan-callers-out-of-scope-37151477069.json';
 
 // Exact native R1 from the September 22 timeout. R2 was saved in an Edit, but
 // never sent as a native AUQ; its public draft fields are reconstructed below.
@@ -372,10 +373,21 @@ describe('bounded shared-code planning actor', () => {
     expect(run.answers).toEqual([]);
   });
 
+  // Census 37151477069 refused this exact public question: "Existing-caller migration
+  // and helper hardening stay out of scope" excludes work; it does not propose it.
+  test('actual native out-of-scope exclusion keeps unchanged-helper reuse answerable', async () => {
+    const run = actor();
+    const result = await run.callback('AskUserQuestion', capturedOutOfScope);
+    expect(result.updatedInput.answers).toEqual({ [capturedOutOfScope.questions[0].question]: capturedOutOfScope.questions[0].options[0].label });
+    expect(run.refusals).toEqual([]);
+  });
+
   test.each([
     'Harden helper parsing so behavior stays unchanged.',
     'Existing copies stay unchanged and tighten helper validation.',
     'Migrate existing retry-worker.ts; helper hardening stays unchanged.',
+    'Existing-caller migration stays out of scope and harden the helper.',
+    'Helper hardening is out of scope, but tighten helper validation.',
   ])('an unchanged-scope clause cannot hide an expansion: %s', async extra => {
     const input = structuredClone(capturedParity);
     input.questions[0].options[0].description += '\n' + extra;
