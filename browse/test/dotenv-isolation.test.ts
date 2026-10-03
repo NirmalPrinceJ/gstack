@@ -53,7 +53,7 @@ describe('D0: project .env and bunfig.toml are ignored', () => {
     }
     const out = path.join(path.dirname(project), 'probe.json');
     const src = path.join(path.dirname(project), 'probe.ts');
-    const bin = path.join(path.dirname(project), 'probe-bin');
+    const bin = path.join(path.dirname(project), process.platform === 'win32' ? 'probe-bin.exe' : 'probe-bin');
     fs.writeFileSync(src, probeSource(out));
     const build = Bun.spawnSync([process.execPath, 'build', '--compile', '--no-compile-autoload-dotenv', '--no-compile-autoload-bunfig', src, '--outfile', bin], { stdout: 'pipe', stderr: 'pipe', timeout: 60_000 });
     expect(build.exitCode, build.stderr.toString()).toBe(0);
@@ -63,7 +63,8 @@ describe('D0: project .env and bunfig.toml are ignored', () => {
     expect(fs.existsSync(marker)).toBe(false);
   }, 90_000);
 
-  test('the terminal agent spawned in the project sees neither the .env value nor the bunfig preload', async () => {
+  // The agent's owner identity comes from `ps`, which Windows runners lack.
+  test.skipIf(process.platform === 'win32')('the terminal agent spawned in the project sees neither the .env value nor the bunfig preload', async () => {
     const stateDir = path.join(path.dirname(project), 'state');
     fs.mkdirSync(stateDir, { recursive: true });
     const out = path.join(stateDir, 'agent-env.json');
