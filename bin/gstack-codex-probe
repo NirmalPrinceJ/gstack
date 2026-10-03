@@ -5,6 +5,8 @@
 # Functions (all prefixed with _gstack_codex_ for namespace hygiene):
 #   _gstack_codex_auth_probe      — multi-signal auth check (env + file)
 #   _gstack_codex_select_model    — resolve + print the runtime model (#2914)
+#   _gstack_codex_sandbox_mode    — read-only, or full access only for GSTACK_CODEX_NO_SANDBOX=1
+#   _gstack_codex_sandbox_preflight — free `codex sandbox` check before paid calls (Linux)
 #   _gstack_codex_model_probe     — round-trip probe of the selected model (#2477)
 #   _gstack_codex_version_check   — warn on known-bad Codex CLI versions
 #   _gstack_codex_timeout_wrapper — gtimeout -> timeout -> bash-native watchdog
@@ -65,6 +67,43 @@ _gstack_codex_select_model() {
   fi
   _GSTACK_CODEX_SEL_KIND="$_kind"
   echo "CODEX_MODEL: $_GSTACK_CODEX_SEL ($_kind; source: $_GSTACK_CODEX_SEL_SRC)" >&2
+  _gstack_codex_sandbox_mode
+}
+
+# --- Sandbox (B1) -----------------------------------------------------------
+
+_gstack_codex_sandbox_mode() {
+  # Every gstack Codex command passes -s / sandbox_mode from this variable, so
+  # one place decides it. Codex has no read-only mode without its sandbox, so
+  # the escape hatch is full access: honored only for exactly 1, only from the
+  # shell environment (never a dotenv file or config), and announced each use.
+  if [ "${GSTACK_CODEX_NO_SANDBOX:-}" = "1" ]; then
+    _GSTACK_CODEX_SANDBOX="danger-full-access"
+    echo "WARNING: GSTACK_CODEX_NO_SANDBOX=1: Codex runs this review without a sandbox and can read and write anything your user can. Use it only inside a container you trust." >&2
+  else
+    _GSTACK_CODEX_SANDBOX="read-only"
+  fi
+}
+
+_gstack_codex_sandbox_preflight() {
+  # Free check before the first paid call: `codex sandbox` starts the same
+  # bubblewrap sandbox with no model. Only a recognized sandbox failure blocks
+  # (exit 3, printed as missing coverage); success, a timeout, or an older CLI
+  # without the subcommand defers to the post-run classifier. Linux only, and
+  # skipped when the user turned the sandbox off. Fixtures:
+  # test/fixtures/codex-sandbox/.
+  [ "${GSTACK_CODEX_NO_SANDBOX:-}" = "1" ] && return 0
+  [ "$(uname -s 2>/dev/null)" = "Linux" ] || return 0
+  local _out _code _line
+  _out=$(_gstack_codex_timeout_wrapper 10 codex sandbox -c 'sandbox_mode="read-only"' true </dev/null 2>&1)
+  _code=$?
+  { [ "$_code" -eq 0 ] || [ "$_code" -eq 124 ]; } && return 0
+  _line=$(printf '%s\n' "$_out" | grep -m1 -iE '^[[:space:]]*bwrap: |bubblewrap is unavailable|landlock.{0,60}(fail|error|not supported|unsupported)|seccomp.{0,60}(fail|error)|user namespaces?.{0,80}(not (allowed|permitted|supported)|denied|disabled)' | sed 's/^[[:space:]]*//' | cut -c1-240)
+  [ -n "$_line" ] || return 0
+  echo "CODEX_SANDBOX: unavailable"
+  echo "Codex outside review unavailable: Codex's sandbox could not start here ($_line). No review ran; this is missing coverage, not a pass. Fix: enable unprivileged user namespaces for this container, or set GSTACK_CODEX_NO_SANDBOX=1." >&2
+  _gstack_codex_log_event "codex_sandbox_unavailable" 2>/dev/null || true
+  return 3
 }
 
 # --- Model round-trip probe (#2477) ------------------------------------------
@@ -89,9 +128,10 @@ _gstack_codex_model_probe() {
   #     ENOENT, non-executable binary, missing vendor payload). Deterministic,
   #     so fail-open is wrong: retrying never helps. Never cached — a reinstall
   #     fixes it and must be picked up on the very next probe (#2742).
-  #   MODEL_PROBE_INCONCLUSIVE (exit 0) — timeout/transient; FAIL-OPEN so a
-  #     slow network never wedges codex mode (the per-invocation Error
-  #     Handling entry still covers a later 400). Never cached.
+  #   MODEL_PROBE_INCONCLUSIVE (exit 0) — timeout/transient; the review still
+  #     runs so a slow network never wedges codex mode, but readiness is
+  #     unverified (_GSTACK_CODEX_PROBE_STATE=inconclusive, CODEX_MODE:
+  #     unverified) and the review's own classification decides. Never cached.
   #
   # Only call this AFTER _gstack_codex_auth_probe passes — probing without
   # auth just measures the auth failure again.
@@ -190,7 +230,10 @@ _gstack_codex_model_probe() {
   fi
   # Timeout (124) or transient failure: fail-open with a warning. The probe
   # exists to catch the deterministic model 400, not to gate on network luck.
-  echo "MODEL_PROBE_INCONCLUSIVE (exit $_code) — proceeding; if invocations fail with a model 400, see the codex skill's Error Handling entry."
+  # Callers report CODEX_MODE: unverified, never ready; the exit stays 0 so
+  # skills rendered before this marker keep running the review.
+  _GSTACK_CODEX_PROBE_STATE="inconclusive"
+  echo "MODEL_PROBE_INCONCLUSIVE (exit $_code) — CODEX_MODE: unverified; proceeding, and the review's own result is still checked. If invocations fail with a model 400, see the codex skill's Error Handling entry."
   return 0
 }
 
@@ -288,7 +331,7 @@ _gstack_codex_log_event() {
   # Emit a telemetry event to ~/.gstack/analytics/skill-usage.jsonl.
   # Gated on $_TEL != "off" (caller sets this from gstack-config).
   # Event types: codex_timeout, codex_auth_failed, codex_cli_missing,
-  #              codex_version_warning, codex_model_unusable.
+  #              codex_version_warning, codex_model_unusable, codex_sandbox_unavailable.
   # Payload schema: {skill, event, duration_s, ts}. NEVER includes prompt
   # content, env var values, or auth tokens.
   local _event="$1"

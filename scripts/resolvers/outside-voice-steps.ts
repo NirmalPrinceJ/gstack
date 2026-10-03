@@ -141,7 +141,7 @@ If the subagent fails or times out, record native coverage as incomplete. Contin
 }
 
 function adversarialOutsideChallenge(ctx: TemplateContext, isShip: boolean): string {
-  return `### ${outsideVoiceFor(ctx).label} adversarial challenge (runs whenever \`CODEX_MODE: ready\`)
+  return `### ${outsideVoiceFor(ctx).label} adversarial challenge (runs whenever \`CODEX_MODE\` is \`ready\` or \`unverified\`)
 
 If \`CODEX_MODE\` is \`ready\`:
 
@@ -255,7 +255,7 @@ ${outsideVoicePreflight(ctx, { disabledBehavior: 'codex-only', nativeReview: tru
 \`ready\` runs them; every other mode skips them with the printed reason.
 The ${outsideVoiceFor(ctx).nativeLabel} adversarial subagent always runs.
 
-**User override:** If the user explicitly requested "full review", "structured review", or "P1 gate", also run the ${outsideVoiceFor(ctx).label} structured review regardless of diff size (still requires \`CODEX_MODE: ready\`).
+**User override:** If the user explicitly requested "full review", "structured review", or "P1 gate", also run the ${outsideVoiceFor(ctx).label} structured review regardless of diff size (still requires \`CODEX_MODE: ready\` (or \`unverified\`)).
 
 ---
 
@@ -406,7 +406,7 @@ THE PLAN:
 }
 
 function codexPlanReviewRun(ctx: TemplateContext, ceo: boolean, needsApprovalReadiness: boolean): string {
-  return `**If \`CODEX_MODE: ready\` — run ${outsideVoiceFor(ctx).label}:**
+  return `**If \`CODEX_MODE: ready\` (or \`unverified\`) — run ${outsideVoiceFor(ctx).label}:**
 
 ${['plan-ceo-review', 'plan-eng-review'].includes(ctx.skillName) ? `Run this block only for \`ready\`, in the one foreground Bash call described below.
 Its opening harness guard rechecks the fresh shell: exit 78 uses the same Native
@@ -717,7 +717,7 @@ numbers, and CHANGELOG entries that over- or under-sell what shipped. Be terse. 
 
 THE DOCS AND DIFF: <include current contents of each touched document, with its path, plus affected source context; the parent appends the release diff below>"
 
-**If \`CODEX_MODE: ready\` — run ${outsideVoiceFor(ctx).label}:**
+**If \`CODEX_MODE: ready\` (or \`unverified\`) — run ${outsideVoiceFor(ctx).label}:**
 
 ${outsideVoiceInvocation(ctx, { timeoutMs: 300000, diffCommand: 'DOC_DIFF_BASE=$(git merge-base origin/<base> HEAD 2>/dev/null || git merge-base <base> HEAD) && git diff "$DOC_DIFF_BASE" HEAD' })}
 

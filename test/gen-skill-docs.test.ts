@@ -2193,7 +2193,8 @@ describe('DESIGN_OUTSIDE_VOICES resolver', () => {
       const marker = path.join(dir, 'must-not-execute');
       const product = `A product with $(touch ${marker}), \`touch ${marker}\`, and "quotes".\nUsers: builders.\n`;
       fs.writeFileSync(brief, product);
-      fs.writeFileSync(path.join(dir, 'codex'), `#!${process.execPath}\nrequire('fs').writeFileSync(process.env.CAPTURE, JSON.stringify(process.argv.slice(2)));\nconsole.log('Recommendation: choose a clear hierarchy because builders need to find their work.');\n`, { mode: 0o700 });
+      // Fake codex: the free sandbox preflight succeeds; exec writes its final message to -o.
+      fs.writeFileSync(path.join(dir, 'codex'), `#!${process.execPath}\nconst fs = require('fs'); const a = process.argv.slice(2); if (a[0] === 'sandbox') process.exit(0);\nfs.writeFileSync(process.env.CAPTURE, JSON.stringify(a));\nconst msg = 'Recommendation: choose a clear hierarchy because builders need to find their work.';\nif (a.includes('-o')) fs.writeFileSync(a[a.indexOf('-o') + 1], msg);\nconsole.log(msg);\n`, { mode: 0o700 });
       const prepare = (file: string) => command.replace("'<prepared-prompt-file>'", quote(file))
         .replaceAll('$HOME/.claude/skills/gstack', ROOT);
       const env = { ...process.env, PATH: dir + path.delimiter + process.env.PATH, CAPTURE: capture,

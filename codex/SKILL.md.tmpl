@@ -83,7 +83,7 @@ source ~/.claude/skills/gstack/bin/gstack-codex-probe
 if ! _gstack_codex_auth_probe >/dev/null; then
   _gstack_codex_log_event "codex_auth_failed"
   echo "AUTH_FAILED"
-else
+elif _gstack_codex_sandbox_preflight; then   # free; Linux only
   _gstack_codex_model_probe   # ~10s round trip on first run, cached 1h (#2477)
 fi
 _gstack_codex_version_check   # warns if known-bad, non-blocking
@@ -101,8 +101,14 @@ follow the "Model not supported (HTTP 400)" recovery steps in
 `## Error Handling` below. Running the modes anyway just burns four
 invocations on the same 400 (#2477).
 
-`MODEL_PROBE_INCONCLUSIVE` is non-blocking (timeout/transient network): pass
-the warning through and continue.
+If the output contains `CODEX_SANDBOX: unavailable`, stop: Codex's sandbox cannot
+start here, so every command it runs would fail and its review would read nothing.
+Relay the `Codex outside review unavailable: ...` line verbatim, including its fix.
+No paid call was made.
+
+`MODEL_PROBE_INCONCLUSIVE` is non-blocking (timeout/transient network): report
+`CODEX_MODE: unverified`, pass the warning through and continue; the mode's own
+validator still decides the result.
 
 If the version check printed a `WARN:` line, pass it through to the user verbatim
 (non-blocking — Codex may still work, but the user should upgrade).
@@ -299,6 +305,9 @@ If token count is not available, display: `Tokens: unknown`
      them to a model the account can use.
   3. If Codex printed `[notice.model_migrations]`, use that replacement model.
   Never present this as a model stall or a PASS — it is a fail-closed gate result.
+- **`VERDICT: unavailable`:** the shared validator found the run did not execute (for
+  example `Codex's sandbox could not start here`). Relay its line and fix verbatim; it is
+  missing coverage, never a PASS. Details: `docs/troubleshooting.md` in the gstack checkout.
 - **Empty response:** If `$TMPRESP` is empty or doesn't exist, tell the user:
   "Codex returned no response. Check stderr for errors."
 - **Session resume failure:** If resume fails, delete the session file and start fresh.
@@ -307,7 +316,8 @@ If token count is not available, display: `Tokens: unknown`
 
 ## Important Rules
 
-- **Never modify files.** This skill is read-only. Codex runs in read-only sandbox mode.
+- **Never modify files.** This skill is read-only. Codex runs in read-only sandbox mode
+  (full access only when the user exported `GSTACK_CODEX_NO_SANDBOX=1`; it warns on every use).
 - **Present output verbatim.** Do not truncate, summarize, or editorialize Codex's output
   before showing it. Show it in full inside the CODEX SAYS block.
 - **Add synthesis after, not instead of.** Any Claude commentary comes after the full output.

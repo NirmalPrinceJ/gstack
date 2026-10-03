@@ -28,11 +28,22 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { codexPreflight } from '../scripts/resolvers/constants';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const PROBE = path.join(ROOT, 'bin', 'gstack-codex-probe');
 
+const SANDBOX_FIXTURES = path.join(ROOT, 'test', 'fixtures', 'codex-sandbox');
 const STUB = `#!/usr/bin/env bash
+if [ "$1" = sandbox ]; then
+  echo "$*" >> "$STUB_LOG.sandbox"
+  case "\${STUB_SANDBOX:-ok}" in
+    ok) exit 0 ;;
+    userns) cat "$SANDBOX_FIXTURES/sandbox-userns-denied.stderr" >&2; exit 1 ;;
+    missing) cat "$SANDBOX_FIXTURES/sandbox-bwrap-missing.stderr" >&2; exit 101 ;;
+    unknown) echo "error: unrecognized subcommand 'sandbox'" >&2; exit 2 ;;
+  esac
+fi
 echo "invoked" >> "$STUB_LOG"
 printf '%s\\n' "$*" >> "$STUB_ARGS_LOG"
 case "\${STUB_MODE:-ok}" in
@@ -83,6 +94,7 @@ function runProbe(f: Fixture, stubMode: string, extraEnv: Record<string, string>
         STUB_MODE: stubMode,
         STUB_LOG: f.stubLog,
         STUB_ARGS_LOG: f.stubArgsLog,
+        SANDBOX_FIXTURES,
         _TEL: 'off',
         ...extraEnv,
       },
@@ -336,6 +348,101 @@ describe('codex model probe (#2477)', () => {
       expect(invocations(f)).toBe(3);
     } finally {
       fs.rmSync(f.home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('B1: codex sandbox preflight and unverified readiness', () => {
+  const unavailable = (detail: string) =>
+    `Codex outside review unavailable: Codex's sandbox could not start here (${detail}). No review ran; this is missing coverage, not a pass. Fix: enable unprivileged user namespaces for this container, or set GSTACK_CODEX_NO_SANDBOX=1.`;
+
+  for (const [mode, detail] of [
+    ['userns', 'bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces. See <https://deb.li/bubblewrap> or <file:///usr/share/doc/bubblewrap/README.Debian.gz>.'.slice(0, 240)],
+    ['missing', 'bubblewrap is unavailable: no system bwrap was found on PATH and no bundled codex-resources/bwrap binary was found next to the Codex executable'],
+  ] as const) {
+    test(`captured ${mode} failure -> sandbox unavailable (exit 3), named like the gate outcome`, () => {
+      const f = makeFixture();
+      try {
+        const r = runProbe(f, 'ok', { STUB_SANDBOX: mode }, '_gstack_codex_sandbox_preflight; echo "rc=$?"');
+        expect(r.stdout).toBe('CODEX_SANDBOX: unavailable\nrc=3\n');
+        expect(r.stderr.trim()).toBe(unavailable(detail));
+        expect(fs.readFileSync(`${f.stubLog}.sandbox`, 'utf-8')).toBe(`sandbox -c sandbox_mode="read-only" true\n`);
+        expect(invocations(f)).toBe(0);
+      } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
+    });
+  }
+
+  test('a healthy sandbox, an older CLI without the subcommand, or a timeout defers to the post-run check', () => {
+    const f = makeFixture();
+    try {
+      for (const mode of ['ok', 'unknown']) {
+        const r = runProbe(f, 'ok', { STUB_SANDBOX: mode }, '_gstack_codex_sandbox_preflight; echo "rc=$?"');
+        expect(r.stdout).toBe('rc=0\n');
+        expect(r.stderr).toBe('');
+      }
+      const timedOut = runProbe(f, 'ok', { STUB_SANDBOX: 'userns' },
+        '_gstack_codex_timeout_wrapper() { return 124; }; _gstack_codex_sandbox_preflight; echo "rc=$?"');
+      expect(timedOut.stdout).toBe('rc=0\n');
+    } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
+  });
+
+  test('GSTACK_CODEX_NO_SANDBOX: exactly 1 selects full access with a warning each use; other values keep read-only', () => {
+    const f = makeFixture();
+    try {
+      const warning = 'WARNING: GSTACK_CODEX_NO_SANDBOX=1: Codex runs this review without a sandbox and can read and write anything your user can. Use it only inside a container you trust.';
+      const on = runProbe(f, 'ok', { GSTACK_CODEX_NO_SANDBOX: '1', STUB_SANDBOX: 'userns' },
+        '_gstack_codex_select_model exec; echo "sandbox=$_GSTACK_CODEX_SANDBOX"; _gstack_codex_select_model exec; _gstack_codex_sandbox_preflight; echo "rc=$?"');
+      expect(on.stdout).toBe('sandbox=danger-full-access\nrc=0\n');
+      expect(on.stderr.split(warning).length - 1).toBe(2);
+      expect(fs.existsSync(`${f.stubLog}.sandbox`)).toBe(false);
+      for (const value of ['', 'true', 'yes', '0', '1 ']) {
+        const off = runProbe(f, 'ok', { GSTACK_CODEX_NO_SANDBOX: value }, '_gstack_codex_select_model exec; echo "sandbox=$_GSTACK_CODEX_SANDBOX"');
+        expect(off.stdout).toBe('sandbox=read-only\n');
+        expect(off.stderr).not.toContain('WARNING');
+      }
+    } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
+  });
+
+  test('the preflight runs only on Linux', () => {
+    const f = makeFixture();
+    try {
+      fs.writeFileSync(path.join(f.stubDir, 'uname'), '#!/usr/bin/env bash\necho Darwin\n', { mode: 0o755 });
+      const r = runProbe(f, 'ok', { STUB_SANDBOX: 'userns' }, '_gstack_codex_sandbox_preflight; echo "rc=$?"');
+      expect(r.stdout).toBe('rc=0\n');
+      expect(fs.existsSync(`${f.stubLog}.sandbox`)).toBe(false);
+    } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
+  });
+
+  test('an inconclusive model probe marks readiness unverified without blocking stale callers', () => {
+    const f = makeFixture();
+    try {
+      const r = runProbe(f, 'transient', {}, '_gstack_codex_model_probe; echo "rc=$? state=${_GSTACK_CODEX_PROBE_STATE:-}"');
+      expect(r.stdout).toContain('CODEX_MODE: unverified');
+      expect(r.stdout).toContain('rc=0 state=inconclusive');
+      const ok = runProbe(f, 'ok', {}, '_gstack_codex_model_probe; echo "state=${_GSTACK_CODEX_PROBE_STATE:-none}"');
+      expect(ok.stdout).toContain('state=none');
+    } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
+  });
+
+  test('the rendered preflight reports sandbox_unavailable before any paid probe, and unverified on an inconclusive probe', () => {
+    const block = codexPreflight({ disabledBehavior: 'codex-only' }).match(/```bash\n([\s\S]*?)\n```/)![1];
+    for (const [sandbox, model, mode, probed] of [
+      ['userns', 'ok', 'sandbox_unavailable', 0],
+      ['ok', 'transient', 'unverified', 1],
+      ['ok', 'ok', 'ready', 1],
+      ['ok', 'model400', 'model_unusable', 1],
+    ] as const) {
+      const f = makeFixture();
+      try {
+        fs.mkdirSync(path.join(f.home, '.claude', 'skills'), { recursive: true });
+        fs.symlinkSync(ROOT, path.join(f.home, '.claude', 'skills', 'gstack'));
+        const r = spawnSync('bash', ['-c', block], { encoding: 'utf8', timeout: 20000, env: {
+          PATH: `${f.stubDir}:${process.env.PATH ?? ''}`, HOME: f.home, CODEX_HOME: f.codexHome, GSTACK_HOME: f.gstackHome,
+          STUB_MODE: model, STUB_SANDBOX: sandbox, STUB_LOG: f.stubLog, STUB_ARGS_LOG: f.stubArgsLog, SANDBOX_FIXTURES } });
+        expect(r.stdout).toContain(`CODEX_MODE: ${mode}`);
+        const paid = fs.existsSync(f.stubArgsLog) ? fs.readFileSync(f.stubArgsLog, 'utf-8').split('\n').filter(l => l.includes('reply OK')).length : 0;
+        expect(paid).toBe(probed);
+      } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
     }
   });
 });

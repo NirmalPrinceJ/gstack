@@ -24,6 +24,8 @@ fs.writeFileSync(PROMPT, PROMPT_TEXT);
 const fakeSource = `
 import {writeFileSync} from 'node:fs';
 const args = process.argv.slice(2);
+// The free sandbox preflight (\`codex sandbox ... true\`) succeeds unless a test plants its failure.
+if (args[0] === 'sandbox') { if (process.env.FAKE_SANDBOX_STDERR) { console.error(process.env.FAKE_SANDBOX_STDERR); process.exit(1); } process.exit(0); }
 const claude = process.env.FAKE_PROVIDER === 'claude-code';
 const prompt = claude ? await Bun.stdin.text() : args[0] === 'exec' ? args[1] : '';
 writeFileSync(process.env.CAPTURE!, JSON.stringify({args,prompt,cwd:process.cwd()}));
@@ -36,7 +38,13 @@ const response = process.env.FAKE_RESPONSE || 'Recommendation: fix the seeded de
 if (claude) {
   if (process.env.FAKE_MODE === 'malformed') {console.log('{broken');process.exit(0);}
   console.log(JSON.stringify({result:response,session_id:'outside-session',modelUsage:{'model-a':{inputTokens:4},'model-b':{inputTokens:8}}}));
+} else if (args.includes('-o')) {
+  // codex exec --json -o <file>: events on stdout, the final message in <file>.
+  writeFileSync(args[args.indexOf('-o') + 1], response);
+  if (process.env.FAKE_EVENTS_FILE) process.stdout.write(await Bun.file(process.env.FAKE_EVENTS_FILE).text());
+  else console.log(JSON.stringify({type:'item.completed',item:{type:'agent_message',text:response}}));
 } else console.log(response);
+if (process.env.FAKE_STDERR_FILE) process.stderr.write(await Bun.file(process.env.FAKE_STDERR_FILE).text());
 process.exit(process.env.FAKE_MODE === 'nonzero' ? 4 : 0);
 `;
 fs.writeFileSync(FAKE_CLAUDE, fakeSource);
@@ -211,6 +219,55 @@ describe('generated outside-review dispatch', () => {
     }
   });
 
+  describe('B1: Codex sandbox failures are missing coverage, never a pass', () => {
+    const FIX = path.join(ROOT, 'test', 'fixtures', 'codex-sandbox');
+    const SANDBOX_LINE = "Codex outside review unavailable: Codex's sandbox could not start here (bwrap: No permissions to create new namespace";
+
+    test('the free preflight stops before any paid call', () => {
+      const result = invoke('claude', {}, { FAKE_SANDBOX_STDERR: fs.readFileSync(path.join(FIX, 'sandbox-userns-denied.stderr'), 'utf8') });
+      expect(result.status).toBe(1);
+      expect(fs.existsSync(CAPTURE)).toBe(false);
+      expect(result.stderr).toContain(SANDBOX_LINE);
+      expect(result.stdout).not.toContain('OUTSIDE_STATUS: completed');
+    });
+
+    test('exec: captured events where every command hit the sandbox are unavailable despite exit 0', () => {
+      const result = invoke('claude', {}, { FAKE_EVENTS_FILE: path.join(FIX, 'exec-json-userns-denied.jsonl'),
+        FAKE_RESPONSE: 'I could not run commands here. No issues found.\nRecommendation: ship because no issues were found.' });
+      expect(result.status).toBe(1);
+      expect(capture().args).toContain('--json');
+      expect(result.stdout).toContain('REASON: sandbox_unavailable');
+      expect(result.stderr).toContain(SANDBOX_LINE);
+      expect(result.stdout).not.toContain('OUTSIDE_STATUS: completed');
+    });
+
+    test('structured review: captured container transcript on stderr is unavailable, healthy transcript completes', () => {
+      const failed = invoke('claude', { structuredBase: 'main', gate: 'structured' }, {
+        FAKE_RESPONSE: fs.readFileSync(path.join(FIX, 'review-userns-denied.stdout'), 'utf8'),
+        FAKE_STDERR_FILE: path.join(FIX, 'review-userns-denied.stderr') });
+      expect(failed.status).toBe(1);
+      expect(failed.stderr).toContain(SANDBOX_LINE);
+      expect(failed.stdout).not.toContain('OUTSIDE_STATUS: completed');
+      expect(capture().args).toContain('sandbox_mode="read-only"');
+      const healthy = invoke('claude', { structuredBase: 'main', gate: 'structured' }, {
+        FAKE_RESPONSE: '[P2] naming nit', FAKE_STDERR_FILE: path.join(FIX, 'review-healthy.stderr') });
+      expect(healthy.status).toBe(0);
+      expect(healthy.stdout).toContain('OUTSIDE_STATUS: completed');
+    });
+
+    test('GSTACK_CODEX_NO_SANDBOX=1 switches every site to full access, warns, and skips the preflight', () => {
+      const env = { GSTACK_CODEX_NO_SANDBOX: '1', FAKE_SANDBOX_STDERR: 'bwrap: No permissions to create new namespace' };
+      const exec = invoke('claude', {}, env);
+      expect(exec.status).toBe(0);
+      expect(capture().args.slice(capture().args.indexOf('-s'), capture().args.indexOf('-s') + 2)).toEqual(['-s', 'danger-full-access']);
+      expect(exec.stderr).toContain('WARNING: GSTACK_CODEX_NO_SANDBOX=1: Codex runs this review without a sandbox');
+      expect(invoke('claude', { structuredBase: 'main', gate: 'structured' }, { ...env, FAKE_RESPONSE: '[P2] nit' }).status).toBe(0);
+      expect(capture().args).toContain('sandbox_mode="danger-full-access"');
+      expect(invoke('claude', {}, { GSTACK_CODEX_NO_SANDBOX: 'true' }).status).toBe(0);
+      expect(capture().args.slice(capture().args.indexOf('-s'), capture().args.indexOf('-s') + 2)).toEqual(['-s', 'read-only']);
+    });
+  });
+
   test('malformed Claude JSON cannot reach completion evaluation', () => {
     const result = invoke('codex',{}, {FAKE_MODE:'malformed'});
     expect(result.status).toBe(1);
@@ -251,7 +308,8 @@ describe('generated outside-review dispatch', () => {
   test('autoplan retains its Codex timeout event and hang record', () => {
     const events = path.join(TMP, 'autoplan-events');
     const probe = path.join(BIN, 'gstack-codex-probe');
-    fs.writeFileSync(probe, `_gstack_codex_select_model() { _GSTACK_CODEX_SEL=gpt-6-astra; }
+    fs.writeFileSync(probe, `_gstack_codex_select_model() { _GSTACK_CODEX_SEL=gpt-6-astra; _GSTACK_CODEX_SANDBOX=read-only; }
+_gstack_codex_sandbox_preflight() { return 0; }
 _gstack_codex_timeout_wrapper() { echo 'Partial finding'; return 124; }
 _gstack_codex_log_event() { printf '%s %s\\n' "$1" "$2" >> "$FAKE_EVENTS"; }
 _gstack_codex_log_hang() { printf '%s %s\\n' "$1" "$2" >> "$FAKE_EVENTS"; }
@@ -283,6 +341,7 @@ _gstack_codex_log_hang() { printf '%s %s\\n' "$1" "$2" >> "$FAKE_EVENTS"; }
     const pidFile = path.join(TMP, 'stubborn.pid');
     fs.mkdirSync(stubborn, { recursive: true });
     fs.writeFileSync(path.join(stubborn, 'codex'), `#!/bin/bash
+[ "$1" = sandbox ] && exit 0
 trap '' TERM
 echo $$ > "$STUBBORN_PID"
 echo 'Partial finding before the deadline'

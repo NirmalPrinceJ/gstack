@@ -133,3 +133,66 @@ describe('outside-review-result CLI', () => {
     expect(r.stdout).toBe('OUTSIDE_STATUS: completed provider=codex host=claude\n');
   });
 });
+
+describe('B1: a review whose sandbox could not start is unavailable, not clean', () => {
+  const FIX = path.join(ROOT, 'test', 'fixtures', 'codex-sandbox');
+  const read = (name: string) => fs.readFileSync(path.join(FIX, name), 'utf8');
+  const BWRAP = 'bwrap: No permissions to create new namespace, likely because the kernel does not allow non-privileged user namespaces.';
+
+  test('captured codex review in a container: exit 0, "no findings" text, bwrap failures on stderr', () => {
+    const result = classifyOutsideReview({ text: read('review-userns-denied.stdout'), stderr: read('review-userns-denied.stderr'), exit: 0, gate: 'structured' });
+    expect(result.verdict).toBe('unavailable');
+    expect(result.reason).toBe('sandbox_unavailable');
+    expect(result.detail).toStartWith(BWRAP);
+    // The text-only wrapper (old importers) also stops passing it: the review says it could not read the diff.
+    expect(validateOutsideReview(read('review-userns-denied.stdout'), 'structured').completed).toBe(false);
+  });
+
+  test('captured codex exec --json in a container: every command failed with a sandbox error', () => {
+    const result = classifyOutsideReview({ text: 'hello', events: read('exec-json-userns-denied.jsonl'), gate: 'execution' });
+    expect([result.verdict, result.reason]).toEqual(['unavailable', 'sandbox_unavailable']);
+    expect(result.detail).toStartWith(BWRAP);
+  });
+
+  test('captured healthy runs count as executed even though Codex warns about bubblewrap', () => {
+    const review = classifyOutsideReview({ text: read('review-healthy.stdout'), stderr: read('review-healthy.stderr'), gate: 'structured' });
+    expect(review.execution.state).toBe('ran');
+    expect(read('review-healthy.stderr')).toContain('could not find bubblewrap on PATH');
+    expect(classifyOutsideReview({ text: 'hello', events: read('exec-json-healthy.jsonl'), gate: 'execution' }).verdict).toBe('clean');
+  });
+
+  test('a real review that discusses bwrap, namespaces, landlock and seccomp still passes', () => {
+    const result = classifyOutsideReview({ text: read('review-mentions-sandbox.txt'), stderr: '', exit: 0, gate: 'review' });
+    expect([result.verdict, result.findings.highest, result.execution.state]).toEqual(['clean', 'P2', 'ran']);
+  });
+
+  test('sandbox stderr with a non-zero exit (preflight fixtures) names the sandbox line', () => {
+    const denied = classifyOutsideReview({ text: '', stderr: read('sandbox-userns-denied.stderr'), exit: 1, gate: 'review' });
+    expect([denied.reason, denied.detail?.slice(0, BWRAP.length)]).toEqual(['sandbox_unavailable', BWRAP]);
+    const missing = classifyOutsideReview({ text: '', stderr: read('sandbox-bwrap-missing.stderr'), exit: 101, gate: 'review' });
+    expect(missing.reason).toBe('sandbox_unavailable');
+    expect(missing.detail).toStartWith('bubblewrap is unavailable');
+  });
+
+  test('exact execution-failure phrases are the last fallback; positive evidence wins', () => {
+    const probe = 'I could not run commands in this sandbox, so I reviewed nothing. No issues found.';
+    expect(classifyOutsideReview({ text: probe, stderr: '', gate: 'structured' }).reason).toBe('commands_failed');
+    expect(classifyOutsideReview({ text: `The diff could not be read.\n${RECOMMEND}`, gate: 'review' }).reason).toBe('commands_failed');
+    const executed = '{"type":"item.completed","item":{"type":"command_execution","exit_code":0,"status":"completed","aggregated_output":"ok"}}';
+    expect(classifyOutsideReview({ text: `If commands could not run, the helper retries.\n${RECOMMEND}`, events: executed, gate: 'review' }).verdict).toBe('clean');
+    const failed = '{"type":"item.completed","item":{"type":"command_execution","exit_code":2,"status":"failed","aggregated_output":"fatal: not a git repository"}}';
+    expect(classifyOutsideReview({ text: RECOMMEND, events: `${failed}\n${failed}`, gate: 'review' }).detail).toBe('all 2 commands failed');
+  });
+
+  test('a clean "I did not find any issues" with empty stderr still passes', () => {
+    expect(classifyOutsideReview({ text: 'I did not find any issues.', stderr: '', exit: 0, gate: 'structured' }).verdict).toBe('clean');
+  });
+
+  test('the CLI reads --events', () => {
+    const events = path.join(FIX, 'exec-json-userns-denied.jsonl');
+    const r = cli(['--label', 'Codex outside review', '--events', events, 'execution', file('hello')]);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('REASON: sandbox_unavailable');
+    expect(r.stderr).toStartWith(`Codex outside review unavailable: Codex's sandbox could not start here (${BWRAP}`);
+  });
+});

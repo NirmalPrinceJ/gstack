@@ -128,13 +128,14 @@ export function outsideVoiceCommand(ctx: TemplateContext, opts: OutsideCommandOp
   const root = toShellPath(ctx.paths.skillRoot);
   const prompt = sh(opts.promptFile ?? '<prepared-prompt-file>');
   const codex = opts.structuredBase
-    ? `codex review --base ${sh(opts.structuredBase)} ${CODEX_REVIEW_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} < /dev/null`
-    : `codex exec "$_OUTSIDE_PROMPT" -C "$_REPO_ROOT" -s read-only ${CODEX_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} < /dev/null`;
+    ? `codex review --base ${sh(opts.structuredBase)} -c "sandbox_mode=\\"\${_GSTACK_CODEX_SANDBOX:?}\\"" ${CODEX_REVIEW_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} < /dev/null`
+    : `codex exec "$_OUTSIDE_PROMPT" -C "$_REPO_ROOT" -s "\${_GSTACK_CODEX_SANDBOX:?}" ${CODEX_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} --json -o "$_OUTSIDE_TMP/text" < /dev/null`;
   const invocation = v.id === 'codex'
     ? `source "${bin}/gstack-codex-probe" && _gstack_codex_select_model ${opts.structuredBase ? 'review' : 'exec'} || exit 1
+_gstack_codex_sandbox_preflight >/dev/null || exit 1
 ${opts.structuredBase ? '' : '_OUTSIDE_PROMPT=$(cat "$_OUTSIDE_INPUT") || exit 1\n'}_OUTSIDE_EXIT=0
-_gstack_codex_timeout_wrapper ${Math.ceil(opts.timeoutMs / 1000)} ${codex} >"$_OUTSIDE_TMP/text" 2>"$_OUTSIDE_TMP/stderr" || _OUTSIDE_EXIT=$?
-cat "$_OUTSIDE_TMP/text" || { [ "$_OUTSIDE_EXIT" -ne 0 ] || _OUTSIDE_EXIT=1; }`
+_gstack_codex_timeout_wrapper ${Math.ceil(opts.timeoutMs / 1000)} ${codex} >"$_OUTSIDE_TMP/${opts.structuredBase ? 'text' : 'events'}" 2>"$_OUTSIDE_TMP/stderr" || _OUTSIDE_EXIT=$?
+${opts.structuredBase ? 'cat "$_OUTSIDE_TMP/text"' : 'cat "$_OUTSIDE_TMP/text" 2>/dev/null || tail -n 20 "$_OUTSIDE_TMP/events"'}`
     : `_OUTSIDE_EXIT=0
 "${bin}/gstack-claude-code" --cwd "$_REPO_ROOT" --access ${opts.access ?? 'none'} --timeout-ms ${opts.timeoutMs} <"$_OUTSIDE_INPUT" >"$_OUTSIDE_TMP/result.json" 2>"$_OUTSIDE_TMP/stderr" || _OUTSIDE_EXIT=$?
 # Preserve session/usage/modelUsage from this JSON; multiple models have no invented primary.
@@ -159,7 +160,7 @@ ${v.id === 'codex' && ctx.skillName === 'autoplan' ? `if [ "$_OUTSIDE_EXIT" -eq 
 fi` : ''}
 cat "$_OUTSIDE_TMP/stderr" >&2 || { [ "$_OUTSIDE_EXIT" -ne 0 ] || _OUTSIDE_EXIT=1; }
 _OUTSIDE_RC=0
-bun "${root}/lib/outside-review-result.ts" --label '${v.label} outside review' --exit "$_OUTSIDE_EXIT" --stderr "$_OUTSIDE_TMP/stderr" ${opts.gate ?? 'review'} "$_OUTSIDE_TMP/text" || _OUTSIDE_RC=$?
+bun "${root}/lib/outside-review-result.ts" --label '${v.label} outside review' --exit "$_OUTSIDE_EXIT" --stderr "$_OUTSIDE_TMP/stderr" ${v.id === 'codex' && !opts.structuredBase ? '--events "$_OUTSIDE_TMP/events" ' : ''}${opts.gate ?? 'review'} "$_OUTSIDE_TMP/text" || _OUTSIDE_RC=$?
 ${v.id === 'claude-code' ? '[ "$_OUTSIDE_RC" -eq 1 ] || cat "$_OUTSIDE_TMP/text" || exit 1\n' : ''}case "$_OUTSIDE_RC" in
   0|3) ;;
   4) echo 'OUTSIDE_STATUS: unverified provider=${v.id} host=${ctx.host}'; exit 4 ;;
@@ -241,7 +242,7 @@ export function outsideVoiceFailurePolicy(ctx: TemplateContext, opts: OutsideVoi
 
 export function outsideVoiceProvenance(ctx: TemplateContext, phase: string): string {
   const v = outsideVoiceFor(ctx);
-  return `Retain the historical review-log skill ID; add \`"host":"${ctx.host}","outside_provider":"${v.id}","outside_status":"completed|unavailable|disabled|skipped","phase":"${phase}"\`. Record differing attempt outcomes separately. \`source:"${v.id}"\` requires completed CLI output; native uses \`source:"in-host"\` (historical \`source:"claude"\`: native Claude). Availability/native fallback is not outside completion. Preserve all reported modelUsage; unknown model identity stays unknown.`;
+  return `Retain the historical review-log skill ID; add \`"host":"${ctx.host}","outside_provider":"${v.id}","outside_status":"completed|unavailable|disabled|skipped","phase":"${phase}"\`. Record differing attempt outcomes separately. \`source:"${v.id}"\` requires completed CLI output; native uses \`source:"in-host"\` (historical \`source:"claude"\`: native Claude). Availability/native fallback is not outside completion. Preserve all reported modelUsage; unknown model identity stays unknown.${v.id === 'codex' ? ' If `WARNING: GSTACK_CODEX_NO_SANDBOX=1` printed, add `"codex_sandbox":"danger-full-access"`.' : ''}`;
 }
 
 export function generateOutsideVoiceRouting(ctx: TemplateContext): string {

@@ -259,7 +259,7 @@ export function autoplanDualVoiceEvidence(transcript: unknown[], options: Autopl
       }
     }
   }
-  result.codexUnavailable ||= result.claudeVoiceFired && ['not_installed', 'not_authed', 'broken_install', 'model_unusable'].includes(result.probeMode ?? '');
+  result.codexUnavailable ||= result.claudeVoiceFired && ['not_installed', 'not_authed', 'broken_install', 'sandbox_unavailable', 'model_unusable'].includes(result.probeMode ?? '');
   if (!result.claudeVoiceFired) result.reasons.push('No acknowledged current CEO phase dispatch');
   if (!result.codexVoiceFired && !result.codexUnavailable) {
     result.reasons.push('No acknowledged outside execution or actual unavailable probe result');

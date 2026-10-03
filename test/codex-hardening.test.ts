@@ -626,13 +626,16 @@ describe('codex skeleton+sections union: review sandbox + fail-closed gate + tim
   for (const relPath of ['codex tmpl union', 'codex rendered union'] as const) {
     const read = () => readCodexUnion(relPath === 'codex tmpl union' ? 'tmpl' : 'rendered');
 
-    test(`${relPath}: (a) every scoped codex review invocation pins sandbox_mode="read-only"`, () => {
+    test(`${relPath}: (a) every scoped codex review invocation pins sandbox_mode from the selected sandbox`, () => {
       const invocations = read()
         .split('\n')
         .filter((l) => /_gstack_codex_timeout_wrapper\s+\d+\s+codex\s+review\b/.test(l));
       expect(invocations.length).toBeGreaterThanOrEqual(1);
       for (const line of invocations) {
-        expect(line).toContain('sandbox_mode="read-only"');
+        // _gstack_codex_select_model sets read-only (full access only for
+        // GSTACK_CODEX_NO_SANDBOX=1, test/codex-model-probe.test.ts); :? stops
+        // an unselected command instead of inheriting config.toml's default.
+        expect(line).toContain('sandbox_mode=\\"${_GSTACK_CODEX_SANDBOX:?}\\"');
         // `codex review` has no -s/--sandbox flag (verified 0.147.0) — the
         // config override is the only lever. `-s read-only` here would fail
         // at argv parsing, which check (b) would then read as a gate FAIL.

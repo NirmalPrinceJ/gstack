@@ -78,7 +78,7 @@ fi
 source ~/.claude/skills/gstack/bin/gstack-codex-probe || exit 1
 _gstack_codex_select_model exec || exit 1
 # Fix 1: wrap with timeout (gtimeout/timeout fallback chain via probe helper)
-_gstack_codex_timeout_wrapper 540 codex exec "<prompt>" -C "$_REPO_ROOT" -s read-only {{CODEX_MODEL_CONFIG_FLAG}} -c 'model_reasoning_effort="medium"' {{CODEX_WEB_SEARCH_FLAG}} --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 "$PYTHON_CMD" -u -c "
+_gstack_codex_timeout_wrapper 540 codex exec "<prompt>" -C "$_REPO_ROOT" -s "${_GSTACK_CODEX_SANDBOX:?}" {{CODEX_MODEL_CONFIG_FLAG}} -c 'model_reasoning_effort="medium"' {{CODEX_WEB_SEARCH_FLAG}} --json -o "$TMPRESP" < /dev/null 2>"$TMPERR" | tee "$TMPRESP.events" | PYTHONUNBUFFERED=1 "$PYTHON_CMD" -u -c "
 import sys, json
 turn_completed_count = 0
 turn_failed = False
@@ -133,6 +133,7 @@ elif [ "$_CODEX_EXIT" != "0" ]; then
   head -20 "$TMPERR" 2>/dev/null | sed 's/^/  /' || true
   _gstack_codex_log_event "codex_nonzero_exit" "consult:$_CODEX_EXIT"
 fi
+bun ~/.claude/skills/gstack/lib/outside-review-result.ts --label 'Codex consult' --exit "$_CODEX_EXIT" --stderr "$TMPERR" --events "$TMPRESP.events" execution "$TMPRESP"
 ```
 
 **Session-cost reality (#2387, measured):** every `codex exec` call — resumed
@@ -155,7 +156,7 @@ cd "$_REPO_ROOT" || exit 1
 source ~/.claude/skills/gstack/bin/gstack-codex-probe || exit 1
 _gstack_codex_select_model exec || exit 1
 # Fix 1: wrap with timeout (gtimeout/timeout fallback chain via probe helper)
-_gstack_codex_timeout_wrapper 540 codex exec resume <session-id> "<prompt>" -c 'sandbox_mode="read-only"' {{CODEX_MODEL_CONFIG_FLAG}} -c 'model_reasoning_effort="medium"' {{CODEX_WEB_SEARCH_FLAG}} --json < /dev/null 2>"$TMPERR" | PYTHONUNBUFFERED=1 "$PYTHON_CMD" -u -c "
+_gstack_codex_timeout_wrapper 540 codex exec resume <session-id> "<prompt>" -c "sandbox_mode=\"${_GSTACK_CODEX_SANDBOX:?}\"" {{CODEX_MODEL_CONFIG_FLAG}} -c 'model_reasoning_effort="medium"' {{CODEX_WEB_SEARCH_FLAG}} --json -o "$TMPRESP" < /dev/null 2>"$TMPERR" | tee "$TMPRESP.events" | PYTHONUNBUFFERED=1 "$PYTHON_CMD" -u -c "
 <same python streaming parser as above, with flush=True on all print() calls>
 "
 # Fix 1: same hang detection pattern as new-session block
@@ -171,7 +172,12 @@ elif [ "$_CODEX_EXIT" != "0" ]; then
   head -20 "$TMPERR" 2>/dev/null | sed 's/^/  /' || true
   _gstack_codex_log_event "codex_nonzero_exit" "consult-resume:$_CODEX_EXIT"
 fi
+bun ~/.claude/skills/gstack/lib/outside-review-result.ts --label 'Codex consult' --exit "$_CODEX_EXIT" --stderr "$TMPERR" --events "$TMPRESP.events" execution "$TMPRESP"
 ```
+
+`VERDICT: unavailable` from either block means Codex did not answer from a working
+environment (its line names why, such as a sandbox that could not start): relay that
+line and do not present the output as Codex's answer.
 
 5. Capture session ID from the streamed output. The parser prints `SESSION_ID:<id>`
    from the `thread.started` event. Save it for follow-ups:
