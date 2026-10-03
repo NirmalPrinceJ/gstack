@@ -106,6 +106,15 @@ export interface CallJudgeOptions {
   jsonSchema?: JSONOutputFormat['schema'];
   /** Adaptive-thinking effort; the judge models accept no thinking token budget. */
   effort?: 'low' | 'medium' | 'high';
+  /** Observes the provider response before parsing (calibration cost and stop accounting); never sent. */
+  onResponse?: (response: JudgeResponseMeta) => void;
+}
+
+export interface JudgeResponseMeta {
+  id: string | null;
+  model: string | null;
+  stop_reason: string | null;
+  usage: { input_tokens: number; output_tokens: number } | null;
 }
 
 export async function callJudge<T>(
@@ -166,6 +175,13 @@ export async function callJudge<T>(
     }
   }
 
+  opts?.onResponse?.({
+    id: typeof response.id === 'string' ? response.id : null,
+    model: typeof response.model === 'string' ? response.model : null,
+    stop_reason: response.stop_reason ?? null,
+    usage: typeof response.usage?.input_tokens === 'number' && typeof response.usage?.output_tokens === 'number'
+      ? { input_tokens: response.usage.input_tokens, output_tokens: response.usage.output_tokens } : null,
+  });
   const text = response.content
     .filter(block => block.type === 'text')
     .map(block => block.text)
