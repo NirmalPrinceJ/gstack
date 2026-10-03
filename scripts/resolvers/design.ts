@@ -1119,24 +1119,24 @@ Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developer
  * B4 (#1076, #1254): DESIGN_READY only when the binary actually starts. A
  * binary that is merely executable can still be SIGKILLed at launch (an
  * invalid macOS code signature), so launch it (no arguments prints usage and
- * exits 0) under the portable deadline aside.ts uses. A success is cached by
- * inode + mtime so Gatekeeper's first-launch scan is paid once.
+ * exits 0) under the portable deadline aside.ts uses. A success is cached
+ * (inode + path, valid while newer than the binary) so Gatekeeper's
+ * first-launch scan is paid once.
  */
 function designReadyProbe(ctx: TemplateContext): string {
-  return `_DS=$("${toShellPath(ctx.paths.skillRoot)}/bin/gstack-paths" --get GSTACK_STATE_ROOT 2>/dev/null); _DC=\${_DS:+$_DS/design-ready}
-_DK="$(ls -diL "$D" 2>/dev/null | awk '{print $(1)}') $( (stat -L -c %Y "$D" || stat -L -f %m "$D") 2>/dev/null) $D"
+  return `_DS=$("${toShellPath(ctx.paths.skillRoot)}/bin/gstack-paths" --get GSTACK_STATE_ROOT 2>/dev/null); _DC=\${_DS:+$_DS/design-ready}; _DK=$(ls -diL "$D" 2>/dev/null)
 _dt() { if command -v gtimeout >/dev/null; then gtimeout 10 "$@"; elif command -v timeout >/dev/null; then timeout 10 "$@"
 elif command -v perl >/dev/null; then perl -e 'alarm(shift);exec(@ARGV)' 10 "$@"; else return 125; fi; }
-_RC=0
+_RC=0; _FIX="Fix: cd \${D%/design/dist/design} && ./setup"
 if [ ! -x "$D" ]; then _RC=missing
-elif [ -z "$_DC" ] || [ "$(cat "$_DC" 2>/dev/null)" != "$_DK" ]; then _dt "$D" >/dev/null 2>&1 </dev/null || _RC=$?
+elif [ ! "$_DC" -nt "$D" ] || [ "$(cat "$_DC")" != "$_DK" ]; then _dt "$D" >/dev/null 2>&1 </dev/null || _RC=$?
 fi
 case "$_RC" in
-  0) echo "DESIGN_READY: $D"; [ -n "$_DC" ] && printf '%s' "$_DK" > "$_DC" 2>/dev/null ;;
-  missing) echo "DESIGN_NOT_AVAILABLE: $D is not installed. Fix: cd \${D%/design/dist/design} && ./setup" ;;
+  0) echo "DESIGN_READY: $D"; [ -n "$_DC" ] && echo "$_DK" > "$_DC" 2>/dev/null ;;
+  missing) echo "DESIGN_NOT_AVAILABLE: $D is not installed. $_FIX" ;;
   124|142) echo "DESIGN_NOT_AVAILABLE: $D timed out after 10s at launch" ;;
   125) echo "DESIGN_NOT_AVAILABLE: no timeout, gtimeout or perl to bound the $D launch check" ;;
-  137) echo "DESIGN_NOT_AVAILABLE: $D exited 137 (killed at launch; on macOS usually an invalid code signature). Fix: cd \${D%/design/dist/design} && ./setup" ;;
+  137) echo "DESIGN_NOT_AVAILABLE: $D exited 137 (killed at launch; on macOS usually an invalid code signature). $_FIX" ;;
   *) echo "DESIGN_NOT_AVAILABLE: $D exited $_RC at launch" ;;
 esac`;
 }
