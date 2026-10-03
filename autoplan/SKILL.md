@@ -448,10 +448,8 @@ _LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | h
 # see. A stale old repo doc never shadows a newer private session.
 _REPOTOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _REPODOC=""
-if [ -n "$_REPOTOP" ]; then
-  [ -f "$_REPOTOP/DESIGN.md" ] && _REPODOC="$_REPOTOP/DESIGN.md"
-  [ -z "$_REPODOC" ] && _REPODOC=$(ls -t "$_REPOTOP"/docs/designs/*.md 2>/dev/null | head -1)
-fi
+# Only docs/designs/ holds feature design docs; a root DESIGN.md is the design system (#2839).
+[ -n "$_REPOTOP" ] && _REPODOC=$(ls -t "$_REPOTOP"/docs/designs/*.md 2>/dev/null | head -1)
 DESIGN="$_LOCALDOC"
 if [ -n "$_REPODOC" ] && { [ -z "$_LOCALDOC" ] || [ "$_REPODOC" -nt "$_LOCALDOC" ]; }; then
   DESIGN="$_REPODOC"
@@ -517,10 +515,8 @@ _LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | h
 # see. A stale old repo doc never shadows a newer private session.
 _REPOTOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _REPODOC=""
-if [ -n "$_REPOTOP" ]; then
-  [ -f "$_REPOTOP/DESIGN.md" ] && _REPODOC="$_REPOTOP/DESIGN.md"
-  [ -z "$_REPODOC" ] && _REPODOC=$(ls -t "$_REPOTOP"/docs/designs/*.md 2>/dev/null | head -1)
-fi
+# Only docs/designs/ holds feature design docs; a root DESIGN.md is the design system (#2839).
+[ -n "$_REPOTOP" ] && _REPODOC=$(ls -t "$_REPOTOP"/docs/designs/*.md 2>/dev/null | head -1)
 DESIGN="$_LOCALDOC"
 if [ -n "$_REPODOC" ] && { [ -z "$_LOCALDOC" ] || [ "$_REPODOC" -nt "$_LOCALDOC" ]; }; then
   DESIGN="$_REPODOC"
@@ -779,7 +775,6 @@ Review skills will load at each phase entry. Starting full review pipeline with 
 ## Phase 0.5: Outside reviewer preflight
 
 ```bash
-
 # Codex preflight: one block (functions sourced here don't persist to later blocks).
 _TEL=$(~/.claude/skills/gstack/bin/gstack-config get telemetry 2>/dev/null || echo off)
 _CODEX_CFG=$(~/.claude/skills/gstack/bin/gstack-config get codex_reviews 2>/dev/null || echo enabled)
@@ -793,13 +788,18 @@ elif ! command -v codex >/dev/null 2>&1; then
 elif ! _gstack_codex_auth_probe >/dev/null 2>&1; then
   _CODEX_MODE="not_authed"; _gstack_codex_log_event "codex_auth_failed" 2>/dev/null || true
 else
-  # Capture the probe's code: 2 means the CLI cannot execute at all, which is a
-  # different problem (and a different fix) from a model the account can't use.
-  _gstack_codex_model_probe; _CODEX_MP=$?
-  if [ "$_CODEX_MP" -eq 2 ]; then
+  # The free sandbox check runs before the paid model probe. Probe code 2 means
+  # the CLI cannot execute at all, a different fix from an unusable model.
+  _CODEX_MP=0; _gstack_codex_sandbox_preflight || _CODEX_MP=3
+  [ "$_CODEX_MP" -ne 0 ] || { _gstack_codex_model_probe; _CODEX_MP=$?; }
+  if [ "$_CODEX_MP" -eq 3 ]; then
+    _CODEX_MODE="sandbox_unavailable"
+  elif [ "$_CODEX_MP" -eq 2 ]; then
     _CODEX_MODE="broken_install"
   elif [ "$_CODEX_MP" -ne 0 ]; then
     _CODEX_MODE="model_unusable"
+  elif [ "${_GSTACK_CODEX_PROBE_STATE:-}" = inconclusive ]; then
+    _CODEX_MODE="unverified"
   else
     _CODEX_MODE="ready"; _gstack_codex_version_check 2>/dev/null || true
   fi
@@ -813,8 +813,9 @@ Branch on the echoed `CODEX_MODE`:
 - **`under_codex`** — stale artifact selected its own harness. Print: "Codex outside review unavailable: harness mismatch; no outside process started. Missing coverage. Repair: setup --host codex." Skip the outside invocation and follow the workflow's native-review instructions below. Conflicting inherited harness markers are not grounds to guess another provider.
 - **`not_authed`** — installed but no credentials. Print: "Codex not authenticated; outside coverage unavailable. Run `codex login` or set `$CODEX_API_KEY`." Keep the required Claude adversarial pass; do not dispatch a duplicate.
 - **`broken_install`** — the CLI is on PATH but cannot execute (spawn ENOENT, non-executable binary, missing vendor payload). Print: "Codex is installed but its binary cannot run — Codex passes skipped. Reinstall: `npm install -g @openai/codex`." Relay the probe's HINT lines. Keep the required Claude adversarial pass; do not dispatch a duplicate.
-- **`model_unusable`** — the selected model (see `CODEX_MODEL:`) is invalid or unavailable to the account (#2477: HTTP 400 on every call). Relay the probe's HINT lines and the fix (`GSTACK_CODEX_MODEL=<supported-model>` or config.toml `model`); never substitute a model. Keep the required Claude adversarial pass; do not dispatch a duplicate. The ~10s round trip is cached for 1h; timeouts fail open to `ready`.
-- **`ready`** — run the Codex pass below.
+- **`model_unusable`** — the selected model (see `CODEX_MODEL:`) is invalid or unavailable to the account (#2477: HTTP 400 on every call). Relay the probe's HINT lines and the fix (`GSTACK_CODEX_MODEL=<supported-model>` or config.toml `model`); never substitute a model. Keep the required Claude adversarial pass; do not dispatch a duplicate. The ~10s round trip is cached for 1h.
+- **`sandbox_unavailable`** — Codex's sandbox cannot start here (containers without user namespaces); the probe printed the reason and fix. No paid call ran; outside coverage is unavailable. Keep the required Claude adversarial pass; do not dispatch a duplicate.
+- **`ready`** or **`unverified`** — run the Codex pass below. `unverified` means the model check timed out; say so, and let the pass's own verdict decide.
 
 Disabled/unavailable retains applicable native passes. Recheck each outside dispatch.
 Record provider and completed/unavailable/disabled/skipped per phase; CEO covers
@@ -996,7 +997,7 @@ zero consensus counts. SOURCE = "codex" only for completed external
 output; native results use "in-host". OUTSIDE_STATUS is completed, unavailable,
 disabled or skipped. Never carry success across phases/runs; preserve modelUsage.
 
-Retain the historical review-log skill ID; add `"host":"claude","outside_provider":"codex","outside_status":"completed|unavailable|disabled|skipped","phase":"autoplan"`. Record differing attempt outcomes separately. `source:"codex"` requires completed CLI output; native uses `source:"in-host"` (historical `source:"claude"`: native Claude). Availability/native fallback is not outside completion. Preserve all reported modelUsage; unknown model identity stays unknown.
+Retain the historical review-log skill ID; add `"host":"claude","outside_provider":"codex","outside_status":"completed|unavailable|disabled|skipped","phase":"autoplan"`. Record differing attempt outcomes separately. `source:"codex"` requires completed CLI output; native uses `source:"in-host"` (historical `source:"claude"`: native Claude). Availability/native fallback is not outside completion. Preserve all reported modelUsage; unknown model identity stays unknown. Under `GSTACK_CODEX_NO_SANDBOX=1` add `"codex_sandbox":"danger-full-access"`.
 
 Present a phase coverage table (CEO, design, DX, eng): host, outside provider/status,
 native completion, findings, and partial coverage. Replace N with actual counts.
