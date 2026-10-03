@@ -5,9 +5,11 @@ import * as path from 'node:path';
 import { planDecisionCalibrations } from './fixtures/plan-decision-classification';
 import { buildPlanReviewDecisionPrompt } from './helpers/plan-review-decisions';
 import { ENG_BATCHING_FINDINGS } from './helpers/plan-review-cases';
+import { generateAskUserFormat } from '../scripts/resolvers/preamble/generate-ask-user-format';
+import { HOST_PATHS, type TemplateContext } from '../scripts/resolvers/types';
 const ROOT = path.resolve(import.meta.dir, '..');
 test('calibration briefs preserve source-required structure and actual choices without phase/qid reliance', () => {
-  const format = fs.readFileSync(path.join(ROOT, 'scripts/resolvers/preamble/generate-ask-user-format.ts'), 'utf8');
+  const format = generateAskUserFormat({ skillName: 'plan-ceo-review', host: 'claude', paths: HOST_PATHS.claude } as TemplateContext);
   const split = fs.readFileSync(path.join(ROOT, 'docs/askuserquestion-split.md'), 'utf8');
   for (const token of ['Project/branch/task:', 'ELI10:', 'Stakes if we pick wrong:', 'Recommendation:', 'Pros / cons:', 'Net:']) expect(format).toContain(token);
   for (const token of ['Include', 'Defer', 'Cut', 'Hold']) expect(split).toContain(token);
