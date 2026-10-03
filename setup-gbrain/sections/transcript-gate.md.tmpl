@@ -3,24 +3,27 @@ config (Step 8), ask whether this machine's coding-agent session
 transcripts may go into gbrain. Curated `~/.gstack/` artifacts (learnings,
 timeline, plans, designs, retros) sync whatever the answer; this question
 covers transcripts only. Transcripts are ingested only after the user picks
-`recent` or `all`.
+`recent`, `all` or `new` (only sessions that start from now on).
 
 Check whether the user already chose. The gate keys on `has`, because `get`
 prints the `off` default for a key that was never set:
 ```bash
 _TIM=$(~/.claude/skills/gstack/bin/gstack-config get transcript_ingest_mode 2>/dev/null || true)
 if ~/.claude/skills/gstack/bin/gstack-config has transcript_ingest_mode; then
+  _T='[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]t[0-9][0-9]:[0-9][0-9]:[0-9][0-9]z'
   case "$(printf '%s' "$_TIM" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')" in
-    recent|all|off) echo "TRANSCRIPT_MODE: $_TIM" ;;
-    *) echo "TRANSCRIPT_MODE: ask (stored value '$_TIM' is from an older version)" ;;
+    recent|all|off|recent+repos|all+repos|new@$_T|new@$_T+repos)
+      echo "TRANSCRIPT_MODE: $_TIM (repos: $(~/.claude/skills/gstack/bin/gstack-config get transcript_repos 2>/dev/null || true))" ;;
+    *) echo "TRANSCRIPT_MODE: ask (stored value '$_TIM' is not recognized by this version)" ;;
   esac
 else
   echo "TRANSCRIPT_MODE: ask (not set)"
 fi
 ```
 
-- `TRANSCRIPT_MODE: recent`, `all` or `off`: the user already chose. Do not
-  ask again; continue to Step 8.
+- `TRANSCRIPT_MODE:` with a value (`recent`, `all`, `off`, `new@<time>`,
+  any of them with `+repos`): the user already chose. Do not ask again;
+  continue to Step 8.
 - `TRANSCRIPT_MODE: ask`: ask once, below. With `SESSION_KIND: spawned` or
   `headless`, do not ask and do not store a value. Consent is never
   auto-chosen; leave the key unset (transcripts stay skipped) and report
@@ -38,7 +41,7 @@ Read `Total files in window`, `Total bytes` and the estimate from each.
 
 > "Ingest coding-agent sessions as they appear?"
 
-Yes stores `recent`; No stores `off`.
+Yes means `recent` (then ask the scope question below); No stores `off`.
 
 **Otherwise**, AskUserQuestion with the counts. Name both session sources
 and the destination brain from Step 4: the user's Supabase brain (Paths 1,
@@ -68,14 +71,24 @@ and the destination brain from Step 4: the user's Supabase brain (Paths 1,
 Options:
 - A) Yes, last 90 days (`recent`)
 - B) Yes, all history (`all`)
+- C) Yes, only new sessions starting now (`new`)
 - E) No, never ingest transcripts (`off`)
 
-Store the mode value, never the letter:
+On any yes, ask a second, separate question: "Which repos' sessions?"
+A) every project repo your repo policy allows, or B) only this repo (offer
+B only when `git remote get-url origin` succeeds here). Store nothing until
+both answers are known; if the user cancels in between, store nothing.
+Then store the scope, then the mode value (never the letter; `new` stores
+`new@` plus the current UTC time):
 ```bash
-~/.claude/skills/gstack/bin/gstack-config set transcript_ingest_mode <recent|all|off>
+~/.claude/skills/gstack/bin/gstack-config set transcript_repos "$(git remote get-url origin)"  # only this repo
+~/.claude/skills/gstack/bin/gstack-config unset transcript_repos                                 # every repo
+~/.claude/skills/gstack/bin/gstack-config set transcript_ingest_mode <recent|all|off|new@$(date -u +%Y-%m-%dT%H:%M:%SZ)>
+bun run ~/.claude/skills/gstack/lib/transcript-consent.ts --describe
 ```
+Tell the user the `--describe` line: what will be ingested, in words.
 
-For `recent` or `all`, run the first sync now:
+For `recent`, `all` or `new@…`, run the first sync now:
 ```bash
 bun run ~/.claude/skills/gstack/bin/gstack-gbrain-sync.ts --full --no-brain-sync
 ```
