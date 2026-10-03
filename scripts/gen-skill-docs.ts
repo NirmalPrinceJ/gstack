@@ -42,6 +42,8 @@ export interface GenerationOptions {
   contentLinkRoot?: string | null;
   /** Install-context render contract: absolute install root this render serves. */
   installRoot?: string | null;
+  /** Skills this install leaves unregistered (gstack-config disabled_skills); the router omits them. */
+  disabledSkills?: string[];
   model?: Model | null;
   catalogMode?: 'trim' | 'full';
   explainLevel?: 'default' | 'terse';
@@ -53,6 +55,7 @@ interface RenderOptions {
   outputRoot: string;
   contentLinkRoot: string | null;
   installRoot: string | null;
+  disabledSkills: string[];
   model: Model | null;
   catalogMode: 'trim' | 'full';
   explainLevel: 'default' | 'terse';
@@ -126,6 +129,10 @@ function parseGenerationArgs(args: string[]): GenerationOptions {
   }
   const outDir = value('--out-dir');
   const linkRoot = value('--link-root');
+  const disabledValue = value('--disabled-skills');
+  const disabledSkills = (disabledValue ?? '').split(/[\s,]+/).filter(Boolean);
+  const badDisabled = disabledSkills.find(n => !/^\/?[a-z0-9-]+$/.test(n));
+  if (badDisabled) throw new Error(`--disabled-skills takes skill names (got ${JSON.stringify(badDisabled)})`);
   const installRoot = value('--install-root');
   if (installRoot !== undefined && !INSTALL_ROOT_PATTERN.test(installRoot)) {
     throw new Error(`--install-root must be an absolute path of letters, digits and . _ - + @ / (got ${JSON.stringify(installRoot)})`);
@@ -140,6 +147,7 @@ function parseGenerationArgs(args: string[]): GenerationOptions {
     contentLinkRoot: linkRoot !== undefined ? path.resolve(linkRoot)
       : outDir !== undefined ? path.resolve(outDir) : null,
     installRoot: installRoot ?? null,
+    disabledSkills,
   };
 }
 
@@ -158,6 +166,27 @@ function rewriteInstallRoot(content: string, hostConfig: HostConfig, installRoot
     ? [`$HOME/${hostConfig.globalRoot}`, `~/${hostConfig.globalRoot}`]
     : ['$HOME/.claude/skills/gstack', '~/.claude/skills/gstack'];
   return defaults.reduce((text, from) => text.split(from).join(root), content);
+}
+
+/**
+ * C8 (#3018): the router names every skill and ends "When in doubt, invoke the
+ * skill", so it routed to skills the user disabled. A per-install render that
+ * knows its disabled skills drops their routing rules (keeping the other side
+ * of an "A or B" rule) and says which skills are off. The router itself and
+ * the way back (gstack-upgrade) can never be disabled.
+ */
+function omitDisabledSkills(content: string, disabled: string[]): string {
+  const off = new Set(disabled.map(n => n.replace(/^\//, '')).filter(n => n !== 'gstack' && n !== 'gstack-upgrade').map(n => n.replace(/^gstack-/, '')));
+  if (off.size === 0) return content;
+  const isOff = (ref: string) => off.has(ref.replace(/^`\/(?:gstack-)?|`$/g, ''));
+  const routed = content.split('\n').flatMap(line => {
+    const m = line.match(/^(- .*→ invoke )(`\/[a-z0-9-]+`(?: or `\/[a-z0-9-]+`)*)(.*)$/);
+    if (!m) return [line];
+    const kept = m[2].split(' or ').filter(ref => !isOff(ref));
+    return kept.length ? [`${m[1]}${kept.join(' or ')}${m[3]}`] : [];
+  }).join('\n');
+  const names = [...off].map(n => `\`/${n}\``).join(', ');
+  return routed.replace('\n## Route first\n', `\n## Route first\n\nDisabled on this install (never invoke or suggest them): ${names}.\n`);
 }
 
 /** Repoint only Claude section links, retaining global bin/browse/doc paths. */
@@ -841,6 +870,7 @@ function processTemplate(tmplPath: string, host: Host, options: RenderOptions): 
 
   // --out-dir: repoint section-base paths to the out-dir (no-op otherwise).
   if (host === 'claude') content = rewriteSectionBase(content, options.contentLinkRoot);
+  if (skillDir === '' || skillDir === '.') content = omitDisabledSkills(content, options.disabledSkills);
   content = rewriteInstallRoot(insertRuntimePreludes(rewriteCarvedSectionRefs(content, ctx), ctx), currentHostConfig, options.installRoot);
 
   return { outputPath, content, symlinkLoop, metadata };
@@ -921,6 +951,7 @@ export async function runGeneration(settings: GenerationOptions = {}): Promise<G
     outputRoot: path.resolve(settings.outputRoot ?? ROOT),
     contentLinkRoot: settings.contentLinkRoot ?? null,
     installRoot: settings.installRoot ?? null,
+    disabledSkills: settings.disabledSkills ?? [],
     model: settings.model ?? null,
     catalogMode: settings.catalogMode ?? 'trim',
     explainLevel: settings.explainLevel ?? 'default',
