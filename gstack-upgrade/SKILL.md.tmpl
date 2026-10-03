@@ -102,6 +102,10 @@ elif [ -d ".claude/skills/gstack" ]; then
 elif [ -d "$HOME/.claude/skills/gstack" ]; then
   INSTALL_TYPE="vendored-global"
   INSTALL_DIR="$HOME/.claude/skills/gstack"
+elif _SRC=$({{BIN_DIR}}/gstack-paths --get GSTACK_STATE_ROOT 2>/dev/null) && _SRC=$(awk -F '\t' '$(1) == "{{HOST_ID}}" && $(6) != "-" { print $(6); exit }' "$_SRC/installs.tsv" 2>/dev/null) && [ -d "$_SRC/.git" ]; then
+  # The install registry names the checkout setup activated for this host (e.g. a ~/gstack clone).
+  INSTALL_TYPE="global-git"
+  INSTALL_DIR="$_SRC"
 else
   echo "ERROR: gstack not found"
   exit 1

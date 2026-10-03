@@ -236,3 +236,30 @@ describe.skipIf(IS_WINDOWS)('C9: destructive upgrade/spec fences refuse bad path
     expect(problems).toEqual([]);
   }, 60_000);
 });
+
+describe.skipIf(IS_WINDOWS)('DX-7: Step 2 finds the registered source checkout for this host', () => {
+  test('codex: the README ~/gstack clone recorded in the install registry is the install dir', () => {
+    const step2 = fence(hostRenders.find(r => r.host === 'codex')!.upgrade, 'Install type: $INSTALL_TYPE at $INSTALL_DIR');
+    const w = mkdtempSync(join(root, 'dx7-'));
+    const home = join(w, 'home');
+    const state = join(w, 'state');
+    const clone = join(home, 'gstack');
+    makeGstackLike(clone, true);
+    mkdirSync(state, { recursive: true });
+    // Setup's Codex runtime root carries bin/ and lib/ linked from the clone; it has no .git.
+    const runtime = join(home, '.codex', 'skills', 'gstack');
+    mkdirSync(join(runtime, 'bin'), { recursive: true });
+    mkdirSync(join(runtime, 'lib'), { recursive: true });
+    writeFileSync(join(runtime, 'bin', 'gstack-paths'), `#!/bin/sh\necho "${state}"\n`, { mode: 0o755 });
+    writeFileSync(join(state, 'installs.tsv'), [
+      ['claude', 'global', '-', '/x', '/x', '/elsewhere', '1.0', '-', 'committed', '0'].join('\t'),
+      ['codex', 'global', '-', join(home, '.codex', 'skills'), runtime, clone, '1.0.0.0', 'false', 'committed', '0'].join('\t'),
+    ].join('\n') + '\n');
+    const cwd = mkdtempSync(join(w, 'cwd-'));
+    const run = () => spawnSync('env', ['-i', `HOME=${home}`, `PATH=${process.env.PATH}`, 'bash', '-c', step2], { cwd, encoding: 'utf8', timeout: 20_000 });
+    const r = run();
+    expect(r.stdout.trim(), r.stderr).toBe(`Install type: global-git at ${clone}`);
+    rmSync(join(state, 'installs.tsv'));
+    expect(run().stdout).toContain('ERROR: gstack not found');
+  });
+});
