@@ -234,16 +234,14 @@ Record the test created before repair in 8a.5 and its re-test result from 8c:
 file, command, attribution, tested boundary, value card and red/green evidence, or why it is deferred.
 This step records results; it does not create another test.
 Healthy-contract commits use `test(qa): regression test for {contract}`.
-**WTF-likelihood exclusion:** test-only commits do not count toward the heuristic.
+**Self-regulation exclusion:** test-only commits do not count toward the stop rule in 8f.
 
 ### 8f. Self-Regulation (STOP AND EVALUATE)
 
-Every 5 fixes (or after any revert), judge the WTF-likelihood: is the loop now doing
-more harm than good? Reverts, edits to unrelated files, fixes spanning many files, a
-long run of fixes, and a queue of only Low issues all raise it.
-
-**If it is high** (two reverts or one unrelated-file edit is enough): STOP immediately.
-Show the user what you've done so far. Ask whether to continue.
+Every 5 fixes, and after any revert, check whether the loop is doing more harm than
+good. **STOP immediately** after two reverts or one edit to a file unrelated to the
+finding. Also stop when fixes keep spanning many files or only Low issues remain.
+Show the user what you've done so far and ask whether to continue.
 
 **Hard cap: 50 fixes.** After 50 fixes, stop regardless of remaining issues.
 
