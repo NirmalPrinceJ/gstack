@@ -84,6 +84,50 @@ describe('runPlanSkillObservation through the fake driver', () => {
   });
 });
 
+describe('runPlanSkillObservation idle turn end (captured CI screens)', () => {
+  const captures = JSON.parse(fs.readFileSync(new URL('../fixtures/pty-idle-turn-end.json', import.meta.url), 'utf8'));
+  const observe = (frames: FakeFrame[], opts: { timeoutMs: number; requireProseEvidence?: boolean }) => withConfigDir(async () => {
+    const fake = createFakePtyDriver({ frames: [{ screen: IDLE }, ...frames] });
+    return runPlanSkillObservation({ skillName: 'plan-eng-review', inPlanMode: false, model: 'fake-model', driver: fake.driver,
+      ...(opts.requireProseEvidence ? { extraArgs: ['--disallowedTools', 'AskUserQuestion'], requireProseEvidence: true } : {}), timeoutMs: opts.timeoutMs });
+  });
+  const slash = (screen: string): FakeFrame => ({ onInput: '/plan-eng-review\r', screen });
+
+  test('the 988e985 idle turn end stops promptly as a failure that names it', async () => {
+    const obs = await observe([slash(captures.scopePendingIdle.visible)], { timeoutMs: 300_000, requireProseEvidence: true });
+    expect(obs.outcome).toBe('timeout');
+    expect(obs.elapsedMs).toBeLessThan(30_000);
+    expect(obs.summary).toContain('the CLI turn ended at an idle prompt (✻Cooked for 24s · done 12:46 AM) with no question, plan or write');
+    expect(obs.summary).toContain('instead of waiting out the 300000ms budget');
+    expect(obs.scopeGateQuestionObserved).toBe(false);
+  });
+
+  test('a provider error panel is named in the failure', async () => {
+    const obs = await observe([slash(captures.apiErrorIdle.visible)], { timeoutMs: 300_000, requireProseEvidence: true });
+    expect(obs.outcome).toBe('timeout');
+    expect(obs.elapsedMs).toBeLessThan(30_000);
+    expect(obs.summary).toContain('after its public error panel: ●API Error: Connection lost mid-response.');
+  });
+
+  test('negative control: a visible prose menu before the idle prompt is still asked', async () => {
+    const obs = await observe([slash(captures.menuThenIdle.visible)], { timeoutMs: 300_000, requireProseEvidence: true });
+    expect(obs.outcome).toBe('asked');
+    expect(obs.scopeGateQuestionObserved).toBe(true);
+  });
+
+  test('negative controls: thinking, a screen that changes before settling, and an unconsulted judge keep the deadline', async () => {
+    const scope: string = captures.scopePendingIdle.visible;
+    const thinking = await observe([slash(scope.slice(0, scope.indexOf('●Scope')))], { timeoutMs: 40_000, requireProseEvidence: true });
+    expect(thinking).toMatchObject({ outcome: 'timeout', summary: 'no terminal outcome within 40000ms', elapsedMs: 40_000 });
+    const resumed = await observe([slash(scope), { afterMs: 6_000, screen: '✶ Thinking… (30s · thinking)' }], { timeoutMs: 40_000, requireProseEvidence: true });
+    expect(resumed).toMatchObject({ outcome: 'timeout', summary: 'no terminal outcome within 40000ms', elapsedMs: 40_000 });
+    // Without requireProseEvidence the judge could still credit 'asked'; it
+    // first runs after 60s, so a shorter budget never stops early.
+    const judgeLive = await observe([slash(scope)], { timeoutMs: 50_000 });
+    expect(judgeLive).toMatchObject({ outcome: 'timeout', summary: 'no terminal outcome within 50000ms', elapsedMs: 50_000 });
+  });
+});
+
 describe('runPlanSkillCounting through the fake driver', () => {
   const count = (frames: FakeFrame[], seedTranscript = true) => withConfigDir(async configDir => {
     const fake = createFakePtyDriver({ configDir, frames: [

@@ -11,6 +11,7 @@ import {
   isAutoDecidedVisible,
   classifyVisible,
   classifyPlanCountFrame,
+  idleTurnEnd,
 } from './claude-pty-runner';
 
 describe('saved preference annotation', () => {
@@ -223,5 +224,37 @@ describe('isNumberedOptionListVisible', () => {
     `;
     expect(isNumberedOptionListVisible(sample)).toBe(true);
     expect(isPermissionDialogVisible(sample)).toBe(true);
+  });
+});
+
+describe('idle turn end (captured CI screens)', () => {
+  const captures = JSON.parse(readFileSync(new URL('../fixtures/pty-idle-turn-end.json', import.meta.url), 'utf8'));
+  const scope: string = captures.scopePendingIdle.visible;
+  const api: string = captures.apiErrorIdle.visible;
+
+  test('the 988e985 pending line, end-of-turn line and empty prompt are an idle turn end', () => {
+    expect(idleTurnEnd(scope)).toEqual({ done: '✻Cooked for 24s · done 12:46 AM' });
+    expect(classifyVisible(scope)).toBeNull();
+  });
+
+  test('the 6a6aa32 provider error panel is reported with its idle turn end', () => {
+    expect(idleTurnEnd(api)).toEqual({ done: '✻ Sautéedfor1m 20s · done11:34PM',
+      apiError: '●API Error: Connection lost mid-response. The response above may be incomplete.' });
+  });
+
+  test('negative controls: still thinking, a resumed turn, extra footer text and an open question are not idle', () => {
+    expect(idleTurnEnd(scope.slice(0, scope.indexOf('●Scope')))).toBeNull();
+    expect(idleTurnEnd(scope + '\r✶ Thinking… (3s · thinking)')).toBeNull();
+    const footer = scope.lastIndexOf('← for agents');
+    expect(idleTurnEnd(`${scope.slice(0, footer)}← for agents · 1 background task${scope.slice(footer + '← for agents'.length)}`)).toBeNull();
+    const question = '☐ Scope\nWhat should I review?\n❯ 1. The current branch diff\n  2. A plan or design doc\nEnter to select · ↑/↓ to navigate · Esc to cancel';
+    expect(idleTurnEnd(question)).toBeNull();
+    expect(idleTurnEnd(scope + '\r' + question)).toBeNull();
+  });
+
+  test('an API Error mention in prose or in an earlier turn is not this turn\'s error panel', () => {
+    expect(idleTurnEnd('The docs mention API Error: as an example.\r✻ Worked for 3s · done 1:00 PM\r❯ \r← for agents')).toEqual({ done: '✻ Worked for 3s · done 1:00 PM' });
+    const earlier = api.replace(/✻ Sautéedfor1m 20s · done11:34PM[\s\S]*$/, '✻ Sautéedfor1m 20s · done11:34PM\r❯ /plan-design-review\r●Done.\r✻ Worked for 2s · done 11:35PM\r❯ \r← for agents');
+    expect(idleTurnEnd(earlier)).toEqual({ done: '✻ Worked for 2s · done 11:35PM' });
   });
 });

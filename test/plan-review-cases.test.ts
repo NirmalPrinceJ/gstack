@@ -818,13 +818,14 @@ describe('Eng approved-work decision gate', () => {
     expect(bootstrap).toContain('Context Recovery');
     expect(bootstrap).toContain('Keep the reviewed target fixed');
     const namedTarget = bootstrap.indexOf('**User-named target (outside plan mode):**');
-    const headless = bootstrap.indexOf('**Headless or spawned session without a target:**');
-    expect(0 < namedTarget && namedTarget < headless && headless < bootstrap.indexOf('**Initial selector algorithm')).toBe(true);
-    const pending = bootstrap.slice(headless, bootstrap.indexOf('**Initial selector algorithm'));
-    expect(pending).toContain('neither rule above supplies an unambiguous target');
-    expect(pending).toContain('Scope pending: provide a plan/path or explicitly request branch diff');
-    expect(pending).toContain('STOP. Do not run the preamble or review tools');
-    expect(pending).toContain('The session type does not choose a target or approve work');
+    expect(0 < namedTarget && namedTarget < bootstrap.indexOf('**Initial selector algorithm')).toBe(true);
+    // A missing or disallowed tool led models to infer a headless session and
+    // end the turn with a separate pending report instead of the menu
+    // (988e985 slice 5 and three earlier captures). The menu is the one
+    // no-transport outcome, whatever the session type.
+    expect(bootstrap).toContain('send the menu as plain prose and STOP, whatever the session type; the session type never chooses a target or approves work');
+    expect(bootstrap).not.toContain('Headless or spawned session');
+    expect(bootstrap).not.toContain('Scope pending');
     expect(skeleton).toContain('Copy required command, output and question formats exactly. Apply Voice to newly composed prose');
   });
 

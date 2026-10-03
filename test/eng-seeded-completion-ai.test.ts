@@ -140,7 +140,7 @@ async function mockedObservation(frames: string[], verdict: 'waiting' | 'working
     isUnknownSlashCommandVisible: predicates.isUnknownSlashCommandVisible,
     isScopeGateQuestionVisible: predicates.isScopeGateQuestionVisible,
     isScopeGateAutoSelectVisible: predicates.isScopeGateAutoSelectVisible,
-    classifyVisible, extractPlanFilePath, findNativeAutoDecision: () => null,
+    classifyVisible, extractPlanFilePath, idleTurnEnd: predicates.idleTurnEnd, findNativeAutoDecision: () => null,
     judgePtyState: () => { judged++; return { state: verdict, reasoning: 'synthetic current-frame verdict' }; },
     runPtySession: predicates.runPtySession,
   };

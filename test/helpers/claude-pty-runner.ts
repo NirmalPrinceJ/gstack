@@ -8,7 +8,7 @@
  * Moved from the former 5,047-line claude-pty-runner.ts.
  */
 export { resolveClaudeBinary } from './pty/binary';
-export { stripAnsi, isRejectedSlashCommand, isPlanReadyVisible, isAutoDecidedVisible, extractPlanFilePath, planFileHasDecisionsSection, TAIL_SCAN_BYTES, isPermissionDialogVisible, stripPtyResidue, isNumberedOptionListVisible } from './pty/screen';
+export { stripAnsi, isRejectedSlashCommand, isPlanReadyVisible, isAutoDecidedVisible, extractPlanFilePath, planFileHasDecisionsSection, TAIL_SCAN_BYTES, isPermissionDialogVisible, stripPtyResidue, isNumberedOptionListVisible, API_ERROR_PANEL, idleTurnEnd } from './pty/screen';
 export { selectPtyNumberedOption, launchClaudePty } from './pty/launch';
 export type { ClaudePtyOptions, ClaudePtySession } from './pty/launch';
 export { runPtySession, realPtyDriver } from './pty/session';

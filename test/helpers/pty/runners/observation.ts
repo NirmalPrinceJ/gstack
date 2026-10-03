@@ -14,7 +14,7 @@ import { classifyVisible, isProseAUQVisible, isScopeGateAutoSelectVisible, isSco
 import { judgePtyState, logPtySnapshot } from '../judge';
 import type { PtyStateVerdict } from '../judge';
 import type { ClaudePtySession } from '../launch';
-import { extractPlanFilePath, isNumberedOptionListVisible, isPermissionDialogVisible, isPlanReadyVisible, isRejectedSlashCommand } from '../screen';
+import { extractPlanFilePath, idleTurnEnd, isNumberedOptionListVisible, isPermissionDialogVisible, isPlanReadyVisible, isRejectedSlashCommand } from '../screen';
 import { realPtyDriver, runPtySession, type PtyDriver, type PtyStep } from '../session';
 
 // ---------------------------------------------------------------------------
@@ -46,7 +46,10 @@ export interface PlanSkillObservation {
    *                     the plan file was rewritten with findings before any
    *                     AskUserQuestion render (the May-2026 transcript bug)
    *  - 'exited'       — claude process died before any of the above
-   *  - 'timeout'      — none of the above within budget
+   *  - 'timeout'      — none of the above within budget, or the CLI turn
+   *                     ended at an idle prompt with none of the above and
+   *                     nothing left that could still classify (the summary
+   *                     says which; see IDLE_SETTLE_MS)
    */
   outcome:
     | 'asked'
@@ -207,7 +210,7 @@ export async function runPlanSkillObservation(opts: PlanSkillObservationOptions)
     proseAUQEverObserved: false, waitingEverObserved: false,
     scopeGateQuestionObserved: false, scopeGateAutoSelectObserved: false,
     scopeTranscript: { status: 'missing', calls: [], assistantMessages: [] }, scopeTools: [],
-    nativeAutoDecide: null, nativePolledAt: null,
+    nativeAutoDecide: null, nativePolledAt: null, idleVisible: undefined, idleSince: 0,
     tokensObserved: Object.fromEntries((opts.trackTokens ?? []).map(t => [t, false])),
   };
   return runPtySession<PlanSkillObservation>({
@@ -267,6 +270,9 @@ interface ObservationRun {
   nativeAutoDecide: NativeAutoDecision | null;
   nativePolledAt: number | null;
   tokensObserved: Record<string, boolean>;
+  /** Visible text when the current idle turn end was first seen, and when. */
+  idleVisible: string | undefined;
+  idleSince: number;
 }
 
 async function observationPreflightTimeout(run: ObservationRun, session: ClaudePtySession, summary: string): Promise<PlanSkillObservation> {
@@ -335,6 +341,8 @@ function observationFlags(run: ObservationRun, session: ClaudePtySession) {
 
 const JUDGE_AFTER_MS = 60_000;
 const JUDGE_INTERVAL_MS = 30_000;
+/** An idle turn end must hold, with the visible text unchanged, this long. */
+const IDLE_SETTLE_MS = 10_000;
 
 async function observationTick(run: ObservationRun, session: ClaudePtySession): Promise<PtyStep<PlanSkillObservation>> {
   const { opts, driver } = run;
@@ -412,7 +420,31 @@ async function observationTick(run: ObservationRun, session: ClaudePtySession): 
       } };
     }
   }
-  return 'continue';
+  return idleTurnStep(run, session, visible);
+}
+
+/**
+ * The CLI ended its turn at an empty prompt with nothing classified: no input
+ * will arrive, so waiting out the budget cannot change the result. Stop once
+ * the screen has held still for IDLE_SETTLE_MS and nothing can still credit
+ * it: classification ran on this same text, and the judge either cannot
+ * grant 'asked' (requireProseEvidence, or a prose question already observed)
+ * or has already judged this unchanged screen (its verdict is cached by
+ * screen hash, so later ticks repeat it). The result is what the deadline
+ * would return, with a summary that names the idle turn end.
+ */
+function idleTurnStep(run: ObservationRun, session: ClaudePtySession, visible: string): PtyStep<PlanSkillObservation> {
+  const now = run.driver.now();
+  const idle = idleTurnEnd(visible);
+  if (!idle || visible !== run.idleVisible) {
+    run.idleVisible = idle ? visible : undefined;
+    run.idleSince = now;
+    return 'continue';
+  }
+  const judgeCanCredit = !run.opts.requireProseEvidence && !run.proseAUQEverObserved;
+  const judgedIdleScreen = run.lastJudgeVerdict !== null && run.lastJudgeAt >= run.idleSince;
+  if (now - run.idleSince < IDLE_SETTLE_MS || judgeCanCredit && !judgedIdleScreen) return 'continue';
+  return { done: observationTimeout(run, session, idle) };
 }
 
 /** Cheap per-tick surface tracking; each flag is once-true (high water). */
@@ -457,14 +489,17 @@ function observeHighWaterMarks(run: ObservationRun, session: ClaudePtySession, v
  * This catches the model-surfaced-then-resumed-thinking case where
  * by the time the timeout fires, the buffer has moved past the
  * options into spinner state but the question DID surface earlier. */
-function observationTimeout(run: ObservationRun, session: ClaudePtySession): PlanSkillObservation {
+function observationTimeout(run: ObservationRun, session: ClaudePtySession, idle?: ReturnType<typeof idleTurnEnd>): PlanSkillObservation {
   const { opts, driver, lastJudgeVerdict } = run;
   const finalVisible = session.visibleSince(run.since);
+  const idleEnd = idle
+    ? `the CLI turn ended at an idle prompt (${idle.done})${idle.apiError ? ` after its public error panel: ${idle.apiError}` : ''}`
+    : '';
   if (run.proseAUQEverObserved || run.waitingEverObserved && !opts.requireProseEvidence) {
     return {
       outcome: 'asked',
       summary:
-        `prose-AUQ surface observed during run (proseAUQEverObserved=${run.proseAUQEverObserved}, waitingEverObserved=${run.waitingEverObserved}); model surfaced the question and the test budget elapsed without a follow-up classification` +
+        `prose-AUQ surface observed during run (proseAUQEverObserved=${run.proseAUQEverObserved}, waitingEverObserved=${run.waitingEverObserved}); model surfaced the question and ${idleEnd || 'the test budget elapsed'} without a follow-up classification` +
         (lastJudgeVerdict
           ? ` (last LLM judge: ${lastJudgeVerdict.state} — ${lastJudgeVerdict.reasoning})`
           : ''),
@@ -476,7 +511,9 @@ function observationTimeout(run: ObservationRun, session: ClaudePtySession): Pla
   return {
     outcome: 'timeout',
     summary:
-      `no terminal outcome within ${run.budgetMs}ms` +
+      (idle
+        ? `no terminal outcome: ${idleEnd} with no question, plan or write, and no input will arrive; stopped after ${Math.round((driver.now() - run.startedAt) / 1000)}s instead of waiting out the ${run.budgetMs}ms budget`
+        : `no terminal outcome within ${run.budgetMs}ms`) +
       (lastJudgeVerdict
         ? ` (last LLM judge: state=${lastJudgeVerdict.state} — ${lastJudgeVerdict.reasoning})`
         : ''),

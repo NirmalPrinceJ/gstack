@@ -410,3 +410,28 @@ export function isNumberedOptionListVisible(visible: string): boolean {
   const cleaned = stripPtyResidue(visible);
   return /❯\s*1\./.test(cleaned) && /(^|[^0-9])2\./.test(cleaned);
 }
+
+/** Start of the CLI's public "API Error:" panel. The native AUQ capture reads the same panel. */
+export const API_ERROR_PANEL = /(?:^|\n)[\t │┃]*(?:[⎿●⏺]\s*)?API Error:/i;
+
+/** The CLI's end-of-turn line, e.g. "✻ Cooked for 24s · done 12:46 AM" (spaces may collapse in the PTY text). */
+const TURN_DONE_RE = /✻[ \t]*\p{L}[\p{L}'’-]*[ \t]*for[ \t]*(?=\d)(?:\d+h[ \t]*)?(?:\d+m[ \t]*)?(?:\d+s)?[ \t]*·[ \t]*done[^\n]*/gu;
+/** An empty input prompt and its known idle footers, nothing else. */
+const IDLE_PROMPT_RE = /^[\s─]*❯[\s─]*(?:(?:←[ \t]*for[ \t]*agents|\?[ \t]*for[ \t]*shortcuts)[\s─]*)*$/;
+
+/**
+ * The CLI ended its turn and sits at an empty prompt: the last end-of-turn
+ * line is followed only by the prompt and an idle footer. A spinner, menu,
+ * background task or any other text after it means the turn is not idle.
+ * Returns that line and the last public API Error panel line of the same turn.
+ */
+export function idleTurnEnd(visible: string): { done: string; apiError?: string } | null {
+  const text = visible.replace(/\x1b?\[\?25[lh]/g, '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ');
+  const turns = [...text.matchAll(TURN_DONE_RE)];
+  const done = turns.at(-1);
+  if (!done || !IDLE_PROMPT_RE.test(text.slice(done.index + done[0].length))) return null;
+  const previous = turns.at(-2);
+  const turn = text.slice(previous ? previous.index + previous[0].length : 0, done.index);
+  const apiError = [...turn.matchAll(new RegExp(`${API_ERROR_PANEL.source}[^\\n]*`, 'gi'))].at(-1)?.[0].trim();
+  return { done: done[0].trim(), ...(apiError ? { apiError: apiError.slice(0, 300) } : {}) };
+}
