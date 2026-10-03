@@ -71,7 +71,7 @@ describe.skipIf(process.platform !== 'linux')('headless launch options (Linux, r
       const session = bm.getActiveSession();
       await handleWriteCommand('goto', [`http://127.0.0.1:${server.port}/`], session, bm);
       expect(await session.getPage().evaluate(() => document.documentElement.getAttribute('data-probe-ext'))).toBe('1');
-      expect(fs.existsSync(path.join(scratch, 'state', 'chromium-extensions-profile'))).toBe(true);
+      expect(fs.existsSync(path.join(scratch, 'state', 'extensions', 'chromium-profile'))).toBe(true);
     } finally {
       server.stop(true);
     }

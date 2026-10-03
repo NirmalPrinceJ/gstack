@@ -583,7 +583,7 @@ export class BrowserManager {
     }
 
     if (extensionsDir) {
-      const profileDir = require('path').join(resolveConfig().stateDir, 'chromium-extensions-profile');
+      const profileDir = require('path').join(resolveConfig().stateDir, 'extensions', 'chromium-profile');
       require('fs').mkdirSync(profileDir, { recursive: true, mode: 0o700 });
       cleanSingletonLocks(profileDir);
       this.context = await launchWithXProtectHeal(() => chromium.launchPersistentContext(profileDir, {
