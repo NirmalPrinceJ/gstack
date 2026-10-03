@@ -14,7 +14,7 @@ import { afterAll, expect } from 'bun:test';
 import { JUDGE_MS } from './helpers/eval-budgets';
 import * as fs from 'fs';
 import * as path from 'path';
-import { callJudge, judge, JudgeRefusalError, JUDGE_SCORE_SCHEMA, QA_ANTI_REFUSAL_JUDGE_SCHEMA, VOICE_DIRECTIVE_JUDGE_SCHEMA, buildQaWorkflowJudgePrompt, buildQaHealthRubricJudgePrompt, buildQaAntiRefusalJudgePrompt, buildCrossSkillConsistencyJudgePrompt, buildVoiceDirectiveJudgePrompt, DEFAULT_JUDGE_MAX_TOKENS, judgePanel, judgePanelMean, judgePanelMajority, judgePanelReasoning, JUDGE_SCORE_DIMENSIONS } from './helpers/llm-judge';
+import { callJudge, judge, JudgeRefusalError, JUDGE_SCORE_SCHEMA, QA_ANTI_REFUSAL_JUDGE_SCHEMA, VOICE_DIRECTIVE_JUDGE_SCHEMA, CROSS_SKILL_CONSISTENCY_JUDGE_SCHEMA, buildQaWorkflowJudgePrompt, buildQaHealthRubricJudgePrompt, buildQaAntiRefusalJudgePrompt, buildCrossSkillConsistencyJudgePrompt, buildVoiceDirectiveJudgePrompt, DEFAULT_JUDGE_MAX_TOKENS, judgePanel, judgePanelMean, judgePanelMajority, judgePanelReasoning, JUDGE_SCORE_DIMENSIONS } from './helpers/llm-judge';
 import { ASK_QUESTIONS_HEADING, ENG_REVIEW_EXCERPT } from './helpers/workflow-excerpt';
 import type { JudgeScore } from './helpers/llm-judge';
 import { readWorkflowJudgeInput, buildWorkflowJudgePrompt, QA_DISCOVERY_REFERENCES, WORKFLOW_JUDGE_RESPONSE_SCHEMA, type WorkflowJudgeInput } from './helpers/workflow-judge-input';
@@ -307,7 +307,7 @@ describeIfSelected('Cross-skill consistency evals', ['cross-skill greptile consi
       extractGrepLines(retroContent, 'retro/SKILL.md'),
     ].join('\n\n');
 
-    const samples = await judgePanel(() => callJudge<{ consistent: boolean; issues: string[]; score: number; reasoning: string }>(buildCrossSkillConsistencyJudgePrompt(collected)));
+    const samples = await judgePanel(() => callJudge<{ consistent: boolean; issues: string[]; score: number; reasoning: string }>(buildCrossSkillConsistencyJudgePrompt(collected), undefined, { jsonSchema: CROSS_SKILL_CONSISTENCY_JUDGE_SCHEMA }));
     const result = { consistent: judgePanelMajority(samples, 'consistent'), ...judgePanelMean(samples, ['score'] as const) };
 
     console.log('Cross-skill consistency panel:', JSON.stringify({ result, samples }, null, 2));
