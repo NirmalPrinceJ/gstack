@@ -11,7 +11,7 @@
  * namespace (#2879). Instruction-only hosts must change nothing.
  */
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ALL_HOST_CONFIGS } from '../hosts/index';
 import { cleanupFixtures, makeFixture, makeSource, put, registryRows, runSetup, setVersion, tree } from './helpers/install-fixture';
@@ -57,6 +57,40 @@ function symlinkedSkillMds(dir: string): string[] {
   return found;
 }
 
+/**
+ * Section pointers in installed SKILL.md files that do not resolve to a
+ * readable file (INV-3, ENG-1). A pointer is "Read `<path>/sections/<f>.md`",
+ * optionally "relative to the installed `<skill>` SKILL.md directory". A bare
+ * `sections/...` pointer counts in a carved skill (sections/ installed, or a
+ * **STOP.** line); prefixed ones count everywhere. Same rule as ./setup --status.
+ */
+function brokenSectionPointers(dest: string, runtimeRoot: string, home: string): string[] {
+  const readable = (p: string) => { try { accessSync(p); return true; } catch { return false; } };
+  const broken: string[] = [];
+  for (const skill of readdirSync(dest)) {
+    const dir = join(dest, skill);
+    if (!existsSync(join(dir, 'SKILL.md'))) continue;
+    for (const line of readFileSync(join(dir, 'SKILL.md'), 'utf8').split('\n')) {
+      const stop = line.includes('**STOP.**');
+      for (const [, tok, rel] of line.matchAll(/Read `([^` ]*sections\/[A-Za-z0-9._-]+\.md)`((?: relative to the installed (?:`[^`]+`\/?)+)?)/g)) {
+        const names = [...rel.matchAll(/`([^`]+)`/g)].map(m => m[1]);
+        let targets: string[];
+        if (tok.startsWith('sections/')) {
+          if (names.length) targets = names.map(n => join(dest, n, tok));
+          else if (existsSync(join(dir, 'sections')) || stop) targets = [join(dir, tok)];
+          else continue;
+        } else if (tok.startsWith('$GSTACK_ROOT/')) targets = [join(runtimeRoot, tok.slice('$GSTACK_ROOT/'.length))];
+        else if (tok.startsWith('~/')) targets = [join(home, tok.slice(2))];
+        else if (tok.startsWith('/')) targets = [tok];
+        else if (tok.startsWith('../')) targets = [join(dir, tok)];
+        else continue;
+        if (!targets.some(readable)) broken.push(`${skill}: ${tok}`);
+      }
+    }
+  }
+  return [...new Set(broken)];
+}
+
 describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
   test('the kit covers every installable host', () => {
     expect(Object.keys(DISCOVERY).sort()).toEqual([...installable].sort());
@@ -97,11 +131,17 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
       expect(status.status).toBe(0);
       expect(status.stdout).toMatch(new RegExp(`\\b${host}\\s+${ALL_HOST_CONFIGS.find(c => c.name === host)!.tier}\\s+global\\s+current`));
 
-      // C3: Codex skips a symlinked SKILL.md file; directory links are fine.
+      // INV-3 install-level checks (C2, C3, ENG-1, ENG-14).
       if (host !== 'claude') {
+        const runtimeRoot = rows[0][4];
         expect(symlinkedSkillMds(dest), `${host}: symlinked SKILL.md files (Codex skips them)`).toEqual([]);
-        expect(status.stdout).toContain(`\n  ${host} global: router is a real file; section links: `);
+        for (const bin of ['design/dist/design', 'make-pdf/dist/pdf']) {
+          expect(existsSync(join(runtimeRoot, bin)), `${host} runtime root ${bin}`).toBe(true);
+        }
+        expect(brokenSectionPointers(dest, runtimeRoot, f.home), `${host}: unresolved section pointers`).toEqual([]);
+        expect(status.stdout).toMatch(new RegExp(`\\n  ${host} global: router is a real file; section links: \\d+ checked, all resolve\\n`));
       }
+      if (host === 'codex') expect(existsSync(join(src, '.agents/skills/gstack/design/dist/design')), 'agents sidecar design/dist').toBe(true);
     }, 60_000);
   }
 
