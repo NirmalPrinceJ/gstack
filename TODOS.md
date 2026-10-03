@@ -33,6 +33,31 @@
   trials per case, apply the CASE_QUARANTINE entry rule instead of chasing one
   run at a time. Effort S.
 
+### P2/P3: mvanhorn fix-wave deferrals (filed 2026-10-03, from the autoplan review of the wave)
+
+- **E6 (P2): behavior E2E for design round accounting** — stub `$D` so a
+  generating step reports `saved` shorter than `requested` (and exit 2 for zero
+  saved), run /plan-design-review or /design-shotgun against it, and assert the
+  skill tells the user how many paid images were saved, names the failures and
+  builds no board on zero saved. `test/design-printed-paths.test.ts` only pins
+  the marker order; whether the model reports the count is behavior. Context:
+  #1529. Effort M.
+- **E7 (P3): prune or archive unapproved design rounds** — never-overwrite plus
+  `--retry` attempts and iterate outputs grow
+  `$GSTACK_STATE_ROOT/projects/$SLUG/designs/` without bound. Add a prune or
+  archive command for unapproved rounds and attempts (keep anything an
+  `approved.json` names) and show the design directory size in `$D gallery`.
+  Context: #1529, eng review. Effort S.
+- **E5 (P3): restore verifies assumed items read-only** — `/context-restore`
+  could check `(path assumed)` and `(code read)` items itself with read-only
+  commands (file exists, flag is defined, table has a unique key) and report
+  what it found before offering option A. Context: #3004. Effort M.
+- **E4 (P3): real-desktop Windows console smoke for spawn changes** — #1784 was
+  confirmed fixed on a real Windows 11 desktop by its reporter (v1.91.15.0); CI
+  can only check that spawns pass `windowsHide`. A smoke that starts browse from
+  a console-less parent and watches for new visible windows would catch a
+  regression the static sweep can't. Effort M.
+
 ### P2/P3: parallel fix-wave follow-ups (filed 2026-10-02, from the approved fix-wave plan)
 
 - **Agent Skills distribution (#113)** — publish gstack in the Agent Skills
