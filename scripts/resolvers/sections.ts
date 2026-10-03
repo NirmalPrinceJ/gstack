@@ -38,13 +38,14 @@ export function usesLazySections(host: Host, skill: string): boolean {
 
 /**
  * External hosts: a template's literal `~/.claude/skills/gstack/<skill>/sections/<file>`
- * reference arrives here as `$GSTACK_ROOT/<skill>/sections/<file>`, which external
- * runtime roots do not have. For a carved skill, point it at the installed copy;
+ * reference arrives here as `$GSTACK_ROOT/...` or `~/<globalRoot>/...`, and external
+ * runtime roots have no section trees. For a carved skill, point it at the installed copy;
  * for this skill's own section inlined by {{SECTION}}, point at the inlined text.
  */
 export function rewriteCarvedSectionRefs(content: string, ctx: TemplateContext): string {
   if (ctx.host === 'claude') return content;
-  return content.replace(/`\$GSTACK_ROOT\/([a-z0-9-]+)\/sections\/([A-Za-z0-9._-]+)`/g, (match, skill: string, file: string) => {
+  // The root arrives as $GSTACK_ROOT or as the host's literal ~/<globalRoot> (path rewrites).
+  return content.replace(/`(?:\$GSTACK_ROOT|~\/[\w./-]*?skills\/gstack)\/([a-z0-9-]+)\/sections\/([A-Za-z0-9._-]+)`/g, (match, skill: string, file: string) => {
     if (!fs.existsSync(path.join(ROOT, skill, 'sections', `${file}.tmpl`))) return match;
     if (usesLazySections(ctx.host, skill)) return `\`sections/${file}\` relative to the installed \`gstack-${skill}\` SKILL.md directory`;
     const entry = loadManifest(skill).sections.find(e => e.file === file);

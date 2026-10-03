@@ -83,11 +83,11 @@ describe('C4: ship and plan-ceo-review are carved on every external host', () =>
     });
   }
 
-  test('no external render points at $GSTACK_ROOT/<skill>/sections/ (runtime roots have no section trees)', () => {
+  test('no external render points at <root>/<skill>/sections/ (runtime roots have no section trees)', () => {
     const offenders: string[] = [];
     for (const config of EXTERNAL) {
       for (const file of skillFiles(path.join(renders.all, config.hostSubdir))) {
-        const hits = fs.readFileSync(file, 'utf8').match(/\$GSTACK_ROOT\/[a-z0-9-]+\/sections\/[\w.-]+/g) ?? [];
+        const hits = fs.readFileSync(file, 'utf8').match(/(?:\$GSTACK_ROOT|~\/[\w./-]*skills\/gstack)\/[a-z0-9-]+\/sections\/[\w.-]+/g) ?? [];
         offenders.push(...hits.map(hit => `${path.relative(renders.all, file)}: ${hit}`));
       }
     }
