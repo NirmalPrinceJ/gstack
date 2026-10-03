@@ -162,19 +162,45 @@ test('public permission never exposes detected credentials in output or receipts
 test.each(['resumed', 'blocked-forever'])('evidence receipts survive a genuinely %s stdout pipe without extending command execution', async mode => {
   const f = fixture();
   const preload = path.join(f.root, 'full-pipe.ts');
+  const writing = path.join(f.root, 'stdout-writing');
   const saturated = path.join(f.root, 'stdout-saturated');
-  fs.writeFileSync(preload, `import { existsSync, write } from 'node:fs'; if (process.argv[1] === ${JSON.stringify(CLI)}) { write(1, Buffer.alloc(2 * 1024 * 1024, 32), () => {}); while (!existsSync(${JSON.stringify(saturated)})) await Bun.sleep(10); }`);
-  const child = spawn(process.execPath, ['--preload', preload, CLI, 'capture', f.root, '001', '--timeout-ms', '1000', '--', process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(path.join(f.root, 'effect'))}, 'once'); process.exit(69);`], { cwd: f.root, stdio: ['ignore', 'pipe', 'pipe'] });
+  // POSIX: stdout is a FIFO this test never reads until it chooses to, so the
+  // 2 MB write is held by the kernel, not by how the runtime buffers a paused
+  // child stream (under load Bun could drain a paused pipe and let the child
+  // finish early). Windows keeps the paused child pipe.
+  const fifo = process.platform === 'win32' ? null : path.join(f.root, 'stdout.fifo');
+  if (fifo) expect(spawnSync('mkfifo', [fifo], { timeout: 5000 }).status).toBe(0);
+  const readFd = fifo ? fs.openSync(fifo, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK) : -1;
+  const writeFd = fifo ? fs.openSync(fifo, 'w') : -1;
+  fs.writeFileSync(preload, `import { existsSync, write, writeFileSync } from 'node:fs'; if (process.argv[1] === ${JSON.stringify(CLI)}) { write(1, Buffer.alloc(2 * 1024 * 1024, 32), () => {}); writeFileSync(${JSON.stringify(writing)}, ''); while (!existsSync(${JSON.stringify(saturated)})) await Bun.sleep(10); }`);
+  const child = spawn(process.execPath, ['--preload', preload, CLI, 'capture', f.root, '001', '--timeout-ms', '1000', '--', process.execPath, '-e', `require('node:fs').writeFileSync(${JSON.stringify(path.join(f.root, 'effect'))}, 'once'); process.exit(69);`], { cwd: f.root, stdio: ['ignore', fifo ? writeFd : 'pipe', 'pipe'] });
+  if (fifo) fs.closeSync(writeFd);
   let stdout = '', stderr = '';
-  child.stdout!.on('data', bytes => { stdout += bytes; });
+  const drain = () => {
+    if (!fifo) return;
+    const buffer = Buffer.alloc(65536);
+    for (;;) {
+      let read = 0;
+      try { read = fs.readSync(readFd, buffer, 0, buffer.length, null); } catch (error: any) { if (error.code === 'EAGAIN') return; throw error; }
+      if (read === 0) return;
+      stdout += buffer.subarray(0, read).toString();
+    }
+  };
+  child.stdout?.on('data', bytes => { stdout += bytes; });
   child.stderr!.on('data', bytes => { stderr += bytes; });
-  child.stdout!.pause();
+  child.stdout?.pause();
   const finished = new Promise<number | null>(resolve => child.once('exit', resolve));
   const closed = new Promise<void>(resolve => child.once('close', () => resolve()));
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let draining: ReturnType<typeof setInterval> | undefined;
   try {
-    for (let index = 0; index < 300 && child.stdout!.readableLength < child.stdout!.readableHighWaterMark; index++) await Bun.sleep(10);
-    expect(child.stdout!.readableLength).toBeGreaterThanOrEqual(child.stdout!.readableHighWaterMark);
+    if (fifo) {
+      for (let index = 0; index < 300 && !fs.existsSync(writing); index++) await Bun.sleep(10);
+      expect(fs.existsSync(writing)).toBe(true);
+    } else {
+      for (let index = 0; index < 300 && child.stdout!.readableLength < child.stdout!.readableHighWaterMark; index++) await Bun.sleep(10);
+      expect(child.stdout!.readableLength).toBeGreaterThanOrEqual(child.stdout!.readableHighWaterMark);
+    }
     fs.writeFileSync(saturated, '');
     const file = path.join(f.root, '.qa-evidence/001/receipt.json');
     for (let index = 0; index < 300 && !fs.existsSync(file); index++) await Bun.sleep(10);
@@ -182,17 +208,24 @@ test.each(['resumed', 'blocked-forever'])('evidence receipts survive a genuinely
     expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toMatchObject({ status: 'complete', exitCode: 69 });
     expect(fs.readFileSync(path.join(f.root, 'effect'), 'utf8')).toBe('once');
     expect(child.exitCode).toBeNull();
-    if (mode === 'resumed') child.stdout!.resume();
+    if (mode === 'resumed') {
+      child.stdout?.resume();
+      if (fifo) draining = setInterval(drain, 5);
+    }
     const exit = await Promise.race([finished, new Promise<null>(resolve => { timer = setTimeout(() => resolve(null), 7000); })]);
     expect(exit, stderr).toBe(mode === 'resumed' ? 69 : 2);
-    child.stdout!.resume();
+    clearInterval(draining);
+    drain();
+    child.stdout?.resume();
     await closed;
     if (mode === 'resumed') expect(receipt(stdout.split('\n').find(line => line.startsWith('QA_EVIDENCE '))!)).toMatchObject({ status: 'complete', exitCode: 69 });
   } finally {
     clearTimeout(timer);
-    child.stdout!.resume();
+    clearInterval(draining);
+    child.stdout?.resume();
     child.kill('SIGKILL');
     await closed;
+    if (fifo) fs.closeSync(readFd);
   }
 }, 15_000);
 
