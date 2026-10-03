@@ -84,8 +84,6 @@ export function resolveServerScript(
   );
 }
 
-const SERVER_SCRIPT = resolveServerScript();
-
 /**
  * On Windows, resolve the Node.js-compatible server bundle.
  * Falls back to null if not found (server will use Bun instead).
@@ -109,13 +107,23 @@ export function resolveNodeServerScript(
   return null;
 }
 
-const NODE_SERVER_SCRIPT = IS_WINDOWS ? resolveNodeServerScript() : null;
-
-// On Windows, hard-fail if server-node.mjs is missing — the Bun path is known broken.
-if (IS_WINDOWS && !NODE_SERVER_SCRIPT) {
-  throw new Error(
-    'server-node.mjs not found. Run `bun run build` to generate the Windows server bundle.'
-  );
+/**
+ * Which server to start, resolved only when a server is actually started
+ * (#2439). Windows runs the Node bundle and never needs server.ts, which a
+ * minimal runtime root does not ship; resolving server.ts at module load made
+ * every command, even --help, fail there.
+ */
+export function resolveServerLaunch(
+  platform: NodeJS.Platform = process.platform,
+  env: Record<string, string | undefined> = process.env,
+  metaDir: string = import.meta.dir,
+  execPath: string = process.execPath,
+): { runtime: 'node' | 'bun'; script: string } {
+  if (platform !== 'win32') return { runtime: 'bun', script: resolveServerScript(env, metaDir, execPath) };
+  // On Windows, hard-fail if server-node.mjs is missing — the Bun path is known broken.
+  const script = resolveNodeServerScript(metaDir, execPath);
+  if (!script) throw new Error('server-node.mjs not found. Run `bun run build` to generate the Windows server bundle.');
+  return { runtime: 'node', script };
 }
 
 interface ServerState {
@@ -591,6 +599,7 @@ function openDaemonLogSink(): number | 'ignore' {
 }
 
 async function startServer(extraEnv?: Record<string, string>): Promise<ServerState> {
+  const server = resolveServerLaunch();
   ensureStateDir(config);
 
   // Bound the append-mode daemon log before the new daemon starts writing.
@@ -625,7 +634,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
   const parentPid = parseInt(process.env.BROWSE_PARENT_PID || '', 10) === 0 ? '0' : String(process.pid);
   let spawnedServer: { pid: number; startTime: string } | null = null;
 
-  if (IS_WINDOWS && NODE_SERVER_SCRIPT) {
+  if (server.runtime === 'node') {
     // Windows: Bun.spawn() + proc.unref() doesn't truly detach on Windows —
     // when the CLI exits, the server dies with it. Use Node's child_process.spawn
     // with { detached: true } instead, which is the gold standard for Windows
@@ -641,7 +650,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
       `const{spawn}=require('child_process');` +
       `const fs=require('fs');` +
       `let logFd;try{logFd=fs.openSync(${daemonLogPathStr},'a');}catch(e){logFd='ignore';}` +
-      `spawn(process.execPath,[${JSON.stringify(NODE_SERVER_SCRIPT)}],` +
+      `spawn(process.execPath,[${JSON.stringify(server.script)}],` +
       `{detached:true,windowsHide:true,stdio:['ignore',logFd,logFd],env:Object.assign({},process.env,` +
       `${extraEnvStr})}).unref()`;
     Bun.spawnSync(['node', '-e', launcherCode], { stdio: ['ignore', 'ignore', 'ignore'], windowsHide: true });
@@ -658,7 +667,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
     // (PPID=1, STAT=Ss) and survives the spawning shell's exit. Mirrors
     // the Windows path's rationale — same root cause, different OS API.
     const daemonLogFd = openDaemonLogSink();
-    const child = nodeSpawn('bun', [...BUN_CHILD_FLAGS, 'run', SERVER_SCRIPT], {
+    const child = nodeSpawn('bun', [...BUN_CHILD_FLAGS, 'run', server.script], {
       detached: true,
       windowsHide: true,
       stdio: ['ignore', daemonLogFd, daemonLogFd],
@@ -693,7 +702,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
 
   if (spawnedServer?.startTime) {
     const { pid, startTime } = spawnedServer;
-    const stillOurs = () => readPidStartTime(pid) === startTime && readPidCmdline(pid).split(/\s+/).includes(SERVER_SCRIPT);
+    const stillOurs = () => readPidStartTime(pid) === startTime && readPidCmdline(pid).split(/\s+/).includes(server.script);
     if (stillOurs()) {
       safeKill(pid, 'SIGTERM');
       const deadline = Date.now() + 500;
