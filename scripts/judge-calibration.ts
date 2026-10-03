@@ -16,6 +16,7 @@
  * Usage:
  *   bun run scripts/judge-calibration.ts manifest [--budget 90]
  *   bun run scripts/judge-calibration.ts run --config <id> --budget <usd> [--concurrency 6]
+ *   bun run scripts/judge-calibration.ts resume --config <id> --budget <usd>   (only never-dispatched planned calls)
  *   bun run scripts/judge-calibration.ts analyze --config <id>
  */
 import * as fs from 'node:fs';
@@ -117,6 +118,12 @@ export function planCalls(items: CorpusItem[], split: CorpusItem['split']): Plan
     [calls[i], calls[j]] = [calls[j]!, calls[i]!];
   }
   return calls;
+}
+
+/** Planned calls never dispatched (a budget or infrastructure stop); completing them is not a resample. */
+export function undispatched(calls: PlannedCall[], records: SampleRecord[]): PlannedCall[] {
+  const done = new Set(records.map(record => `${record.item}/${record.phase}/${record.sample}`));
+  return calls.filter(call => !done.has(`${call.item.id}/${call.phase}/${call.sample}`));
 }
 
 export async function runSample(config: CalibrationConfig, planned: PlannedCall, call: JudgeCall = callJudge as JudgeCall,
@@ -337,8 +344,11 @@ async function main(args: string[]): Promise<void> {
   const runsDir = path.join(CORPUS_ROOT, config.id, 'runs');
   const samplesPath = path.join(runsDir, 'comparison-1.samples.jsonl');
   const resultPath = path.join(runsDir, 'comparison-1.result.json');
-  if (command === 'run') {
-    if (fs.existsSync(samplesPath)) throw new Error(`${samplesPath} exists; calibration runs are never repeated`);
+  if (command === 'run' || command === 'resume') {
+    // resume dispatches only planned calls a stop left undispatched; recorded samples are never redrawn.
+    if (command === 'run' && fs.existsSync(samplesPath)) throw new Error(`${samplesPath} exists; calibration runs are never repeated`);
+    if (command === 'resume' && !fs.existsSync(samplesPath)) throw new Error(`${samplesPath} is missing; nothing to resume`);
+    const prior: SampleRecord[] = command === 'resume' ? fs.readFileSync(samplesPath, 'utf8').trim().split('\n').map(line => JSON.parse(line)) : [];
     fs.mkdirSync(runsDir, { recursive: true });
     const budgetUsd = Number(flag(args, 'budget'));
     if (!Number.isFinite(budgetUsd) || budgetUsd <= 0) throw new Error('--budget <usd> is required');
@@ -347,14 +357,14 @@ async function main(args: string[]): Promise<void> {
     let spent = 0, stopped: string | null = null;
     // Development items first; the held-out third is dispatched only after, with the same frozen requests.
     for (const split of ['dev', 'heldout'] as const) {
-      const outcome = await runCalls(config, planCalls(items, split), { budgetUsd: budgetUsd - spent, concurrency, onRecord });
+      const outcome = await runCalls(config, undispatched(planCalls(items, split), prior), { budgetUsd: budgetUsd - spent, concurrency, onRecord });
       spent += outcome.records.reduce((sum, record) => sum + record.cost_usd, 0);
       console.log(`[calibration] ${config.id} ${split}: ${outcome.records.length} calls, $${spent.toFixed(2)} cumulative${outcome.stopped ? `, stopped: ${outcome.stopped}` : ''}`);
       if ((stopped = outcome.stopped)) break;
     }
     fs.writeFileSync(path.join(runsDir, 'comparison-1.stop.json'), JSON.stringify({ stopped }) + '\n');
   } else if (command !== 'analyze') {
-    throw new Error(`unknown command ${command}; expected manifest, run or analyze`);
+    throw new Error(`unknown command ${command}; expected manifest, run, resume or analyze`);
   }
   const records: SampleRecord[] = fs.readFileSync(samplesPath, 'utf8').trim().split('\n').map(line => JSON.parse(line));
   const stopPath = path.join(runsDir, 'comparison-1.stop.json');

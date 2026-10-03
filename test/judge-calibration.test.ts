@@ -5,7 +5,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { callJudge, JudgeRefusalError, type CallJudgeOptions, type JudgeResponseMeta } from './helpers/llm-judge';
 import {
-  analyze, classifyError, loadCorpus, PANEL_SAMPLES, PHASES, planCalls, priceManifest, runCalls, runSample,
+  analyze, classifyError, loadCorpus, undispatched, PANEL_SAMPLES, PHASES, planCalls, priceManifest, runCalls, runSample,
   type CalibrationConfig, type CorpusItem, type JudgeCall, type SampleRecord,
 } from '../scripts/judge-calibration';
 
@@ -149,6 +149,19 @@ describe('judge calibration harness (free, stubbed provider)', () => {
     const result = analyze(config, items, capped.records, capped.stopped);
     expect(result.complete).toBe(false);
     expect(result.landing.lands).toBe(false);
+  });
+
+  test('resume completes only never-dispatched planned calls and never redraws a recorded sample', async () => {
+    const items = [item('p1', 'pass'), item('p2', 'pass')];
+    const planned = planCalls(items, 'dev');
+    const first = await runCalls(config, planned.slice(0, 7), { budgetUsd: 1000, call: stub(() => ({ score: 5 })).call });
+    const rest = undispatched(planned, first.records);
+    expect(rest).toEqual(planned.slice(7));
+    const provider = stub(() => ({ score: 5 }));
+    const second = await runCalls(config, rest, { budgetUsd: 1000, call: provider.call });
+    expect(provider.calls).toHaveLength(planned.length - 7);
+    expect(undispatched(planned, [...first.records, ...second.records])).toEqual([]);
+    expect(analyze(config, items, [...first.records, ...second.records]).complete).toBe(true);
   });
 
   test('callJudge reports usage and stop reason through onResponse without sending it', async () => {
