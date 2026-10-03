@@ -6,12 +6,11 @@
  * with original brief + accumulated feedback in a single prompt.
  */
 
-import fs from "fs";
-import path from "path";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
 import { imageRequestBody, modelRejectionHint } from "./models";
 import { readSession, updateSession } from "./session";
+import { emitResult, exitCodeFor, newAccounting, persistImage, recordOutcome, type ExitCode } from "./persist";
 
 export interface IterateOptions {
   session: string;   // Path to session JSON file
@@ -20,62 +19,64 @@ export interface IterateOptions {
 }
 
 /**
- * Iterate on an existing design using session state.
+ * Iterate on an existing design using session state. One received image means
+ * one claim; a local save failure never triggers the fallback purchase.
  */
-export async function iterate(options: IterateOptions): Promise<void> {
-  const apiKey = requireApiKey();
-  const session = readSession(options.session);
-
-  console.error(`Iterating on session ${session.id}...`);
-  console.error(`  Previous iterations: ${session.feedbackHistory.length}`);
-  console.error(`  Feedback: "${options.feedback}"`);
-
-  const startTime = Date.now();
-
-  // Try multi-turn with previous_response_id first
-  let success = false;
-  let responseId = "";
+export async function iterate(options: IterateOptions): Promise<ExitCode> {
+  const acct = newAccounting(1);
+  let outputPath: string | null = null;
+  let responseId: string | null = null;
+  let iteration: number | null = null;
 
   try {
-    const result = await callWithThreading(apiKey, session.lastResponseId, options.feedback);
-    responseId = result.responseId;
+    const apiKey = requireApiKey();
+    const session = readSession(options.session);
 
-    fs.mkdirSync(path.dirname(options.output), { recursive: true });
-    fs.writeFileSync(options.output, Buffer.from(result.imageData, "base64"));
-    success = true;
+    console.error(`Iterating on session ${session.id}...`);
+    console.error(`  Previous iterations: ${session.feedbackHistory.length}`);
+    console.error(`  Feedback: "${options.feedback}"`);
+
+    const startTime = Date.now();
+    let image: { responseId: string; imageData: string };
+    try {
+      image = await callWithThreading(apiKey, session.lastResponseId, options.feedback);
+    } catch (err: any) {
+      console.error(`  Threading failed: ${err.message}`);
+      console.error("  Falling back to re-generation with accumulated feedback...");
+      const accumulatedPrompt = buildAccumulatedPrompt(
+        session.originalBrief,
+        [...session.feedbackHistory, options.feedback]
+      );
+      image = await callFresh(apiKey, accumulatedPrompt);
+    }
+
+    const outcome = persistImage(image.imageData, options.output);
+    outputPath = recordOutcome(acct, outcome);
+    if (outcome.ok) {
+      responseId = image.responseId;
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.error(`Generated (${elapsed}s, ${(outcome.bytes / 1024).toFixed(0)}KB) → ${outcome.path}`);
+      updateSession(session, image.responseId, options.feedback, outcome.path);
+      iteration = session.feedbackHistory.length + 1;
+    }
   } catch (err: any) {
-    console.error(`  Threading failed: ${err.message}`);
-    console.error("  Falling back to re-generation with accumulated feedback...");
-
-    // Fallback: re-generate with original brief + all feedback
-    const accumulatedPrompt = buildAccumulatedPrompt(
-      session.originalBrief,
-      [...session.feedbackHistory, options.feedback]
-    );
-
-    const result = await callFresh(apiKey, accumulatedPrompt);
-    responseId = result.responseId;
-
-    fs.mkdirSync(path.dirname(options.output), { recursive: true });
-    fs.writeFileSync(options.output, Buffer.from(result.imageData, "base64"));
-    success = true;
+    const reason = err?.message || String(err);
+    console.error(reason);
+    acct.failures.push({ file: options.output, reason });
   }
 
-  if (success) {
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    const size = fs.statSync(options.output).size;
-    console.error(`Generated (${elapsed}s, ${(size / 1024).toFixed(0)}KB) → ${options.output}`);
-
-    // Update session
-    updateSession(session, responseId, options.feedback, options.output);
-
-    console.log(JSON.stringify({
-      outputPath: options.output,
-      sessionFile: options.session,
-      responseId,
-      iteration: session.feedbackHistory.length + 1,
-    }, null, 2));
-  }
+  return emitResult({
+    outputPath,
+    sessionFile: options.session,
+    responseId,
+    iteration,
+    attempts: acct.saved.map(p => ({ path: p })),
+    requested: acct.requested,
+    saved: acct.saved,
+    selected: outputPath,
+    failures: acct.failures,
+    recovered: acct.recovered,
+  }, exitCodeFor(outputPath !== null, acct.saved.length));
 }
 
 async function callWithThreading(
