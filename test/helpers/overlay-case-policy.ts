@@ -23,4 +23,5 @@ export const OVERLAY_CASE_FILES: Record<string, string> = {
   'test/skill-e2e-overlay-harness-opus-4-7-effort-match-trivial.test.ts': 'opus-4-7-effort-match-trivial',
   'test/skill-e2e-overlay-harness-opus-4-7-literal-interpretation.test.ts': 'opus-4-7-literal-interpretation',
   'test/skill-e2e-overlay-harness-claude-dedicated-tools-vs-bash-sonnet.test.ts': 'claude-dedicated-tools-vs-bash-sonnet',
+  'test/skill-e2e-overlay-harness-claude-dedicated-tools-vs-bash-opus-5-5.test.ts': 'claude-dedicated-tools-vs-bash-opus-5-5',
 };
