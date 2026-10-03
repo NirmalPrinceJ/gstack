@@ -30,11 +30,6 @@ const ALLOWLIST: AllowEntry[] = [
   { skills: ['retro'], anchor: 'Biggest ship: PR #605', reason: 'sample retro output' },
   { skills: ['codex'], anchor: 'OpenAI issues #8545', reason: 'upstream OpenAI Codex issue IDs behind the reasoning-effort default' },
   {
-    skills: ['autoplan', 'plan-ceo-review', 'plan-devex-review', 'plan-eng-review'],
-    anchor: 'Repo-local docs win when at least as fresh (#703)',
-    reason: 'PENDING: scripts/resolvers/design-doc-discovery.ts is owned by W3; drop "(#703)" there and delete this entry',
-  },
-  {
     skills: ['codex'],
     anchor: 'consult previously had NONE',
     source: 'codex/sections/consult-mode.md.tmpl',
