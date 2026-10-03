@@ -1,5 +1,5 @@
 import { outsideVoiceFailurePolicy, outsideVoiceFor, outsideVoiceInvocation, outsideVoicePreflight, outsideVoiceProvenance } from './outside-voice';
-import { type TemplateContext, toShellPath } from './types';
+import { type TemplateContext, quoteSafePath, toShellPath } from './types';
 import { binaryAssignment } from './runtime-root';
 import { AI_SLOP_BLACKLIST, OPENAI_HARD_REJECTIONS, OPENAI_LITMUS_CHECKS, CC_BACKGROUND_DEFAULT_SINCE } from './constants';
 import { OVERUSED_FONTS_DISPLAY, BANNED_FONTS, FONTS_BODY_UI_OK, FONTS_MONO_OK, FONTS_VERIFIED_FREE, HANDOFF_COMMANDS, selectCatalog, catalogEntries, renderCatalog, detectorSlopEntries, judgmentTellEntries } from '../../lib/design-catalog';
@@ -1382,9 +1382,9 @@ export function generateTasteProfile(ctx: TemplateContext): string {
   return `Read this project's taste profile:
 
 \`\`\`bash
-SLUG=$("${ctx.paths.binDir}/gstack-slug" --get SLUG 2>/dev/null)
-[ -n "\${SLUG:-}" ] || { echo "NO_TASTE_PROFILE"; exit 0; }
-GSTACK_STATE_ROOT=$("${ctx.paths.binDir}/gstack-paths" --get GSTACK_STATE_ROOT); : "\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
+SLUG=$("${quoteSafePath(ctx.paths.binDir)}/gstack-slug" --get SLUG) || SLUG=""
+[ -n "\${SLUG:-}" ] || { echo "TASTE_PROFILE_UNAVAILABLE: could not resolve the project slug (gstack-slug failed). Fix: run ./setup."; exit 0; }
+GSTACK_STATE_ROOT=$("${quoteSafePath(ctx.paths.binDir)}/gstack-paths" --get GSTACK_STATE_ROOT); : "\${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 _TASTE_PROFILE="$GSTACK_STATE_ROOT/projects/$SLUG/taste-profile.json"
 if [ -f "$_TASTE_PROFILE" ]; then
   # Schema v1: { dimensions: { fonts, colors, layouts, aesthetics }, sessions: [] }
@@ -1397,6 +1397,8 @@ else
   echo "NO_TASTE_PROFILE"
 fi
 \`\`\`
+
+**If TASTE_PROFILE_UNAVAILABLE:** say that line once, then continue without a taste profile (do not treat it as "no history").
 
 **If TASTE_PROFILE_FOUND:** Parse the full JSON; malformed/unreadable uses the legacy fallback. After decay, rank each dimension by confidence * approved_count (or rejected_count); take three per kind. Count retained sessions (at most 50, not lifetime). Include in ${ctx.skillName === 'design-consultation' ? 'the Phase 1 product brief (later shared unchanged with both independent voices)' : 'the brief'}:
 
