@@ -11,7 +11,7 @@
  * namespace (#2879). Instruction-only hosts must change nothing.
  */
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ALL_HOST_CONFIGS } from '../hosts/index';
 import { cleanupFixtures, makeFixture, makeSource, put, registryRows, runSetup, setVersion, tree } from './helpers/install-fixture';
@@ -43,6 +43,18 @@ function skillNames(dir: string): string[] {
     if (m) names.push(m[1]);
   }
   return names;
+}
+
+/** Every SKILL.md under dir that is itself a symlink; linked directories are not entered (INV-3). */
+function symlinkedSkillMds(dir: string): string[] {
+  const found: string[] = [];
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name);
+    const st = lstatSync(p);
+    if (st.isSymbolicLink()) { if (name === 'SKILL.md') found.push(p); continue; }
+    if (st.isDirectory()) found.push(...symlinkedSkillMds(p));
+  }
+  return found;
 }
 
 describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
@@ -84,6 +96,12 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
       const status = runSetup(f, join(src, 'setup'), ['--status']);
       expect(status.status).toBe(0);
       expect(status.stdout).toMatch(new RegExp(`\\b${host}\\s+${ALL_HOST_CONFIGS.find(c => c.name === host)!.tier}\\s+global\\s+current`));
+
+      // C3: Codex skips a symlinked SKILL.md file; directory links are fine.
+      if (host !== 'claude') {
+        expect(symlinkedSkillMds(dest), `${host}: symlinked SKILL.md files (Codex skips them)`).toEqual([]);
+        expect(status.stdout).toContain(`\n  ${host} global: router is a real file; section links: `);
+      }
     }, 60_000);
   }
 
@@ -128,6 +146,20 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
     expect(status.stdout).toContain(`register it: cd ${realpathSync(src)} && ./setup --host codex`);
   }, 60_000);
 
+  test('--status names a symlinked router and a broken section link per host (C3)', () => {
+    const f = makeFixture();
+    const src = makeSource(f, join(f.dir, 'gstack'));
+    expect(runSetup(f, join(src, 'setup'), ['--host', 'codex']).status).toBe(0);
+    const router = join(f.home, '.codex/skills/gstack/SKILL.md');
+    rmSync(router);
+    symlinkSync(join(src, '.agents/skills/gstack/SKILL.md'), router);
+    const qa = join(src, '.agents/skills/gstack-qa/sections');
+    rmSync(join(qa, readdirSync(qa).find(n => n.endsWith('.md'))!));
+    const status = runSetup(f, join(src, 'setup'), ['--status']);
+    expect(status.status).toBe(0);
+    expect(status.stdout).toMatch(/codex global: router is a symlink, which Codex skips\. Fix: cd \S+ && \.\/setup --host codex; section links: [1-9]\d* of \d+ broken \(first: [^)]*\)\. Fix: cd /);
+  }, 60_000);
+
   test('upgrade from the previous release layout refreshes every installed host (#1925)', () => {
     const f = makeFixture();
     const src = makeSource(f, join(f.home, '.claude/skills/gstack'), '1.91.12.0');
@@ -135,6 +167,11 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
     // v1.91.13.0 and earlier: same links, no registry, marker in ~/.gstack.
     rmSync(join(f.home, '.gstack/installs.tsv'));
     setVersion(src, '1.91.14.0');
+    // C3: a hand edit to the router copy is saved under the state root before
+    // the runtime root is replaced, and the refresh rewrites the copy.
+    const router = join(f.home, '.codex/skills/gstack/SKILL.md');
+    expect(lstatSync(router).isSymbolicLink()).toBe(false);
+    writeFileSync(router, readFileSync(router, 'utf8') + '\nmy local note\n');
 
     const oldUpgrade = runSetup(f, join(src, 'setup'), []);
     expect(oldUpgrade.status).toBe(0);
@@ -147,6 +184,13 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
     expect(registryRows(f).map(r => [r[0], r[6]]).sort()).toEqual([['claude', '1.91.14.0'], ['codex', '1.91.14.0']]);
     // The refreshed Codex install runs the new checkout's render.
     expect(realpathSync(join(f.home, '.codex/skills/gstack-review/SKILL.md'))).toBe(join(realpathSync(src), '.agents/skills/gstack-review/SKILL.md'));
+    expect(readFileSync(router, 'utf8')).toBe(readFileSync(join(src, '.agents/skills/gstack/SKILL.md'), 'utf8'));
+    const saved = upgrade.stdout.match(/saved your edited (\S+) to (\S+) /);
+    expect(saved, upgrade.stdout).not.toBeNull();
+    expect(saved![1]).toBe(router);
+    expect(saved![2].startsWith(join(f.home, '.gstack/backups/skill-copies/'))).toBe(true);
+    expect(readFileSync(saved![2], 'utf8')).toEndWith('\nmy local note\n');
+    expect(upgrade.stdout).toContain(`refreshed SKILL.md copies in ${join(f.home, '.codex/skills/gstack')}: SKILL.md gstack-upgrade/SKILL.md office-hours/SKILL.md`);
   }, 90_000);
 
   test('a Codex namespace captured by a vendored project copy is reported, never repointed (#2879)', () => {

@@ -62,6 +62,65 @@ for _arg in "$@"; do
   esac
 done
 # --status is read-only: no bun, no build, no writes (docs/ADDING_A_HOST.md).
+# _status_install_checks — per registered install (C3): is the router a real
+# file (Codex skips a symlinked SKILL.md), and does every section pointer in an
+# installed SKILL.md resolve? A pointer is "Read `<path>/sections/<f>.md`",
+# optionally "relative to the installed `<skill>` SKILL.md directory". A bare
+# `sections/...` pointer counts in a carved skill (sections/ installed, or a
+# **STOP.** line); prefixed ones ($GSTACK_ROOT, ~, absolute, ../) everywhere.
+_status_install_checks() {
+  local reg="$GSTACK_STATE_ROOT/installs.tsv" host scope project dest root src rest router md dir stop tok names n path checked broken first fix
+  [ -f "$reg" ] || return 0
+  echo "Install checks:"
+  while IFS='	' read -r host scope project dest root src rest; do
+    case "$host" in ''|'#'*) continue ;; esac
+    fix="Fix: cd $src && ./setup --host $host"
+    router="$root/SKILL.md"
+    if [ -L "$router" ]; then router="router is a symlink, which Codex skips. $fix"
+    elif [ -f "$router" ]; then router="router is a real file"
+    else router="router missing at $router. $fix"; fi
+    checked=0 broken=0 first=""
+    for md in "$dest"/*/SKILL.md; do
+      [ -f "$md" ] || continue
+      dir="${md%/SKILL.md}"
+      while IFS='|' read -r stop tok names; do
+        [ -n "$tok" ] || continue
+        path=""
+        case "$tok" in
+          sections/*)
+            if [ -n "$names" ]; then
+              for n in $names; do path="$dest/$n/$tok"; [ -r "$path" ] && break; done
+            elif [ -d "$dir/sections" ] || [ "$stop" = 1 ]; then path="$dir/$tok"
+            else continue; fi ;;
+          '$GSTACK_ROOT/'*) path="$root/${tok#\$GSTACK_ROOT/}" ;;
+          '~/'*) path="$HOME/${tok#\~/}" ;;
+          /*) path="$tok" ;;
+          ../*) path="$dir/$tok" ;;
+          *) continue ;;
+        esac
+        checked=$((checked + 1))
+        [ -r "$path" ] && continue
+        broken=$((broken + 1))
+        [ -n "$first" ] || first="${md#"$dest"/} names $tok"
+      done <<EOF
+$(awk '{
+  line = $0; stop = index(line, "**STOP.**") ? 1 : 0
+  while (match(line, /Read `[^` ]*sections\/[A-Za-z0-9._-]+\.md`( relative to the installed (`[^`]+`\/?)+)?/)) {
+    m = substr(line, RSTART + 6, RLENGTH - 6); line = substr(line, RSTART + RLENGTH)
+    tok = m; sub(/`.*/, "", tok); names = ""
+    if (index(m, " relative to the installed ")) { names = substr(m, index(m, " relative to the installed ") + 27); gsub(/[`\/]+/, " ", names) }
+    print stop "|" tok "|" names
+  }
+}' "$md")
+EOF
+    done
+    if [ "$broken" -eq 0 ]; then
+      printf '  %s %s: %s; section links: %s checked, all resolve\n' "$host" "$scope" "$router" "$checked"
+    else
+      printf '  %s %s: %s; section links: %s of %s broken (first: %s). %s\n' "$host" "$scope" "$router" "$broken" "$checked" "$first" "$fix"
+    fi
+  done < "$reg"
+}
 for _arg in "$@"; do
   case "$_arg" in
     --status)
@@ -69,6 +128,7 @@ for _arg in "$@"; do
       . "$_STATUS_DIR/bin/gstack-state-root.sh" && . "$_STATUS_DIR/bin/gstack-install-registry.sh" || exit 1
       gstack_state_root_select; GSTACK_STATE_ROOT="$_gstack_sr_root"
       gstack_install_status
+      _status_install_checks
       exit 0 ;;
   esac
 done
@@ -509,6 +569,65 @@ _link_runtime_dists() {
       _link_or_copy "$1/$d" "$2/$d"
     fi
   done
+}
+
+# ─── Real-file SKILL.md copies in host runtime roots (C3, #333) ──────────────
+# Codex skips a symlinked SKILL.md file, so the router and the nested SKILL.md
+# files in every host runtime root are real copies, rewritten on every run.
+# setup records the hash of each copy it writes in $GSTACK_STATE_ROOT/
+# skill-copies.tsv (hash<TAB>path); a copy whose bytes no longer match was
+# edited by hand and is saved to a uniquely named backup under the state root
+# before the tree is replaced, so the backup outlives the old tree.
+_SKILL_COPIES_FILE="$GSTACK_STATE_ROOT/skill-copies.tsv"
+_copy_skill_md() {
+  rm -f "$2" && cp "$1" "$2"
+}
+_skill_copy_hash() {
+  git hash-object "$1" 2>/dev/null
+}
+# _skill_copy_unmodified FILE — FILE is a copy setup wrote and nobody edited.
+_skill_copy_unmodified() {
+  local h
+  [ -f "$1" ] && [ ! -L "$1" ] && [ -f "$_SKILL_COPIES_FILE" ] || return 1
+  h="$(_skill_copy_hash "$1")" || return 1
+  grep -qxF "$h	$1" "$_SKILL_COPIES_FILE"
+}
+# _preserve_skill_copy_edits ROOT — back up every recorded copy under ROOT
+# whose bytes changed. Non-zero when a backup failed: the caller must then
+# keep the old tree (a failed backup is never a license to overwrite).
+_preserve_skill_copy_edits() {
+  local root="$1" hash path dir=""
+  [ -f "$_SKILL_COPIES_FILE" ] || return 0
+  while IFS='	' read -r hash path; do
+    case "$path" in "$root"/*) ;; *) continue ;; esac
+    { [ -f "$path" ] && [ ! -L "$path" ]; } || continue
+    [ "$(_skill_copy_hash "$path")" = "$hash" ] && continue
+    if [ -z "$dir" ]; then
+      mkdir -p "$GSTACK_STATE_ROOT/backups/skill-copies" || return 1
+      dir="$(mktemp -d "$GSTACK_STATE_ROOT/backups/skill-copies/$(date +%Y%m%dT%H%M%S)-XXXXXX")" || return 1
+    fi
+    mkdir -p "$dir/$(dirname "${path#/}")" && cp -p "$path" "$dir/${path#/}" || return 1
+    echo "  saved your edited $path to $dir/${path#/} (setup rewrites gstack's SKILL.md copies on every run)"
+  done < "$_SKILL_COPIES_FILE"
+}
+# _record_skill_copies ROOT — replace ROOT's rows with the real SKILL.md files
+# now under it (find does not descend into linked directories). Sets
+# _COPIES_REFRESHED and _COPIES_REMOVED (paths relative to ROOT).
+_record_skill_copies() {
+  local root="$1" f tmp old="" new
+  _COPIES_REFRESHED="" _COPIES_REMOVED=""
+  if [ -f "$_SKILL_COPIES_FILE" ]; then
+    old="$(awk -F'\t' -v r="$root/" 'index($2, r) == 1 { print substr($2, length(r) + 1) }' "$_SKILL_COPIES_FILE" | sort)"
+  fi
+  new="$(cd "$root" 2>/dev/null && find . -name SKILL.md -type f | sed 's|^\./||' | sort)"
+  mkdir -p "$GSTACK_STATE_ROOT" || return 1
+  tmp="$_SKILL_COPIES_FILE.tmp.$$"
+  {
+    [ -f "$_SKILL_COPIES_FILE" ] && awk -F'\t' -v r="$root/" 'index($2, r) != 1' "$_SKILL_COPIES_FILE"
+    for f in $new; do printf '%s\t%s\n' "$(_skill_copy_hash "$root/$f")" "$root/$f"; done
+  } > "$tmp" && mv -f "$tmp" "$_SKILL_COPIES_FILE" || { rm -f "$tmp"; return 1; }
+  _COPIES_REFRESHED="$(printf '%s\n' "$new" | tr '\n' ' ' | sed 's/ *$//')"
+  _COPIES_REMOVED="$(printf '%s\n' "$old" | grep -vxF -f <(printf '%s\n' "$new") | tr '\n' ' ' | sed 's/ *$//')"
 }
 
 # ─── Ownership gate for skill entries (#2119) ─────────────────────────────────
@@ -2370,6 +2489,11 @@ _activate_runtime_root() {
     echo "  error: could not build the new runtime root for $root (exit $rc); the previous one is unchanged" >&2
     return "$rc"
   fi
+  if ! _preserve_skill_copy_edits "$root"; then
+    rm -rf "$new"
+    echo "  error: could not back up an edited SKILL.md copy under $root; the previous runtime root is unchanged" >&2
+    return 1
+  fi
   if [ -e "$root" ] || [ -L "$root" ]; then
     mv "$root" "$old" || { rm -rf "$new"; return 1; }
   fi
@@ -2379,6 +2503,10 @@ _activate_runtime_root() {
     return 1
   fi
   rm -rf "$old"
+  _record_skill_copies "$root" || echo "  warning: could not record SKILL.md copy hashes in $_SKILL_COPIES_FILE; a later hand edit there may not be backed up" >&2
+  [ -n "$_COPIES_REFRESHED" ] && log "  refreshed SKILL.md copies in $root: $_COPIES_REFRESHED"
+  [ -n "$_COPIES_REMOVED" ] && log "  removed SKILL.md copies from $root: $_COPIES_REMOVED"
+  return 0
 }
 
 # ─── Helper: create a minimal ~/.codex/skills/gstack runtime root ───────────
@@ -2401,7 +2529,7 @@ create_codex_runtime_root() {
   mkdir -p "$codex_gstack" "$codex_gstack/browse" "$codex_gstack/gstack-upgrade" "$codex_gstack/review"
 
   if [ -f "$agents_dir/gstack/SKILL.md" ]; then
-    _link_or_copy "$agents_dir/gstack/SKILL.md" "$codex_gstack/SKILL.md"
+    _copy_skill_md "$agents_dir/gstack/SKILL.md" "$codex_gstack/SKILL.md"
   fi
   if [ -d "$gstack_dir/bin" ]; then
     _link_or_copy "$gstack_dir/bin" "$codex_gstack/bin"
@@ -2417,14 +2545,14 @@ create_codex_runtime_root() {
   fi
   _link_runtime_dists "$gstack_dir" "$codex_gstack"
   if [ -f "$agents_dir/gstack-upgrade/SKILL.md" ]; then
-    _link_or_copy "$agents_dir/gstack-upgrade/SKILL.md" "$codex_gstack/gstack-upgrade/SKILL.md"
+    _copy_skill_md "$agents_dir/gstack-upgrade/SKILL.md" "$codex_gstack/gstack-upgrade/SKILL.md"
   fi
   # plan-eng-review's inline office-hours step reads
   # $GSTACK_ROOT/office-hours/SKILL.md (#2449) — install the codex-rendered
   # variant there so the documented path exists.
   if [ -f "${agents_dir}/gstack-office-hours/SKILL.md" ]; then
     mkdir -p "${codex_gstack}/office-hours"
-    _link_or_copy "${agents_dir}/gstack-office-hours/SKILL.md" "${codex_gstack}/office-hours/SKILL.md"
+    _copy_skill_md "${agents_dir}/gstack-office-hours/SKILL.md" "${codex_gstack}/office-hours/SKILL.md"
   fi
   # Review runtime assets (individual files, NOT the whole review/ dir which has SKILL.md)
   for f in checklist.md design-checklist.md greptile-triage.md TODOS-format.md; do
@@ -2457,7 +2585,7 @@ create_factory_runtime_root() {
   mkdir -p "$factory_gstack" "$factory_gstack/browse" "$factory_gstack/gstack-upgrade" "$factory_gstack/review"
 
   if [ -f "$factory_dir/gstack/SKILL.md" ]; then
-    _link_or_copy "$factory_dir/gstack/SKILL.md" "$factory_gstack/SKILL.md"
+    _copy_skill_md "$factory_dir/gstack/SKILL.md" "$factory_gstack/SKILL.md"
   fi
   if [ -d "$gstack_dir/bin" ]; then
     _link_or_copy "$gstack_dir/bin" "$factory_gstack/bin"
@@ -2473,14 +2601,14 @@ create_factory_runtime_root() {
   fi
   _link_runtime_dists "$gstack_dir" "$factory_gstack"
   if [ -f "$factory_dir/gstack-upgrade/SKILL.md" ]; then
-    _link_or_copy "$factory_dir/gstack-upgrade/SKILL.md" "$factory_gstack/gstack-upgrade/SKILL.md"
+    _copy_skill_md "$factory_dir/gstack-upgrade/SKILL.md" "$factory_gstack/gstack-upgrade/SKILL.md"
   fi
   # plan-eng-review's inline office-hours step reads
   # $GSTACK_ROOT/office-hours/SKILL.md (#2449) — install the factory-rendered
   # variant there so the documented path exists.
   if [ -f "${factory_dir}/gstack-office-hours/SKILL.md" ]; then
     mkdir -p "${factory_gstack}/office-hours"
-    _link_or_copy "${factory_dir}/gstack-office-hours/SKILL.md" "${factory_gstack}/office-hours/SKILL.md"
+    _copy_skill_md "${factory_dir}/gstack-office-hours/SKILL.md" "${factory_gstack}/office-hours/SKILL.md"
   fi
   for f in checklist.md design-checklist.md greptile-triage.md TODOS-format.md; do
     if [ -f "$gstack_dir/review/$f" ]; then
@@ -2511,7 +2639,7 @@ create_opencode_runtime_root() {
   mkdir -p "$opencode_gstack" "$opencode_gstack/browse" "$opencode_gstack/gstack-upgrade" "$opencode_gstack/review" "$opencode_gstack/qa" "$opencode_gstack/plan-devex-review"
 
   if [ -f "$opencode_dir/gstack/SKILL.md" ]; then
-    _link_or_copy "$opencode_dir/gstack/SKILL.md" "$opencode_gstack/SKILL.md"
+    _copy_skill_md "$opencode_dir/gstack/SKILL.md" "$opencode_gstack/SKILL.md"
   fi
   if [ -d "$gstack_dir/bin" ]; then
     _link_or_copy "$gstack_dir/bin" "$opencode_gstack/bin"
@@ -2527,14 +2655,14 @@ create_opencode_runtime_root() {
   fi
   _link_runtime_dists "$gstack_dir" "$opencode_gstack"
   if [ -f "$opencode_dir/gstack-upgrade/SKILL.md" ]; then
-    _link_or_copy "$opencode_dir/gstack-upgrade/SKILL.md" "$opencode_gstack/gstack-upgrade/SKILL.md"
+    _copy_skill_md "$opencode_dir/gstack-upgrade/SKILL.md" "$opencode_gstack/gstack-upgrade/SKILL.md"
   fi
   # plan-eng-review's inline office-hours step reads
   # $GSTACK_ROOT/office-hours/SKILL.md (#2449) — install the opencode-rendered
   # variant there so the documented path exists.
   if [ -f "${opencode_dir}/gstack-office-hours/SKILL.md" ]; then
     mkdir -p "${opencode_gstack}/office-hours"
-    _link_or_copy "${opencode_dir}/gstack-office-hours/SKILL.md" "${opencode_gstack}/office-hours/SKILL.md"
+    _copy_skill_md "${opencode_dir}/gstack-office-hours/SKILL.md" "${opencode_gstack}/office-hours/SKILL.md"
   fi
   for f in checklist.md design-checklist.md greptile-triage.md TODOS-format.md; do
     if [ -f "$gstack_dir/review/$f" ]; then
@@ -2673,7 +2801,7 @@ create_cursor_runtime_root() {
   mkdir -p "$cursor_gstack" "$cursor_gstack/browse" "$cursor_gstack/gstack-upgrade" "$cursor_gstack/review"
 
   if [ -f "$cursor_dir/gstack/SKILL.md" ]; then
-    _link_or_copy "$cursor_dir/gstack/SKILL.md" "$cursor_gstack/SKILL.md"
+    _copy_skill_md "$cursor_dir/gstack/SKILL.md" "$cursor_gstack/SKILL.md"
   fi
   # bin scripts import shared modules via ../lib — bin and lib travel together.
   if [ -d "$gstack_dir/bin" ]; then
@@ -2690,7 +2818,7 @@ create_cursor_runtime_root() {
   fi
   _link_runtime_dists "$gstack_dir" "$cursor_gstack"
   if [ -f "$cursor_dir/gstack-upgrade/SKILL.md" ]; then
-    _link_or_copy "$cursor_dir/gstack-upgrade/SKILL.md" "$cursor_gstack/gstack-upgrade/SKILL.md"
+    _copy_skill_md "$cursor_dir/gstack-upgrade/SKILL.md" "$cursor_gstack/gstack-upgrade/SKILL.md"
   fi
   # Review runtime assets — the cursor host config ships the lean pair.
   for f in checklist.md TODOS-format.md; do
@@ -2850,7 +2978,7 @@ create_copilot_runtime_root() {
   mkdir -p "$copilot_gstack" "$copilot_gstack/browse" "$copilot_gstack/gstack-upgrade" "$copilot_gstack/review"
   printf '%s\n' "$gstack_dir" > "$copilot_gstack/.source-path"
   if [ -f "$copilot_dir/gstack/SKILL.md" ]; then
-    _link_or_copy "$copilot_dir/gstack/SKILL.md" "$copilot_gstack/SKILL.md"
+    _copy_skill_md "$copilot_dir/gstack/SKILL.md" "$copilot_gstack/SKILL.md"
   fi
   for asset in bin lib browse/dist browse/bin; do
     if [ -d "$gstack_dir/$asset" ]; then
@@ -2859,11 +2987,11 @@ create_copilot_runtime_root() {
   done
   _link_runtime_dists "$gstack_dir" "$copilot_gstack"
   if [ -f "$copilot_dir/gstack-upgrade/SKILL.md" ]; then
-    _link_or_copy "$copilot_dir/gstack-upgrade/SKILL.md" "$copilot_gstack/gstack-upgrade/SKILL.md"
+    _copy_skill_md "$copilot_dir/gstack-upgrade/SKILL.md" "$copilot_gstack/gstack-upgrade/SKILL.md"
   fi
   if [ -f "$copilot_dir/gstack-office-hours/SKILL.md" ]; then
     mkdir -p "$copilot_gstack/office-hours"
-    _link_or_copy "$copilot_dir/gstack-office-hours/SKILL.md" "$copilot_gstack/office-hours/SKILL.md"
+    _copy_skill_md "$copilot_dir/gstack-office-hours/SKILL.md" "$copilot_gstack/office-hours/SKILL.md"
   fi
   for f in checklist.md design-checklist.md greptile-triage.md TODOS-format.md; do
     if [ -f "$gstack_dir/review/$f" ]; then
@@ -3150,11 +3278,15 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
       mkdir -p "$KIRO_GSTACK/supabase"
       _link_or_copy "$SOURCE_GSTACK_DIR/supabase/config.sh" "$KIRO_GSTACK/supabase/config.sh"
     fi
-    _link_or_copy "$KIRO_DIR/gstack-upgrade/SKILL.md" "$KIRO_GSTACK/gstack-upgrade/SKILL.md"
-    _link_or_copy "$KIRO_DIR/gstack/SKILL.md" "$KIRO_GSTACK/SKILL.md"
+    if ! _preserve_skill_copy_edits "$KIRO_GSTACK"; then
+      echo "  error: could not back up an edited SKILL.md copy under $KIRO_GSTACK; Kiro install stopped before overwriting it" >&2
+      exit 1
+    fi
+    _copy_skill_md "$KIRO_DIR/gstack-upgrade/SKILL.md" "$KIRO_GSTACK/gstack-upgrade/SKILL.md"
+    _copy_skill_md "$KIRO_DIR/gstack/SKILL.md" "$KIRO_GSTACK/SKILL.md"
     if [ -f "$KIRO_DIR/gstack-office-hours/SKILL.md" ]; then
       mkdir -p "$KIRO_GSTACK/office-hours"
-      _link_or_copy "$KIRO_DIR/gstack-office-hours/SKILL.md" "$KIRO_GSTACK/office-hours/SKILL.md"
+      _copy_skill_md "$KIRO_DIR/gstack-office-hours/SKILL.md" "$KIRO_GSTACK/office-hours/SKILL.md"
     fi
     for f in checklist.md design-checklist.md greptile-triage.md TODOS-format.md; do
       if [ -f "$SOURCE_GSTACK_DIR/review/$f" ]; then
@@ -3176,13 +3308,15 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
       mkdir -p "$target_dir"
       if [ -f "$target_dir/SKILL.md" ] && [ ! -L "$target_dir/SKILL.md" ] \
          && ! _claude_entry_owned_strongly "$target_dir" "$SOURCE_GSTACK_DIR" \
+         && ! _skill_copy_unmodified "$target_dir/SKILL.md" \
          && ! cmp -s "$target_dir/SKILL.md" "$skill_dir/SKILL.md"; then
         if ! _backup_skill_md "$target_dir/SKILL.md" "$skill_name"; then
           echo "  skipped $skill_name: could not back up its customized SKILL.md — left untouched" >&2
           continue
         fi
       fi
-      _link_or_copy "$skill_dir/SKILL.md" "$target_dir/SKILL.md"
+      _copy_skill_md "$skill_dir/SKILL.md" "$target_dir/SKILL.md"
+      _record_skill_copies "$target_dir" || true
       # Native sections already contain Kiro paths/provider markers. Refresh
       # generated files individually so user assets next to them survive.
       if [ -d "$skill_dir/sections" ]; then
@@ -3236,6 +3370,8 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
       fi
     done
     _prune_stale_generated "$SOURCE_GSTACK_DIR" "$KIRO_DIR" "$KIRO_SKILLS"
+    _record_skill_copies "$KIRO_GSTACK" || echo "  warning: could not record SKILL.md copy hashes in $_SKILL_COPIES_FILE" >&2
+    [ -n "$_COPIES_REFRESHED" ] && log "  refreshed SKILL.md copies in $KIRO_GSTACK: $_COPIES_REFRESHED"
     _setup_arm_publish kiro global - "$KIRO_SKILLS" "$KIRO_GSTACK" -
     echo "gstack ready (kiro)."
     echo "  browse: $BROWSE_BIN"
