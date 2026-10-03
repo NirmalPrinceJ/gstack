@@ -3,7 +3,6 @@
  */
 import { toShellPath, type TemplateContext } from './types';
 import { CODEX_MODEL_CONFIG_FLAG, CODEX_REVIEW_MODEL_CONFIG_FLAG, CODEX_WEB_SEARCH_FLAG, codexPreflight } from './constants';
-import { getHostConfig } from '../../hosts';
 
 export function outsideVoiceFor(ctx: Pick<TemplateContext, 'host'>) {
   return ctx.host === 'codex'
@@ -12,28 +11,6 @@ export function outsideVoiceFor(ctx: Pick<TemplateContext, 'host'>) {
 }
 
 const sh = (s: string) => `'${s.replaceAll("'", "'\\''")}'`;
-
-/** Each fence starts a fresh shell, so resolve the same runtime roots as the preamble. */
-export function outsideVoiceRuntime(ctx: TemplateContext): string {
-  const host = getHostConfig(ctx.host);
-  if (!host.usesEnvVars) return '';
-  const global = ctx.host === 'codex'
-    ? '\${CODEX_HOME:-$HOME/.codex}/skills/gstack'
-    : `$HOME/${host.globalRoot}`;
-  return `# Prefer an explicit usable runtime, else the repo-local install.
-if [ -n "\${GSTACK_ROOT:-}" ] && [ -d "$GSTACK_ROOT/bin" ] && [ -f "$GSTACK_ROOT/lib/claude-bin.ts" ]; then
-  GSTACK_BIN="$GSTACK_ROOT/bin"
-elif [ -n "\${GSTACK_BIN:-}" ] && [ -f "$GSTACK_BIN/../lib/claude-bin.ts" ]; then
-  GSTACK_ROOT=$(cd "$GSTACK_BIN/.." && pwd)
-else
-  _OUTSIDE_REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || true)
-  GSTACK_ROOT="${global}"
-  if [ -n "$_OUTSIDE_REPO_ROOT" ] && [ -d "$_OUTSIDE_REPO_ROOT/${host.localSkillRoot}/bin" ] && [ -f "$_OUTSIDE_REPO_ROOT/${host.localSkillRoot}/lib/claude-bin.ts" ]; then
-    GSTACK_ROOT="$_OUTSIDE_REPO_ROOT/${host.localSkillRoot}"
-  fi
-  GSTACK_BIN="$GSTACK_ROOT/bin"
-fi`;
-}
 
 /** Adapt legacy presentation labels, never historical log identifiers or paths. */
 export function outsideVoiceLabels(ctx: TemplateContext, text: string): string {
@@ -69,8 +46,7 @@ fi`;
 export function outsideVoicePreflight(ctx: TemplateContext, opts: { disabledBehavior: 'skip-all' | 'codex-only' | 'opt-in'; acceptedOnly?: boolean; nativeReview?: boolean }): string {
   const v = outsideVoiceFor(ctx);
   if (v.id === 'codex' && opts.disabledBehavior !== 'opt-in') {
-    let preflight = outsideVoiceLabels(ctx, codexPreflight({ disabledBehavior: opts.disabledBehavior, nativeReview: opts.nativeReview }))
-      .replace('```bash\n', `\`\`\`bash\n${outsideVoiceRuntime(ctx)}\n`);
+    let preflight = outsideVoiceLabels(ctx, codexPreflight({ disabledBehavior: opts.disabledBehavior, nativeReview: opts.nativeReview }));
     if (['plan-eng-review', 'plan-ceo-review'].includes(ctx.skillName)) {
       preflight = preflight.replace("follow the workflow's native-review instructions below",
         'construct the prompt below, then follow **Native fallback**');
@@ -93,7 +69,6 @@ else
   echo 'CODEX_MODE: under_current_harness'
 fi`;
   return `\`\`\`bash
-${outsideVoiceRuntime(ctx)}
 ${opts.acceptedOnly ? '' : `${config}
 if [ "$_OUTSIDE_CFG" = disabled ]; then
   echo 'CODEX_MODE: disabled'
@@ -145,7 +120,6 @@ if [ "$_OUTSIDE_EXIT" -eq 0 ]; then
   bun -e 'const r=await Bun.file(process.argv[1]).json(); if(r.status!=="completed" || typeof r.result!=="string" || !r.result.trim()) process.exit(1); await Bun.write(process.argv[2],r.result)' "$_OUTSIDE_TMP/result.json" "$_OUTSIDE_TMP/text" || _OUTSIDE_EXIT=1
 fi`;
   return `${outsideVoiceGuard(ctx)}
-${outsideVoiceRuntime(ctx)}
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo 'ERROR: not in a git repo' >&2; exit 1; }
 _OUTSIDE_TMP=$(mktemp -d "\${TMPDIR:-/tmp}/gstack-outside.XXXXXXXX") || exit 1
 trap 'rm -rf "$_OUTSIDE_TMP"' EXIT

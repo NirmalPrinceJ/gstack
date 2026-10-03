@@ -242,10 +242,11 @@ For each UI screen/section in scope, construct a design brief from the plan's de
 $D variants --brief "<description assembled from plan + DESIGN.md constraints>" --count 3 --output-dir "$_DESIGN_DIR/"
 ```
 
-After generation, run a cross-model quality check on each variant:
+`variants` writes into a new `round-<N>/` under the output dir and prints `roundDir`,
+`manifest` and `paths` (saved images only). Run a cross-model quality check on each of those `paths`:
 
 ```bash
-$D check --image "$_DESIGN_DIR/variant-A.png" --brief "<the original brief>"
+$D check --image "<one path from paths>" --brief "<the original brief>"
 ```
 
 Flag any variants that fail the quality check. Offer to regenerate failures.
