@@ -330,7 +330,7 @@ _link_root_skill_alias() {
 
 _link_root_skill_alias
 
-# Discover skills (directories with SKILL.md, excluding meta dirs)
+# Discover skills: every top-level directory with a SKILL.md
 SKILL_COUNT=0
 for skill_dir in "$INSTALL_DIR"/*/; do
   [ -d "$skill_dir" ] || continue
@@ -340,8 +340,8 @@ for skill_dir in "$INSTALL_DIR"/*/; do
   # rewritten-copy alias for those.
   [ -L "${skill_dir%/}" ] && continue
   skill=$(basename "$skill_dir")
-  # Skip non-skill directories
-  case "$skill" in bin|browse|design|docs|extension|lib|node_modules|scripts|test|.git|.github) continue ;; esac
+  # A directory is a skill iff it carries a SKILL.md (#2263): a name list
+  # dropped the real browse skill. Support dirs have no SKILL.md.
   [ -f "$skill_dir/SKILL.md" ] || continue
   case "$DISABLED" in
     *" ${skill#gstack-} "*)
