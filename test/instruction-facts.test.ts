@@ -172,7 +172,6 @@ const PENDING = 'agent reads or writes this literal default-root path; it diverg
 const SOURCE_COMMENT = 'source comment, not rendered into any skill';
 
 const STATE_ROOT_ALLOWLIST: Array<{ file: string; match: string; reason: string }> = [
-  { file: 'autoplan/SKILL.md.tmpl', match: 'ls -t ~/.gstack/projects/$SLUG/*-design-*.md', reason: PENDING },
   { file: 'autoplan/SKILL.md.tmpl', match: 'test plan on disk at ~/.gstack/projects/$SLUG/', reason: DESCRIPTION },
   { file: 'canary/SKILL.md.tmpl', match: 'Append it to `~/.gstack/projects/$SLUG/canary-history.jsonl`', reason: PENDING },
   { file: 'careful/SKILL.md.tmpl', match: '`~/.gstack/projects/<slug>/careful-patterns.txt` (per-project)', reason: DESCRIPTION },
@@ -201,9 +200,6 @@ const STATE_ROOT_ALLOWLIST: Array<{ file: string; match: string; reason: string 
   { file: 'retro/SKILL.md.tmpl', match: 'Read `~/.gstack/analytics/eureka.jsonl`', reason: PENDING },
   { file: 'ship/sections/apple-release.md.tmpl', match: 'to `~/.gstack/projects/$SLUG/apple-effects.log`', reason: PENDING },
   { file: 'ship/sections/tests.md.tmpl', match: '`~/.gstack/projects/<slug>/<branch>-evidence.jsonl` — Step 16 cites this', reason: PENDING },
-  { file: 'scripts/resolvers/design-doc-discovery.ts', match: '* under ~/.gstack/projects/<slug>/, falling back', reason: SOURCE_COMMENT },
-  { file: 'scripts/resolvers/design-doc-discovery.ts', match: '_LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md', reason: PENDING },
-  { file: 'scripts/resolvers/design-doc-discovery.ts', match: '_LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md', reason: PENDING },
   { file: 'scripts/resolvers/design.ts', match: 'Glob \\`~/.gstack/projects/$SLUG/designs/**/approved.json\\`', reason: PENDING },
   { file: 'scripts/resolvers/learnings.ts', match: '* Learnings are stored per-project at ~/.gstack/projects/{slug}/learnings.jsonl', reason: SOURCE_COMMENT },
   { file: 'scripts/resolvers/preamble.ts', match: 'local JSONL append to ~/.gstack/analytics/ (inline, inspectable)', reason: SOURCE_COMMENT },

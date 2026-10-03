@@ -126,6 +126,7 @@ Apply throughout, not as extra checks:
 ### Design Doc Check
 ```bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
+eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 if _REVIEW_SLUG=$(~/.claude/skills/gstack/bin/gstack-slug); then
   eval "$_REVIEW_SLUG"
   {{DESIGN_DOC_DISCOVERY}}
