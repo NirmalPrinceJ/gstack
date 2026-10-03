@@ -160,3 +160,34 @@ describe("pii.ip_public: a four-part version needs a version declaration (#2784)
     ],
   );
 });
+
+describe("db.url_with_password: postgres:postgres only on a loopback host (#2913)", () => {
+  // Assembled from parts so this file's own source never carries a
+  // credential-bearing URL for the repo's secret scan to block.
+  const url = (userinfo: string, rest: string, scheme = "postgresql") => `${scheme}://${userinfo}@${rest}`;
+  const pg = ["postgres", "postgres"].join(":");
+  table(
+    "db.url_with_password",
+    "HIGH",
+    [
+      `DATABASE_URL=${url(pg, "localhost:5432/app_test")}`,
+      `DATABASE_URL=${url(pg, "127.0.0.1:5432/app", "postgres")}`,
+      `DIRECT_URL="${url(pg, "localhost/app")}"`,
+      `url: ${url(pg, "localhost", "postgres")}`,
+      url(pg, "localhost:5432?sslmode=disable"),
+    ],
+    [
+      `DATABASE_URL=${url(pg, "db:5432/app")}`,
+      `DATABASE_URL=${url(pg, "postgres:5432/app")}`,
+      `DATABASE_URL=${url(pg, "prod-host:5432/app")}`,
+      `DATABASE_URL=${url(pg, "localhost.evil.example.net/app")}`,
+      `DATABASE_URL=${url(pg, "127.0.0.1.nip.io/app")}`,
+      `DATABASE_URL=${url(pg, "localhost@prod-db/app")}`,
+      `DATABASE_URL=${url(["user", "s3cretPassw0rd"].join(":"), "prod-host:5432/app")}`,
+      `DATABASE_URL=${url(["postgres", "hunter2x"].join(":"), "localhost:5432/app")}`,
+      `DATABASE_URL=${url(["admin", "postgres"].join(":"), "localhost:5432/app")}`,
+      `DATABASE_URL=${url(["postgres", "Postgres"].join(":"), "localhost:5432/app")}`,
+      `DATABASE_URL=${url(pg, "localhost:3306/app", "mysql")}`,
+    ],
+  );
+});

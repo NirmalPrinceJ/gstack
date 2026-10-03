@@ -521,6 +521,18 @@ function urlPasswordIsPlaceholder(span: string): boolean {
   return PLACEHOLDER_STRUCTURAL.some((re) => re.test(pw));
 }
 
+/**
+ * #2913: `postgres:postgres` is the official postgres image's default pair,
+ * committed in compose files and CI DATABASE_URLs. It is exempt only on a
+ * loopback host (`localhost` or `127.0.0.1`, optional port), never on a
+ * single-label host such as `db`: a compose service name says nothing about
+ * where the same URL is also deployed, and a weak default on a reachable host
+ * is exactly the leak to report. Exact user and password, case-sensitive;
+ * the host must end at a port, path, query, quote or the span's end.
+ */
+const POSTGRES_LOOPBACK_DEFAULT =
+  /^postgres(?:ql)?:\/\/postgres:postgres@(?:localhost|127\.0\.0\.1)(?::\d{1,5})?(?![\w.:@%-])/;
+
 /** A value span that is only an environment-variable read expression (#2912). */
 const ENV_READ_SPAN =
   /^(?:os\.environ\[|os\.environ\.get\(|os\.getenv\(|getenv\(|ENV\[|process\.env\.[A-Za-z_$][\w$]*[;,)]?)$/;
@@ -767,8 +779,9 @@ export const PATTERNS: RedactPattern[] = [
     category: "secret",
     description: "Database URL with embedded password",
     regex: /\b((?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqp):\/\/[^:\s/@]+:[^@\s/]+@[^\s/]+)/,
-    // Skip when the password segment is itself a placeholder/interpolation.
-    validate: (span) => !urlPasswordIsPlaceholder(span),
+    // Skip when the password segment is itself a placeholder/interpolation,
+    // or the URL is postgres's default pair on a loopback host.
+    validate: (span) => !urlPasswordIsPlaceholder(span) && !POSTGRES_LOOPBACK_DEFAULT.test(span),
   },
   {
     id: "creds.basic_auth_url",
