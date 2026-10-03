@@ -83,6 +83,23 @@ describe('C4: ship and plan-ceo-review are carved on every external host', () =>
     });
   }
 
+  test('no external render points at $GSTACK_ROOT/<skill>/sections/ (runtime roots have no section trees)', () => {
+    const offenders: string[] = [];
+    for (const config of EXTERNAL) {
+      for (const file of skillFiles(path.join(renders.all, config.hostSubdir))) {
+        const hits = fs.readFileSync(file, 'utf8').match(/\$GSTACK_ROOT\/[a-z0-9-]+\/sections\/[\w.-]+/g) ?? [];
+        offenders.push(...hits.map(hit => `${path.relative(renders.all, file)}: ${hit}`));
+      }
+    }
+    expect(offenders).toEqual([]);
+    const codex = ALL_HOST_CONFIGS.find(c => c.name === 'codex')!;
+    expect(fs.readFileSync(path.join(skillDir(codex, renders.all, 'plan-eng-review'), 'SKILL.md'), 'utf8'))
+      .toContain('Read the `review-sections` section inlined in this SKILL.md');
+    const html = fs.readFileSync(path.join(skillDir(codex, renders.all, 'design-html'), 'SKILL.md'), 'utf8');
+    expect(html).not.toContain('detector-install-offer.md');
+    expect(html).toContain('the user has never answered this. Ask now');
+  });
+
   test('codex: the autoplan methodology loader accepts the carved plan-ceo-review install', () => {
     const codex = ALL_HOST_CONFIGS.find(c => c.name === 'codex')!;
     const restore = path.join(tmp, 'restore.md');

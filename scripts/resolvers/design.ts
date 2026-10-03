@@ -1,6 +1,7 @@
 import { outsideVoiceFailurePolicy, outsideVoiceFor, outsideVoiceInvocation, outsideVoicePreflight, outsideVoiceProvenance } from './outside-voice';
 import { type TemplateContext, quoteSafePath, toShellPath } from './types';
 import { binaryAssignment } from './runtime-root';
+import { usesLazySections } from './sections';
 import { AI_SLOP_BLACKLIST, OPENAI_HARD_REJECTIONS, OPENAI_LITMUS_CHECKS, CC_BACKGROUND_DEFAULT_SINCE } from './constants';
 import { OVERUSED_FONTS_DISPLAY, BANNED_FONTS, FONTS_BODY_UI_OK, FONTS_MONO_OK, FONTS_VERIFIED_FREE, HANDOFF_COMMANDS, selectCatalog, catalogEntries, renderCatalog, detectorSlopEntries, judgmentTellEntries } from '../../lib/design-catalog';
 import { SENTINEL, DETECT_EXIT_ECHO, DETECT_LIMITS } from '../../lib/design-detect-contract';
@@ -951,7 +952,8 @@ Exit 2 → one surgical fix pass over the non-advisory rules in the \`${SENTINEL
   // only), so it carries the brief inline; every other skill keeps its skeleton
   // small and reads sections/detector-install-offer.md only when the probe printed
   // the offer (a carved section costs nothing until it is read).
-  const offer = ctx.skillName === 'design-review'
+  // External hosts do not carve design-html, so the section file is never installed there: inline it.
+  const offer = ctx.skillName === 'design-review' || !usesLazySections(ctx.host, ctx.skillName)
     ? generateDesignDetector(ctx, ['offer'])
     : `**Install offer (one question, asked once).** If the probe printed \`${SENTINEL.INSTALL_OFFER}\`, Read \`${ctx.paths.skillRoot}/${ctx.skillName}/sections/detector-install-offer.md\` and follow it before any other step; otherwise skip it.`;
   return `**Design detector (optional, deterministic):** gstack runs impeccable's engine when one is installed under the user's home directory. gstack never runs impeccable's installer, its launcher, or \`npx impeccable\`; the one download it can make is the engine binary itself, only after the user says yes to the offer below, verified against a checksum pinned in gstack.
