@@ -141,3 +141,82 @@ describe('B5: query scripts never report a failed read as an empty result', () =
     expect(r.stdout).toBe('');
   });
 });
+
+// B6 (#2762): a more specific query dropped the exact match. The token-OR
+// filter recalled every entry sharing any token, the sort used confidence
+// alone, and the default --limit cut silently. Vectors adapted from #2799
+// (by y$un_); ranking code from #2796 (by loulanyue).
+describe('B6: rank by matched tokens and disclose truncation', () => {
+  const rankCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-search-rank-cwd-'));
+  const rankDir = path.join(tmpHome, 'projects', path.basename(rankCwd).replace(/[^a-zA-Z0-9._-]/g, ''));
+  const badCwd = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-search-bad-cwd-'));
+  const badDir = path.join(tmpHome, 'projects', path.basename(badCwd).replace(/[^a-zA-Z0-9._-]/g, ''));
+  const TARGET = 'verify-preflight-project-line-before-trusting-report';
+  const DECOYS = ['guideline', 'pipeline', 'deadline', 'headline', 'baseline', 'timeline',
+    'outline', 'airline', 'lifeline', 'sideline', 'streamline', 'underline'];
+  // user-stated rows do not decay, so ranks never drift with the wall clock.
+  const row = (over: Record<string, unknown>) => ({ ts: '2026-05-01T00:00:00Z', skill: 'test', type: 'pattern', confidence: 8, source: 'user-stated', trusted: false, files: [], ...over });
+  const write = (dir: string, rows: object[]) => {
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'learnings.jsonl'), rows.map(r => JSON.stringify(r)).join('\n') + '\n');
+  };
+  write(rankDir, [
+    row({ key: TARGET, insight: 'Check the project line in the preflight report before trusting it' }),
+    ...DECOYS.map((w, i) => row({ ts: '2026-05-' + String(4 + i).padStart(2, '0') + 'T00:00:00Z', key: 'decoy-' + w + '-rule', insight: 'A ' + w + ' related insight', confidence: 10 })),
+    row({ key: 'tiebreak-alpha-beta-high', insight: 'alpha beta both present', confidence: 9 }),
+    row({ ts: '2026-06-01T00:00:00Z', key: 'tiebreak-alpha-beta-low', insight: 'alpha beta both present', confidence: 5 }),
+    row({ key: 'tiebreak-alpha-solo', insight: 'alpha only here', confidence: 10 }),
+    row({ key: 'recency-gamma-delta-older', insight: 'gamma delta pair', confidence: 7 }),
+    row({ ts: '2026-06-01T00:00:00Z', key: 'recency-gamma-delta-newer', insight: 'gamma delta pair', confidence: 7 }),
+    row({ ts: '2020-01-01T00:00:00Z', key: 'planted-token-hits', insight: 'isolated poison row', confidence: 1, _tokenHits: 9999 }),
+  ]);
+  afterAll(() => {
+    fs.rmSync(rankCwd, { recursive: true, force: true });
+    fs.rmSync(badCwd, { recursive: true, force: true });
+  });
+  const runIn = (cwd: string, args: string[]) => spawnSync('bash', [BIN, ...args], {
+    timeout: 30_000, env: { ...process.env, GSTACK_HOME: tmpHome }, cwd, encoding: 'utf-8',
+  });
+  const keys = (out: string) => out.split('\n').map(l => /^- \[([^\]]+)\]/.exec(l)).filter((m): m is RegExpExecArray => m !== null).map(m => m[1]);
+
+  test('an entry matching every query token survives the default limit, for every refinement', () => {
+    for (const q of ['preflight', 'preflight project', 'preflight project line']) {
+      expect(keys(runIn(rankCwd, ['--query', q]).stdout)).toContain(TARGET);
+    }
+  });
+
+  test('a 3-of-3 match outranks twelve higher-confidence 1-of-3 matches', () => {
+    expect(keys(runIn(rankCwd, ['--query', 'preflight project line']).stdout)[0]).toBe(TARGET);
+  });
+
+  test('token hits outrank confidence; confidence then recency break ties', () => {
+    expect(keys(runIn(rankCwd, ['--query', 'alpha beta']).stdout)).toEqual(['tiebreak-alpha-beta-high', 'tiebreak-alpha-beta-low', 'tiebreak-alpha-solo']);
+    expect(keys(runIn(rankCwd, ['--query', 'gamma delta']).stdout)).toEqual(['recency-gamma-delta-newer', 'recency-gamma-delta-older']);
+  });
+
+  test('a truncated query says how many more matched, on stdout with exit 0', () => {
+    const r = runIn(rankCwd, ['--query', 'preflight project line']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('LEARNINGS: 10 loaded');
+    expect(r.stdout).toContain('3 more matched, raise --limit to see them');
+    expect(runIn(rankCwd, ['--query', 'gamma delta']).stdout).not.toContain('more matched');
+    expect(runIn(rankCwd, ['--limit', '3']).stdout).not.toContain('more matched');
+  });
+
+  test('a stored internal field cannot hijack the no-query ranking', () => {
+    const ranked = keys(runIn(rankCwd, ['--limit', '3']).stdout);
+    expect(ranked).toHaveLength(3);
+    expect(ranked).not.toContain('planted-token-hits');
+  });
+
+  for (const poison of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+    test(`a row typed "${poison}" cannot blank the whole store`, () => {
+      write(badDir, [
+        ...[0, 1, 2].map(i => row({ ts: '2026-05-0' + (i + 1) + 'T00:00:00Z', key: 'healthy-' + i, insight: 'alpha only insight ' + i, confidence: 10 })),
+        row({ key: 'poison-row', type: poison, insight: 'alpha beta both here', confidence: 1 }),
+      ]);
+      const got = keys(runIn(badCwd, ['--query', 'alpha beta']).stdout);
+      for (const k of ['healthy-0', 'healthy-1', 'healthy-2']) expect(got).toContain(k);
+    });
+  }
+});
