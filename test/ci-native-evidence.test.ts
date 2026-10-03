@@ -27,7 +27,8 @@ test('every direct CI paid executor binds a safe unique run/attempt/job/slice id
   ]);
   const ids = new Set<string>();
   for (const [workflowIndex, { job, step }] of executors.entries()) {
-    expect(job.container.options).toBe('--user runner');
+    // Non-root, and Codex's bubblewrap sandbox can create user namespaces (periodic run 37151477069).
+    expect(job.container.options).toBe('--user runner --security-opt seccomp=unconfined');
     const env = { ...job.env, ...step.env };
     expect(env.EVALS_RUN_ID).toBeString();
     for (const run of ['36302678692', '36302678693']) {
