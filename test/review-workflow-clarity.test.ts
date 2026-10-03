@@ -480,3 +480,13 @@ test('review keeps its smoke-clock, setup-authority, plan-gate and findings-sour
   const persist = skill.slice(skill.indexOf('### 2. Fill the record')).replace(/\s+/g, ' ');
   expect(persist).toMatch(/combined final-pass findings \(core, specialist, adversarial, actionable Greptile, verified exploratory QA findings\)/i);
 });
+
+// INV-1 consumers: an outside review that reports `unverified` or
+// `unavailable` is missing coverage in /ship's readiness note, its PR body
+// and /review's completion, never a pass.
+test('ship and review count unverified or unavailable outside reviews as missing coverage', () => {
+  const read = (rel: string) => readFileSync(join(import.meta.dir, '..', rel), 'utf-8').replace(/\s+/g, ' ');
+  for (const rel of ['ship/SKILL.md', 'ship/sections/pr-body.md', 'review/SKILL.md']) {
+    expect(read(rel)).toMatch(/`unverified` or `unavailable` is (listed as )?missing coverage[^.]*never (as )?(a )?pass/i);
+  }
+});
