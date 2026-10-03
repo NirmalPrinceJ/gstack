@@ -12,7 +12,7 @@ This release closes the follow-ups filed by the v1.91.15.0 prompt cleanup. The c
 - **Narrower transcript consent.** The gbrain transcript gate offers "new sessions only", stored as `new@<UTC time>`, which ingests only sessions that started after you answered. `gstack-config set transcript_repos <repo,...>` limits ingest to the repos you name. Turning ingest `off` keeps pages already staged, and only a narrower choice purges them. `gstack-config unset <key>` is new, and every config write now takes a lock.
 - **Opt-in Claude overlay.** `./setup --claude-model <id>` renders the model's tuned skill overlay (opus-4-7, opus-4-8, sonnet-5, fable-5) and keeps it across upgrades and `gbrain-refresh`. `./setup --claude-model claude` returns to the generic overlay, and `./setup --status` shows which one is active.
 - **Design docs follow your state root.** /plan-eng-review, /plan-ceo-review, /plan-devex-review and /autoplan find /office-hours design docs under `$GSTACK_STATE_ROOT` through the new `gstack-design-doc-find` helper, so custom state roots no longer miss them.
-- **/design-shotgun** generates its variants in one parallel batch instead of one subagent per variant.
+- **/design-shotgun** generates its variants with one `$D variants --briefs-file` call instead of one subagent per variant, then publishes every image with `gstack-design-claim`, so earlier rounds are never overwritten.
 - **/qa and /qa-only** probe loops use readable names (`PROBE_DIR`, `DEADLINE_FILE`, `DEADLINE_TOOL`, `EVIDENCE_TOOL`) and a short "how one probe works" summary. The commands and machine-read markers are unchanged.
 - **Codex outside voice** states its filesystem boundary at normal volume. A 10-trial eval showed Codex still keeps out of `~/.claude/`, `~/.agents/`, `.claude/skills/` and `agents/`. The pair-agent instruction block's divider is fixed.
 
@@ -26,7 +26,7 @@ This release closes the follow-ups filed by the v1.91.15.0 prompt cleanup. The c
 
 #### Changed
 - The plan-floor assessment cap is 90 seconds (it was 30); the measured p95 is 27 seconds and the slowest run took 31.
-- Parity caps lowered to measured sizes for land-and-deploy, design-consultation and ship.
+- Parity caps lowered to measured sizes for land-and-deploy and ship.
 - The codex consult section drops issue numbers from its runtime prose.
 
 #### Fixed
@@ -36,6 +36,46 @@ This release closes the follow-ups filed by the v1.91.15.0 prompt cleanup. The c
 
 #### For contributors
 - Five safety rules and the qa workflow, review and cookie judges keep their wording; TODOS.md lists what each needs before it can change.
+
+## [1.91.17.0] - 2026-10-03
+
+**Checkpoints say whether each next step was run, read or guessed, and `/context-restore` verifies the guesses first.**
+**Paid design images are never overwritten, and design skills always show the round you just paid for.**
+
+This wave rebuilds three community PRs from @mvanhorn on current main. A checkpoint's Remaining Work used to read the same whether a step had been run or only inferred, so a resumed session could act on a guess and hit the wrong system (#3004, reported by @tomg65). Running `$D variants` twice into one folder replaced `variant-A.png`, `$D generate --retry` kept only the last image, and skills built boards from fixed `variant-A/B/C` names, so you could pay for images you never saw (#1529, reported by @SakenW).
+
+### What changes for you
+
+- **Remaining Work carries provenance.** Every item starts with `Open.` and ends with how the saving session knows it: `(path run)` with the outcome, `(path read)` or `(path assumed)` for commands, flags, config values and files; `(target state checked)`, `(code read)` or `(path assumed)` for writes. For example:
+
+      1. Open. Run the migration check with SWITCH_B=1 against staging. (path assumed)
+      2. Open. Run bun test test/billing.test.ts. (path run) exit 0
+
+  `/context-restore` keeps the saved order but shows item 2 under **Next steps** and item 1 under **Verify first**, and "continue" starts by verifying item 1 read-only instead of jumping to item 2. Checkpoints saved before this release have no markers, so their command, path and write items land under Verify first, with a one-line banner saying so.
+- **Nothing paid is lost.** A taken image name gets `-2`, `-3` and so on (`variant-A-2.png`); stderr says `note: <requested> exists; saved to <actual> (existing file kept)` and the JSON reports the real path. Every `--retry` attempt is its own saved image. If saving fails after the API returned the image, the bytes go to a private recovery copy in your temp directory and the message says where; a local write failure never buys a second image.
+- **Every image command prints JSON, even on failure**: `requested`, `saved`, `selected`, `failures`, `recovered`. Exit 0 means the result is ready, 2 means nothing was saved, 3 means the run stopped after saving some images.
+- **Boards show this round only.** Skills tell you how many of the requested images were saved, write the round's printed paths to `board-images.json`, build the board with `$D compare --images-file`, archive an old `feedback.json` first, and record `approved_path` in `approved.json`, so a later session opens exactly the image you approved. Old letter-only approvals still work. /design-shotgun subagents stage in a fresh temp directory and publish with `gstack-design-claim`, which never overwrites.
+- **If you script `$D`,** read paths from the JSON instead of assuming the file name:
+
+      out=$($D generate --brief "pricing page" --output designs/pricing.png); rc=$?
+      img=$(printf '%s' "$out" | jq -r .outputPath)
+      [ "$rc" -eq 0 ] && $D check --image "$img" --brief "pricing page"
+
+  `variants` prints its list in `.paths`; `compare` takes it losslessly with `--images-file paths.json`.
+- **Windows console flashes (#1784)** were confirmed fixed on main (v1.91.15.0) by @kaiwulff on a real Windows 11 desktop; this release ships no code for them.
+
+### Itemized changes
+
+#### Fixed
+- `/context-save` Remaining Work did not record whether a step was run, read or assumed, and `/context-restore` offered the first item as the next action (#3004). Marker format from #3019 by @mvanhorn, field-tested by @tomg65.
+- Design images were silently overwritten by later rounds and `--retry` attempts (#1529). Exclusive-create claim idea from #1737 by @mvanhorn.
+- Comparison boards and quality checks read fixed `variant-A/B/C` names or a `variant-*.png` glob and mixed rounds; a stale `feedback.json` could approve a new round.
+- `$D` wrote iterate session files to `/tmp`, which does not exist on Windows, so `generate` could not record its session and `iterate` could not find it there; sessions now live in the OS temp directory.
+- /setup-deploy reported a failing status command as success (the pipe hid its exit code), matched `cd` anywhere in a workflow as a deploy workflow, and left the merge-method check, Fly `/health` detection and GitHub-Actions-only status command unspecified.
+
+#### Added
+- `$D compare --images-file` and JSON-array `--images`, `bin/gstack-design-claim`, `bin/gstack-design-approved`, and `approved_path` in approval records.
+- Periodic behavior eval `context-restore-provenance-order` (3-trial panel) and free contract tests for the provenance markers, `$D` persistence and the design-skill path rules.
 
 ## [1.91.16.0] - 2026-10-03
 

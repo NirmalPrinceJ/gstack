@@ -139,15 +139,19 @@ describe("image-generation call sites (Responses API)", () => {
   test("generate", async () => {
     stubFetch((u) => ok(u));
     const r = await generate({ brief: "a login page", output: path.join(dir, "g.png") });
-    fs.rmSync(r.sessionFile, { force: true });
+    fs.rmSync(r.sessionFile!, { force: true });
     expect(calls).toHaveLength(1);
     expectImageShape(calls[0]);
     stubFetch(() => rejected());
-    await expect(generate({ brief: "x", output: path.join(dir, "g2.png") })).rejects.toThrow(`${DESIGN_MODEL_ENV}=${OVERRIDE}`);
+    const failed = await generate({ brief: "x", output: path.join(dir, "g2.png") });
+    expect(failed.exitCode).toBe(2);
+    names(failed.failures[0].reason);
     // An override that cannot drive gpt-image-2 fails before any request.
     calls = [];
     process.env[DESIGN_MODEL_ENV] = "gpt-4o";
-    await expect(generate({ brief: "x", output: path.join(dir, "g3.png") })).rejects.toThrow(DESIGN_MODEL_ENV);
+    const refused = await generate({ brief: "x", output: path.join(dir, "g3.png") });
+    expect(refused.exitCode).toBe(2);
+    expect(refused.failures[0].reason).toContain(DESIGN_MODEL_ENV);
     expect(calls).toHaveLength(0);
   });
 
@@ -163,7 +167,7 @@ describe("image-generation call sites (Responses API)", () => {
 
   test("iterate: threaded and fresh fallback", async () => {
     const id = `models-test-${process.pid}-${Date.now()}`;
-    const session = path.join("/tmp", `design-session-${id}.json`);
+    const session = path.join(os.tmpdir(), `design-session-${id}.json`);
     const write = () => fs.writeFileSync(session, JSON.stringify({ id, lastResponseId: "resp_prev", originalBrief: "b", feedbackHistory: [], outputPaths: [], createdAt: "", updatedAt: "" }));
     try {
       write();
@@ -177,7 +181,8 @@ describe("image-generation call sites (Responses API)", () => {
       write();
       errors = [];
       stubFetch(() => rejected());
-      await expect(iterate({ session, feedback: "x", output: path.join(dir, "i2.png") })).rejects.toThrow(`${DESIGN_MODEL_ENV}=${OVERRIDE}`);
+      expect(await iterate({ session, feedback: "x", output: path.join(dir, "i2.png") })).toBe(2);
+      names(errors.at(-1)!);
       names(errors.find((e) => e.includes("Threading failed"))!);
     } finally {
       fs.rmSync(session, { force: true });
@@ -192,7 +197,8 @@ describe("image-generation call sites (Responses API)", () => {
     expectImageShape(calls[1]);
     expect(calls[1].body.input).toContain("a centered card");
     stubFetch(() => rejected());
-    await expect(evolve({ screenshot: path.join(dir, "shot.png"), brief: "x", output: path.join(dir, "e2.png") })).rejects.toThrow(`${DESIGN_MODEL_ENV}=${OVERRIDE}`);
+    expect(await evolve({ screenshot: path.join(dir, "shot.png"), brief: "x", output: path.join(dir, "e2.png") })).toBe(2);
+    names(errors.at(-1)!);
     names(errors.find((e) => e.includes("Screenshot analysis failed"))!);
   });
 });

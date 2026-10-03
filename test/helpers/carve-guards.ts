@@ -411,8 +411,10 @@ do not launch the downstream skill or open a browser.`,
     // eureka log, the office-hours lookup and the taste-profile read; measured
     // 1.0834 (2026-09-30). + named design-direction defaults to avoid in the native
     // subagent prompt (s02 H4a); measured 1.0911 (2026-10-02). Re-measured
-    // 1.0758 (2026-10-03); cap = measured + 0.005 headroom.
-    maxSizeRatio: 1.081,
+    // 1.0758 (2026-10-03); cap = measured + 0.005 headroom. + v1.91.17.0's
+    // never-overwrite round accounting and printed-path board images; measured
+    // 1.091 (2026-10-03).
+    maxSizeRatio: 1.092,
   },
   cso: {
     skill: 'cso',

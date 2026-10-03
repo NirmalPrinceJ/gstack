@@ -550,12 +550,14 @@ For interactive feedback, use `compare --serve` and its printed HTTP URL; openin
 
 If `DESIGN_READY`: the design binary is available for visual mockup generation.
 Commands:
-- `$D generate --brief "..." --output /path.png` — generate a single mockup
-- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants
-- `$D compare --images "a.png,b.png,c.png" --output /path/board.html --serve` — comparison board + HTTP server
+- `$D generate --brief "..." --output /path.png` — generate a single mockup (prints `outputPath`)
+- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants (prints `paths`)
+- `$D compare --images-file /path/board-images.json --output /path/board.html --serve` — comparison board + HTTP server
 - `$D serve --html /path/board.html` — serve comparison board and collect feedback via HTTP
 - `$D check --image /path.png --brief "..."` — vision quality gate
 - `$D iterate --session /path/session.json --feedback "..." --output /path.png` — iterate
+
+Image commands never overwrite (a taken name gets `-2`) and always print JSON (`requested`, `saved`, `failures`); exit 0 ready, 2 nothing saved, 3 stopped after saving some. Capture without `set -e`: `_OUT=$($D ...); _RC=$?`.
 - `$D extract --image /absolute/path.png` — print tokens and automatically update DESIGN.md in the current Git repository; no read-only flag
 
 `generate` returns `sessionFile`; `iterate` requires that existing session. `variants` returns `paths` but creates no session: regenerate with an updated brief instead.
@@ -662,7 +664,7 @@ fonts [top-3], colors [top-3], layouts [top-3], aesthetics [top-3]. Bias
 generation toward these unless the user explicitly requests a different direction.
 Also avoid their strong rejections: [top-3 rejected per dimension]."
 
-**Legacy fallback:** Glob `$GSTACK_STATE_ROOT/projects/$SLUG/designs/**/approved.json` (resolve the root with gstack-paths); Read the five newest. Use explicit feedback only, never infer fonts/colors from variant letters. No usable files: continue without a taste profile.
+**Legacy fallback:** Glob `$GSTACK_STATE_ROOT/projects/$SLUG/designs/**/approved.json` (resolve the root with gstack-paths); Read the five newest. To view an approved image, resolve it with `~/.claude/skills/gstack/bin/gstack-design-approved <approved.json>`. Use explicit feedback only, never infer fonts/colors from variant letters. No usable files: continue without a taste profile.
 
 **Conflict handling:** If the current user request contradicts a strong persistent
 signal (e.g., "make it playful" when taste profile strongly prefers minimal), flag

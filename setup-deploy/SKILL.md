@@ -425,7 +425,7 @@ Run the platform detection from the deploy bootstrap:
 
 # GitHub Actions deploy workflows
 for f in $(find .github/workflows -maxdepth 1 \( -name '*.yml' -o -name '*.yaml' \) 2>/dev/null); do
-  [ -f "$f" ] && grep -qiE "deploy|release|production|staging|cd" "$f" 2>/dev/null && echo "DEPLOY_WORKFLOW:$f"
+  [ -f "$f" ] && grep -qiE "deploy|release|production|staging" "$f" 2>/dev/null && echo "DEPLOY_WORKFLOW:$f"
 done
 
 # Project type
@@ -447,7 +447,7 @@ If `fly.toml` detected:
 3. If installed, verify: `fly status --app {app} 2>/dev/null`
 4. Infer URL: `https://{app}.fly.dev`
 5. Set deploy status command: `fly status --app {app}`
-6. Set health check: `https://{app}.fly.dev` (or `/health` if the app has one)
+6. Set health check: run `curl -s -o /dev/null -w "%{http_code}" https://{app}.fly.dev/health`; use `https://{app}.fly.dev/health` when it returns 2xx, otherwise `https://{app}.fly.dev`
 
 Ask the user to confirm the production URL. Some Fly apps use custom domains.
 
@@ -495,6 +495,7 @@ If deploy workflows detected but no platform config:
 1. Read the workflow file to understand what it does
 2. Extract the deploy target (if mentioned)
 3. Ask the user for the production URL
+4. Set deploy status command: `gh run list --workflow {workflow file name} --limit 1 --json headSha,status,conclusion`
 
 #### Custom / Manual
 
@@ -523,7 +524,7 @@ Use AskUserQuestion to gather the information:
 
 ### Step 4: Write configuration
 
-Before writing, collect fields not already confirmed: merge method (squash/merge/rebase, constrained to methods allowed by repo settings), pre-merge command or none, deploy trigger, and status/health checks. Ask only for missing values, across every platform path. If the project does not deploy, set platform/URL/workflow/status/health/trigger to `none`, retain its CLI/library project type, and skip deploy verification. Show the complete proposed configuration and obtain confirmation.
+Before writing, collect fields not already confirmed: merge method (squash/merge/rebase, offering only the methods `gh repo view --json squashMergeAllowed,mergeCommitAllowed,rebaseMergeAllowed` reports as allowed), pre-merge command or none, deploy trigger, and status/health checks. Ask only for missing values, across every platform path. If the project does not deploy, set platform/URL/workflow/status/health/trigger to `none`, retain its CLI/library project type, and skip deploy verification. Show the complete proposed configuration and obtain confirmation.
 
 Read CLAUDE.md (or create it). Find and replace the `## Deploy Configuration` section
 if it exists, or append it at the end.
@@ -545,6 +546,8 @@ if it exists, or append it at the end.
 - Health check: {URL or command}
 ```
 
+The hooks block repeats the exact commands /land-and-deploy runs: `Deploy status` is the same value as `Deploy status command`, and `Health check` the same as `Post-deploy health check`. Write each value in both places.
+
 ### Step 5: Verify
 
 After writing, verify the configuration works:
@@ -556,7 +559,9 @@ curl -sf "{health-check-url}" -o /dev/null -w "%{http_code}" 2>/dev/null || echo
 
 2. If a deploy status command was configured, try it:
 ```bash
-{deploy-status-command} 2>/dev/null | head -5 || echo "COMMAND_FAILED"
+_OUT=$({deploy-status-command} 2>&1); _RC=$?
+printf '%s\n' "$_OUT" | head -5
+[ "$_RC" -eq 0 ] || echo "COMMAND_FAILED (exit $_RC)"
 ```
 
 Report results. If anything failed, note it but don't block — the config is still

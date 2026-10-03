@@ -654,12 +654,14 @@ Comparison boards are local HTML files: open them with `open file://...` on macO
 
 If `DESIGN_READY`: the design binary is available for visual mockup generation.
 Commands:
-- `$D generate --brief "..." --output /path.png` — generate a single mockup
-- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants
-- `$D compare --images "a.png,b.png,c.png" --output /path/board.html --serve` — comparison board + HTTP server
+- `$D generate --brief "..." --output /path.png` — generate a single mockup (prints `outputPath`)
+- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants (prints `paths`)
+- `$D compare --images-file /path/board-images.json --output /path/board.html --serve` — comparison board + HTTP server
 - `$D serve --html /path/board.html` — serve comparison board and collect feedback via HTTP
 - `$D check --image /path.png --brief "..."` — vision quality gate
 - `$D iterate --session /path/session.json --feedback "..." --output /path.png` — iterate
+
+Image commands never overwrite (a taken name gets `-2`) and always print JSON (`requested`, `saved`, `failures`); exit 0 ready, 2 nothing saved, 3 stopped after saving some. Capture without `set -e`: `_OUT=$($D ...); _RC=$?`.
 
 **Path rule:** Design artifacts belong in `$GSTACK_STATE_ROOT/projects/$SLUG/designs/`.
 Use `bin/gstack-paths` (docs/state-root.md). Keep it even if temporary; never substitute
@@ -758,6 +760,7 @@ planning phase. Generating mockups during planning is the whole point.
 Allowed commands under this exception:
 - `mkdir -p "$GSTACK_STATE_ROOT/projects/$SLUG/designs/..."`
 - `$D generate`, `$D variants`, `$D compare`, `$D iterate`, `$D evolve`, `$D check`
+- Writing `board-images.json` and `approved.json`, and archiving `feedback.json`, inside `$_DESIGN_DIR`
 - `open` (viewing comparison boards in the default browser)
 
 First, set up the output directory. Name it after the screen/feature being designed and today's date:
@@ -778,13 +781,17 @@ fewer variants and benefits from sequential control; /design-shotgun is the para
 For each UI screen/section in scope, construct a design brief from the plan's description (and DESIGN.md if present) and generate variants:
 
 ```bash
-$D variants --brief "<description assembled from plan + DESIGN.md constraints>" --count 3 --output-dir "$_DESIGN_DIR/"
+_OUT=$($D variants --brief "<description assembled from plan + DESIGN.md constraints>" --count 3 --output-dir "$_DESIGN_DIR/"); _RC=$?
+printf '%s\n' "$_OUT"; echo "EXIT: $_RC"
 ```
 
-After generation, run a cross-model quality check on each variant:
+<!-- design:round-accounting -->
+**Round accounting (before any check or board):** `$D` never overwrites, so a taken name is bumped (for example `-2`); use only the printed `saved` paths. Tell the user how many of `requested` paid images were saved and name each `failures` entry. Exit 0: continue with `saved`. Exit 2: nothing was saved; report `failures` and stop: no `$D check`, no board.
+
+Then run a cross-model quality check on each saved path, starting with the first:
 
 ```bash
-$D check --image "$_DESIGN_DIR/variant-A.png" --brief "<the original brief>"
+$D check --image "<first path from the printed saved list>" --brief "<the original brief>"
 ```
 
 Flag any variants that fail the quality check. Offer to regenerate failures.
@@ -798,8 +805,12 @@ feedback output. Showing mockups inline is a degraded experience.
 
 Create the comparison board and serve it over HTTP:
 
+<!-- design:board -->
+Write this round's board images (printed paths that passed checks, in order) as a JSON array to `$_DESIGN_DIR/board-images.json` with the Write tool; board letters A, B, C follow that order. Then archive any earlier Submit so it cannot approve these images, and build the board:
+
 ```bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
+[ -f "$_DESIGN_DIR/feedback.json" ] && mv "$_DESIGN_DIR/feedback.json" "$_DESIGN_DIR/feedback-$(date -u +%Y%m%dT%H%M%SZ).json"
+$D compare --images-file "$_DESIGN_DIR/board-images.json" --output "$_DESIGN_DIR/design-board.html" --serve
 ```
 
 Creates HTML and opens the board. **Run it in the background** (host task, or `&` redirecting stdout/stderr to private files in `$_DESIGN_DIR`). Read captured stderr for the startup marker; a PID is not readiness. Missing marker: use the failure fallback below.
@@ -858,8 +869,8 @@ the approved variant.
 1. Read `regenerateAction` from the JSON (`"different"`, `"match"`, `"more_like_B"`,
    `"remix"`, or custom text)
 2. If `regenerateAction` is `"remix"`, read `remixSpec` (e.g. `{"layout":"A","colors":"B"}`)
-3. Generate new variants with `$D iterate` or `$D variants` using updated brief
-4. Create new board: `$D compare --images "..." --output "$_DESIGN_DIR/design-board.html"`
+3. Generate new variants with `$D iterate` or `$D variants` using updated brief (capture the JSON and do round accounting as for the first round)
+4. Rebuild with the board block above (it archives feedback.json and rewrites board-images.json), without `--serve`
 5. Reload the board in the user's browser (same tab) — the URL is per-board
    under daemon mode, so use `<BOARD_URL>` (from the `BOARD_URL:` stderr
    line) as the base:
@@ -893,9 +904,16 @@ Is this right?"
 
 Use AskUserQuestion to verify before proceeding.
 
-**Save the approved choice:**
+**Save the approved choice.** Map the confirmed letter through this board's `board-images.json` (never the directory listing) and save it:
+
 ```bash
-echo '{"approved_variant":"<V>","feedback":"<FB>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"<SCREEN>","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
+_IMG=$(jq -r --arg v "<VARIANT>" '.[($v | explode[0]) - 65] // empty' "$_DESIGN_DIR/board-images.json")
+if [ -n "$_IMG" ]; then
+  echo '{"approved_variant":"<VARIANT>","approved_path":"'"$(basename "$_IMG")"'","feedback":"<FEEDBACK>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"<SCREEN>","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
+  echo "APPROVED_IMAGE: $_IMG"
+else
+  echo "NO_BOARD_IMAGE: <VARIANT> is not on this board; reselect from the board"
+fi
 ```
 
 **Do NOT use AskUserQuestion to ask which variant the user picked.** Read `feedback.json` — it already contains their preferred variant, ratings, comments, and overall feedback. Only use AskUserQuestion to confirm you understood the feedback correctly, never to re-ask what they chose.
@@ -1105,11 +1123,11 @@ mkdir -p "$_DESIGN_DIR"
 _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 D="$_ROOT/.claude/skills/gstack/design/dist/design"
 [ -x "$D" ] || D=~/.claude/skills/gstack/design/dist/design
-"$D" generate --brief "<description of what 10/10 looks like for this dimension>" --output "$_DESIGN_DIR/ideal-<dimension>.png"
-echo "IDEAL_IMAGE: $_DESIGN_DIR/ideal-<dimension>.png"
+_OUT=$("$D" generate --brief "<description of what 10/10 looks like for this dimension>" --output "$_DESIGN_DIR/ideal-<dimension>.png"); _RC=$?
+printf '%s\n' "$_OUT"; echo "EXIT: $_RC"
 ```
 
-Show the mockup to the user via the Read tool. This makes the gap between
+Exit 0: show the image at the printed `outputPath` (it may be bumped, never overwritten) to the user via the Read tool. Exit 2 or 3: report `failures` and continue text-only. This makes the gap between
 "what the plan describes" and "what it should look like" visceral, not abstract.
 
 If the design binary is not available, skip this and continue with text-based

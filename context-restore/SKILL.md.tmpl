@@ -180,6 +180,22 @@ checkpoint(s) from another project; only this project's are listed." If it print
 `LEGACY_BUCKET`, relay that line. If the chosen file is `ROOT_DIFFERS`, add
 "Saved from another checkout of this repository at `{project_root}`." as info.
 
+**Sort Remaining Work by provenance.** Keep every item's original text and saved
+order, and drop nothing. Put an item under **Verify first** when it:
+- ends in `(path assumed)` or `(code read)`;
+- ends in `(path run)` but its text reports a failure;
+- has no marker and is a writing step (migration, sync, insert, import, a dialog that
+  writes) or names a concrete path (a runnable command, CLI flag or switch, config key
+  or value, or file or directory path).
+
+Every other item goes under **Next steps**: `(path run)` with a successful outcome,
+`(path read)`, `(target state checked)`, and unmarked items that neither write nor
+name a concrete path. Verifying means read-only inspection: read the file or the
+target, or run a command that changes nothing. Checkpoints saved before provenance
+markers existed have none, so their concrete-path items land under Verify first. When
+the file has no provenance markers at all, print this line above the groups:
+`This checkpoint predates provenance markers; items naming commands, paths or writes are listed under Verify first.`
+
 Read the chosen file and present a summary:
 
 ```
@@ -196,7 +212,13 @@ Status:      {status}
 {summary from saved file}
 
 ### Remaining Work
-{remaining work items}
+{legacy banner line, if it applies}
+
+Next steps
+{Next steps items, in saved order, original text}
+
+Verify first (inspect read-only before executing anything)
+{Verify first items, in saved order, original text}
 
 ### Notes
 {notes}
@@ -214,7 +236,10 @@ After presenting, ask via AskUserQuestion:
 - B) Show the full saved file
 - C) Just needed the context, thanks
 
-If A, summarize the first remaining work item and suggest starting there.
+If A, take the first Remaining Work item in saved order. If it is under Next steps,
+suggest starting there. If it is under Verify first, suggest verifying it (read-only)
+before doing it or any later item, so a later runnable step never jumps ahead of an
+unverified earlier one.
 
 ---
 

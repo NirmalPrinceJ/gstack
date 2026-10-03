@@ -1114,6 +1114,33 @@ ${slopSection}
 Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developers.openai.com/blog/designing-delightful-frontends-with-gpt-5-4) (Mar 2026) + gstack design methodology.`;
 }
 
+const DESIGN_ROUND_ACCOUNTING = `<!-- design:round-accounting -->
+**Round accounting (before any board, check or inline view):** \`$D\` never overwrites; a taken name is bumped (for example \`-2\`), so use only the paths its JSON printed and carry them as literal paths into later blocks (bash blocks do not share variables). Tell the user how many of \`requested\` paid images were saved (\`saved\`) and name each \`failures\` entry. Route on the exit code: 0 continue with \`saved\`; 3 continue with \`saved\` and say the run stopped early; 2 nothing was saved, so report \`failures\` and stop: do not run \`$D compare\` or \`$D check\`.`;
+
+function designBoardBlock(serve: boolean): string {
+  return `<!-- design:board -->
+Write this round's board images (printed paths that passed checks, in order) as a JSON array to \`$_DESIGN_DIR/board-images.json\` with the Write tool; board letters A, B, C follow that order. Then archive any earlier Submit so it cannot approve these images, and build the board:
+
+\`\`\`bash
+[ -f "$_DESIGN_DIR/feedback.json" ] && mv "$_DESIGN_DIR/feedback.json" "$_DESIGN_DIR/feedback-$(date -u +%Y%m%dT%H%M%SZ).json"
+$D compare --images-file "$_DESIGN_DIR/board-images.json" --output "$_DESIGN_DIR/design-board.html"${serve ? ' --serve' : ''}
+\`\`\``;
+}
+
+function designApprovalBlock(screen: string): string {
+  return `Map the confirmed letter through this board's \`board-images.json\` (never the directory listing) and save it:
+
+\`\`\`bash
+_IMG=$(jq -r --arg v "<VARIANT>" '.[($v | explode[0]) - 65] // empty' "$_DESIGN_DIR/board-images.json")
+if [ -n "$_IMG" ]; then
+  echo '{"approved_variant":"<VARIANT>","approved_path":"'"$(basename "$_IMG")"'","feedback":"<FEEDBACK>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"${screen}","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
+  echo "APPROVED_IMAGE: $_IMG"
+else
+  echo "NO_BOARD_IMAGE: <VARIANT> is not on this board; reselect from the board"
+fi
+\`\`\``;
+}
+
 export function generateDesignSetup(ctx: TemplateContext): string {
   return `## DESIGN SETUP (run this check BEFORE any design mockup command)
 
@@ -1140,12 +1167,14 @@ Comparison boards are local HTML files: open them with \`open file://...\` on ma
 
 If \`DESIGN_READY\`: the design binary is available for visual mockup generation.
 Commands:
-- \`$D generate --brief "..." --output /path.png\` — generate a single mockup
-- \`$D variants --brief "..." --count 3 --output-dir /path/\` — generate N style variants
-- \`$D compare --images "a.png,b.png,c.png" --output /path/board.html --serve\` — comparison board + HTTP server
+- \`$D generate --brief "..." --output /path.png\` — generate a single mockup (prints \`outputPath\`)
+- \`$D variants --brief "..." --count 3 --output-dir /path/\` — generate N style variants (prints \`paths\`)
+- \`$D compare --images-file /path/board-images.json --output /path/board.html --serve\` — comparison board + HTTP server
 - \`$D serve --html /path/board.html\` — serve comparison board and collect feedback via HTTP
 - \`$D check --image /path.png --brief "..."\` — vision quality gate
-- \`$D iterate --session /path/session.json --feedback "..." --output /path.png\` — iterate${ctx.skillName === 'design-consultation' ? `
+- \`$D iterate --session /path/session.json --feedback "..." --output /path.png\` — iterate
+
+Image commands never overwrite (a taken name gets \`-2\`) and always print JSON (\`requested\`, \`saved\`, \`failures\`); exit 0 ready, 2 nothing saved, 3 stopped after saving some. Capture without \`set -e\`: \`_OUT=$($D ...); _RC=$?\`.${ctx.skillName === 'design-consultation' ? `
 - \`$D extract --image /absolute/path.png\` — print tokens and automatically update DESIGN.md in the current Git repository; no read-only flag
 
 \`generate\` returns \`sessionFile\`; \`iterate\` requires that existing session. \`variants\` returns \`paths\` but creates no session: regenerate with an updated brief instead.` : ''}
@@ -1192,19 +1221,20 @@ explore wide across diverse directions.
 **Step 3: Generate 3 variants**
 
 \`\`\`bash
-$D variants --brief "<assembled brief>" --count 3 --output-dir "$_DESIGN_DIR/"
+_OUT=$($D variants --brief "<assembled brief>" --count 3 --output-dir "$_DESIGN_DIR/"); _RC=$?
+printf '%s\\n' "$_OUT"; echo "EXIT: $_RC"
 \`\`\`
 
 This generates 3 style variations of the same brief (~40 seconds total).
 
+${DESIGN_ROUND_ACCOUNTING}
+
 **Step 4: Show variants inline, then open comparison board**
 
-Show each variant to the user inline first (read the PNGs with Read tool), then
+Show each saved image to the user inline first (read the printed paths with Read tool), then
 create and serve the comparison board:
 
-\`\`\`bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
-\`\`\`
+${designBoardBlock(true)}
 
 This publishes the board to the design daemon, opens it in the user's default
 browser, and exits; it does not wait for feedback. Read captured stderr for the
@@ -1220,8 +1250,8 @@ with Read and fall back to AskUserQuestion: "Which variant do you prefer? Any fe
 
 If the JSON contains \`"regenerated": true\`:
 1. Read \`regenerateAction\` (or \`remixSpec\` for remix requests)
-2. Generate new variants with \`$D iterate\` or \`$D variants\` using updated brief
-3. Create new board with \`$D compare\`
+2. Generate new variants with \`$D iterate\` or \`$D variants\` using updated brief (capture and round accounting as in Step 3)
+3. Rebuild the board with Step 4's board block, without \`--serve\`
 4. POST the new HTML to the running board. Parse the board URL from stderr
    (\`BOARD_URL: http://127.0.0.1:N/boards/<id>/\` — the daemon path) or fall
    back to the legacy port (\`SERVE_STARTED: port=N\` — only emitted under
@@ -1233,21 +1263,15 @@ If \`"regenerated": false\`: proceed with the approved variant.
 
 **Step 6: Save approved choice**
 
-\`\`\`bash
-echo '{"approved_variant":"<VARIANT>","feedback":"<FEEDBACK>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"mockup","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
-\`\`\`
+${designApprovalBlock('mockup')}
 
-Reference the saved mockup in the design doc or plan.`;
+Reference the printed \`APPROVED_IMAGE\` in the design doc or plan.`;
 }
 
 export function generateDesignShotgunLoop(ctx: TemplateContext): string {
   if (ctx.skillName === 'design-consultation') return `### Comparison Board + Feedback Loop
 
-Use the successful, quality-checked paths in this example:
-
-\`\`\`bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
-\`\`\`
+${designBoardBlock(true)}
 
 This publishes to a persistent daemon, opens the board and exits. Read captured stderr for the startup marker; a PID is not readiness. Exit 0 with \`BOARD_URL\` means the daemon is serving. Save its full \`http://127.0.0.1:N/boards/<id>/\` URL. Only legacy \`--no-daemon\` needs a host background task; \`SERVE_STARTED: port=N\` gives root URL \`http://127.0.0.1:N/\`.
 
@@ -1268,23 +1292,21 @@ After the response, read current feedback next to the board HTML:
 **Board or chat:** revisions regenerate; a final choice needs summary confirmation; skip goes to Phase 6 without a mockup. Ask if no choice/detail; never infer approval from a missing file. Submit with revision notes is a revision.
 
 **Regenerate:**
-1. Revise the brief, preserving unrelated constraints. Archive this round's feedback files so old Submit cannot approve new images.
-2. Run \`$D variants\` with the new brief (no session). Re-run the quality check and visual self-gate on every new image.
-3. Rebuild: \`$D compare --images "<new successful paths>" --output "$_DESIGN_DIR/design-board.html"\`, without \`--serve\`.
+1. Revise the brief, preserving unrelated constraints. Archive this round's feedback files so old Submit cannot approve new images (the board block does this on rebuild).
+2. Run \`$D variants\` with the new brief (no session), with the same capture and round accounting. Re-run the quality check and visual self-gate on every new image (its printed path).
+3. Rebuild with the board block above (it rewrites board-images.json), without \`--serve\`.
 4. Reload at the saved URL (keep its per-board path; legacy uses root):
    \`jq -nc --arg html "$_DESIGN_DIR/design-board.html" '{html: $html}' | curl -sS -X POST "\${BOARD_URL}api/reload" -H 'Content-Type: application/json' --data-binary @-\`
 5. Check reload succeeded, then AskUserQuestion at the same URL until a final choice, skip or stop. Failed generation/reload uses the fallback, not another wait.
 
 **SERVER FALLBACK:** Nonzero exit or no readiness marker: show each variant inline with Read, then AskUserQuestion: "The comparison board server failed to start. Which variant? Any changes?" Route chat feedback as above.
 
-**After receiving feedback (any path):** summarize PREFERRED, RATINGS, YOUR NOTES, DIRECTION; AskUserQuestion "Is this right?" A confirmed final choice permits Write of \`$_DESIGN_DIR/approved.json\` with \`approved_variant\`, \`feedback\`, \`date\` (UTC), \`screen\` (the product page depicted by the chosen mockup), and \`branch\` (the current \`git branch --show-current\` result, empty if detached). Use valid JSON, never shell interpolation. This approves the image only; Q-final gates project writes.`;
+**After receiving feedback (any path):** summarize PREFERRED, RATINGS, YOUR NOTES, DIRECTION; AskUserQuestion "Is this right?" A confirmed final choice permits Write of \`$_DESIGN_DIR/approved.json\` with \`approved_variant\`, \`approved_path\` (file name of that letter's entry in this board's \`board-images.json\`, never the directory listing), \`feedback\`, \`date\` (UTC), \`screen\` (the product page depicted by the chosen mockup), and \`branch\` (the current \`git branch --show-current\` result, empty if detached). Use valid JSON, never shell interpolation. This approves the image only; Q-final gates project writes.`;
   return `### Comparison Board + Feedback Loop
 
 Create the comparison board and serve it over HTTP:
 
-\`\`\`bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
-\`\`\`
+${designBoardBlock(true)}
 
 Creates HTML and opens the board. **Run it in the background** (host task, or \`&\` redirecting stdout/stderr to private files in \`$_DESIGN_DIR\`). Read captured stderr for the startup marker; a PID is not readiness. Missing marker: use the failure fallback below.
 
@@ -1342,8 +1364,8 @@ the approved variant.
 1. Read \`regenerateAction\` from the JSON (\`"different"\`, \`"match"\`, \`"more_like_B"\`,
    \`"remix"\`, or custom text)
 2. If \`regenerateAction\` is \`"remix"\`, read \`remixSpec\` (e.g. \`{"layout":"A","colors":"B"}\`)
-3. Generate new variants with \`$D iterate\` or \`$D variants\` using updated brief
-4. Create new board: \`$D compare --images "..." --output "$_DESIGN_DIR/design-board.html"\`
+3. Generate new variants with \`$D iterate\` or \`$D variants\` using updated brief (capture the JSON and do round accounting as for the first round)
+4. Rebuild with the board block above (it archives feedback.json and rewrites board-images.json), without \`--serve\`
 5. Reload the board in the user's browser (same tab) — the URL is per-board
    under daemon mode, so use \`<BOARD_URL>\` (from the \`BOARD_URL:\` stderr
    line) as the base:
@@ -1377,10 +1399,7 @@ Is this right?"
 
 Use AskUserQuestion to verify before proceeding.
 
-**Save the approved choice:**
-\`\`\`bash
-echo '{"approved_variant":"<V>","feedback":"<FB>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"<SCREEN>","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
-\`\`\``;
+**Save the approved choice.** ${designApprovalBlock('<SCREEN>')}`;
 }
 
 export function generateTasteProfile(ctx: TemplateContext): string {
@@ -1410,7 +1429,7 @@ fonts [top-3], colors [top-3], layouts [top-3], aesthetics [top-3]. Bias
 generation toward these unless the user explicitly requests a different direction.
 Also avoid their strong rejections: [top-3 rejected per dimension]."
 
-**Legacy fallback:** Glob \`$GSTACK_STATE_ROOT/projects/$SLUG/designs/**/approved.json\` (resolve the root with gstack-paths); Read the five newest. Use explicit feedback only, never infer fonts/colors from variant letters. No usable files: continue without a taste profile.
+**Legacy fallback:** Glob \`$GSTACK_STATE_ROOT/projects/$SLUG/designs/**/approved.json\` (resolve the root with gstack-paths); Read the five newest. To view an approved image, resolve it with \`${ctx.paths.binDir}/gstack-design-approved <approved.json>\`. Use explicit feedback only, never infer fonts/colors from variant letters. No usable files: continue without a taste profile.
 
 **Conflict handling:** If the current user request contradicts a strong persistent
 signal (e.g., "make it playful" when taste profile strongly prefers minimal), flag

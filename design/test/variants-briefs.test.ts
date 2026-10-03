@@ -3,7 +3,7 @@ import { spawnSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { batchExitCode, readBriefsFile, runBriefsBatch, type BriefEntry } from "../src/variants";
+import { readBriefsFile, runBriefsBatch, type BriefEntry } from "../src/variants";
 
 const TINY_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=";
@@ -100,8 +100,8 @@ describe("runBriefsBatch", () => {
     expect(images).toHaveLength(2);
     expect(images.filter(c => c.text.includes("CALM-DASHBOARD"))).toHaveLength(1);
     expect(images.filter(c => c.text.includes("BOLD-DASHBOARD"))).toHaveLength(1);
+    expect(results.map(r => r.saved)).toEqual([[path.join(dir, "variant-A.png")], [path.join(dir, "variant-B.png")]]);
     expect(fs.statSync(path.join(dir, "variant-B.png")).size).toBeGreaterThan(0);
-    expect(batchExitCode(results)).toBe(0);
   });
 
   test("429 backs off and retries the same request", async () => {
@@ -116,21 +116,22 @@ describe("runBriefsBatch", () => {
   test("exhausted 429 retries end RATE_LIMITED and retryable", async () => {
     const { fetchFn } = stubFetch({ image: () => new Response("slow down", { status: 429, headers: { "Retry-After": "0" } }) });
     const [result] = await batch([{ brief: "one" }], fetchFn);
-    expect(result).toMatchObject({ status: "rate_limited", retryable: true, check: null });
-    expect(batchExitCode([result!])).toBe(1);
+    expect(result).toMatchObject({ status: "rate_limited", retryable: true, check: null, saved: [] });
   });
 
-  test("an empty output file is regenerated once", async () => {
+  test("an empty image is regenerated once", async () => {
     const { fetchFn, calls } = stubFetch({ image: (_call, nth) => nth === 0 ? image("=") : image() });
     const [result] = await batch([{ brief: "one" }], fetchFn);
-    expect(result!.status).toBe("done");
+    expect(result).toMatchObject({ status: "done", saved: [path.join(dir, "variant-A.png")] });
     expect(calls.filter(c => c.kind === "image")).toHaveLength(2);
   });
 
-  test("a failed check regenerates once with the same brief, then rechecks", async () => {
+  test("a failed check regenerates once with the same brief, keeps both images, then rechecks the new one", async () => {
     const { fetchFn, calls } = stubFetch({ check: (_call, nth) => vision(nth === 0 ? "FAIL: header text is garbled" : "PASS") });
     const [result] = await batch([{ brief: "CHECK-ME" }], fetchFn);
-    expect(result).toMatchObject({ status: "done", check: { status: "pass", issues: "" } });
+    const second = path.join(dir, "variant-A-2.png");
+    expect(result).toMatchObject({ status: "done", check: { status: "pass", issues: "" }, path: second });
+    expect(result!.saved).toEqual([path.join(dir, "variant-A.png"), second]);
     const images = calls.filter(c => c.kind === "image");
     expect(images).toHaveLength(2);
     expect(images.every(c => c.text.includes("CHECK-ME"))).toBe(true);
@@ -157,7 +158,6 @@ describe("runBriefsBatch", () => {
     const { fetchFn } = stubFetch({ image: call => call.text.includes("BROKEN") ? new Response("bad", { status: 400 }) : image() });
     const results = await batch([{ brief: "fine" }, { brief: "BROKEN" }], fetchFn);
     expect(results.map(r => [r.status, r.retryable])).toEqual([["done", false], ["failed", false]]);
-    expect(batchExitCode(results)).toBe(3);
   });
 
   test("the batch deadline stops new launches and in-flight requests; every variant is terminal", async () => {
@@ -209,17 +209,31 @@ describe("$D variants --briefs-file (CLI end to end with a stubbed fetch)", () =
     expect(fs.existsSync(path.join(out(), "variant-B.png"))).toBe(true);
   });
 
-  test("some variants fail: exit 3", () => {
+  test("some variants fail: exit 0 with each variant's status in the JSON", () => {
     const file = writeBriefs([{ brief: "FIRST" }, { brief: "BROKEN" }]);
     const r = run(["--briefs-file", file, "--output-dir", out()], "BROKEN");
-    expect(r.status, r.stderr).toBe(3);
-    expect(JSON.parse(r.stdout).variants[1]).toMatchObject({ status: "failed", retryable: false });
+    expect(r.status, r.stderr).toBe(0);
+    const json = JSON.parse(r.stdout);
+    expect(json).toMatchObject({ succeeded: 1, failed: 1, paths: [path.join(out(), "variant-A.png")] });
+    expect(json.variants[1]).toMatchObject({ status: "failed", retryable: false, saved: [] });
     expect(r.stderr).toMatch(/VARIANT_B_FAILED: API error \(400\)/);
   });
 
-  test("all variants fail: exit 1", () => {
+  test("all variants fail: exit 2 with the failures in the JSON", () => {
     const file = writeBriefs([{ brief: "BROKEN" }]);
-    expect(run(["--briefs-file", file, "--output-dir", out()], "BROKEN").status).toBe(1);
+    const r = run(["--briefs-file", file, "--output-dir", out()], "BROKEN");
+    expect(r.status).toBe(2);
+    expect(JSON.parse(r.stdout)).toMatchObject({ succeeded: 0, saved: [], failures: [{ file: path.join(out(), "variant-A.png") }] });
+  });
+
+  test("a second round into the same directory never overwrites: names bump and the JSON reports them", () => {
+    const file = writeBriefs([{ brief: "FIRST" }]);
+    expect(run(["--briefs-file", file, "--output-dir", out()]).status).toBe(0);
+    const first = fs.readFileSync(path.join(out(), "variant-A.png"));
+    const again = run(["--briefs-file", file, "--output-dir", out()]);
+    expect(again.status, again.stderr).toBe(0);
+    expect(JSON.parse(again.stdout).variants[0]).toMatchObject({ path: path.join(out(), "variant-A-2.png"), saved: [path.join(out(), "variant-A-2.png")] });
+    expect(fs.readFileSync(path.join(out(), "variant-A.png"))).toEqual(first);
   });
 
   test("invalid input exits 1 before any billable call", () => {
