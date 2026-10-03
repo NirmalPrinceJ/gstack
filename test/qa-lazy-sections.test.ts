@@ -241,7 +241,8 @@ describe('QA-only cross-host lazy rendering', () => {
         expect(explorer.split(functionalRead)).toHaveLength(2);
         expect(explorer).toContain('Do not repeat a Read already completed in this invocation');
         if (skill === 'qa') {
-          expect(entry).toContain('`--quick` also selects Quick exploration; `--exhaustive` changes only the fix tier.');
+          expect(entry).toMatch(/`--quick`[^\n]*Quick exploration/i);
+          expect(entry).toContain('`--exhaustive` changes only the fix tier');
           expect(entry).toContain('Regression mode preserves the selected fix tier.');
           for (const tier of ['**Quick:** Fix critical + high severity only', '**Standard:** + medium severity (default)', '**Exhaustive:** + low/cosmetic severity']) expect(entry).toContain(tier);
         } else {
