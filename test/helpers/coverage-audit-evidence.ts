@@ -452,12 +452,43 @@ function seededDiagram(output: string): boolean {
   }
   return false;
 }
+/**
+ * The requested closing coverage summary: the last JSON object in the output
+ * with string arrays "tested" and "untested". Quoted lines and objects under
+ * an example/sample heading do not count. processPayment must be tested and
+ * refundPayment untested, each in one list only.
+ */
+export function coverageSummaryClassifiesSeed(output: string): boolean {
+  const lines = output.split('\n');
+  let summary: { tested: string[]; untested: string[] } | undefined;
+  for (const match of output.matchAll(/\{[^{}]*"tested"[^{}]*\}/g)) {
+    const before = output.slice(0, match.index!);
+    const line = before.slice(before.lastIndexOf('\n') + 1);
+    const lineIndex = before.split('\n').length - 1;
+    const heading = lines.slice(Math.max(0, lineIndex - 3), lineIndex).join('\n');
+    if (/^\s*>/.test(line) || /^(?:[#*\s]*)(?:example|sample|illustration)\b/im.test(heading)) continue;
+    let parsed: unknown;
+    try { parsed = JSON.parse(match[0]); } catch { continue; }
+    const value = parsed as { tested?: unknown; untested?: unknown };
+    if (!Array.isArray(value.tested) || !Array.isArray(value.untested) ||
+        ![...value.tested, ...value.untested].every(item => typeof item === 'string')) continue;
+    summary = { tested: value.tested as string[], untested: value.untested as string[] };
+  }
+  if (!summary) return false;
+  const names = (list: string[], name: string) => list.some(item => new RegExp(`\\b${name}\\b`).test(item));
+  return names(summary.tested, 'processPayment') && !names(summary.untested, 'processPayment') &&
+    names(summary.untested, 'refundPayment') && !names(summary.tested, 'refundPayment');
+}
+
 export function coverageAuditVerdict(
   result: Pick<SkillTestResult, 'exitReason' | 'browseErrors' | 'output' | 'transcript'>,
   files: CoverageAuditFiles,
 ) {
   const reads = coverageAuditReadEvidence(Array.isArray(result.transcript) ? result.transcript : [], files);
-  const diagram = typeof result.output === 'string' && seededDiagram(result.output),
+  // The closing summary states the outcome directly. The diagram grammar stays
+  // as a fallback so stored runs that predate the summary keep their verdicts.
+  const summary = typeof result.output === 'string' && coverageSummaryClassifiesSeed(result.output);
+  const diagram = typeof result.output === 'string' && (summary || seededDiagram(result.output)),
     failures: string[] = [];
   if (result.exitReason !== 'success') failures.push('capture did not complete successfully');
   if (result.browseErrors.length) failures.push('capture reported tool errors');
