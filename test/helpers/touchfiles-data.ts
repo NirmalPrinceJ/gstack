@@ -655,6 +655,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'context-save-routing':                  [ 'context-save/**', 'scripts/resolvers/preamble.ts', 'test/skill-e2e-context-skills.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'],
   'context-save-then-restore-roundtrip':   ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'context-save/**', 'context-restore/**', 'bin/gstack-slug', 'bin/gstack-remote-identity.sh', 'test/skill-e2e-context-skills.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'],
   'context-restore-fragment-match':        [ 'context-restore/**', 'test/skill-e2e-context-skills.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'],
+  'context-restore-provenance-order':      ['context-save/**', 'context-restore/**', 'test/skill-e2e-context-skills.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'],
   'context-restore-empty-state':           [ 'context-restore/**', 'test/skill-e2e-context-skills.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'],
   'context-restore-list-delegates':        [ 'context-restore/**', 'test/skill-e2e-context-skills.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'],
   'context-restore-legacy-compat':         [ 'context-restore/**', 'test/skill-e2e-context-skills.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'],
@@ -1287,6 +1288,7 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   'context-save-routing': 'periodic',              // Proves /context-save routes via Skill tool
   'context-save-then-restore-roundtrip': 'periodic', // Full cycle in one session
   'context-restore-fragment-match': 'periodic',    // /context-restore <fragment>
+  'context-restore-provenance-order': 'periodic',  // #3004 Next steps / Verify first, 3-trial panel
   'context-restore-empty-state': 'periodic',       // Graceful zero-saves message
   'context-restore-list-delegates': 'periodic',    // /context-restore list redirect
   'context-restore-legacy-compat': 'periodic',     // Pre-rename files still load
@@ -1664,6 +1666,7 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'context-save-routing': 'rule',
   'context-save-then-restore-roundtrip': 'rule',
   'context-restore-fragment-match': 'rule',
+  'context-restore-provenance-order': 'behavior',
   'context-restore-empty-state': 'rule',
   'context-restore-list-delegates': 'rule',
   'context-restore-legacy-compat': 'rule',
@@ -1787,6 +1790,8 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
 export const BEHAVIOR_WHY: Record<string, string> = {
   'shared-libs-opportunity-judgment':
     "Whether a candidate extraction is worth recommending is a judgment call; the read-only invariant stays a contract.",
+  'context-restore-provenance-order':
+    "How the live model lays out the two Remaining Work groups can drift run to run; never executing a seeded step and never leapfrogging the unverified first item stay contracts.",
   'review-design-lite':
     "How many of the seven design-lite checklist items the live review flags varies run to run; the fake-engine rows it must carry stay strict.",
   'review-army-red-team':

@@ -409,12 +409,14 @@ Comparison boards are local HTML files: open them with `open file://...` on macO
 
 If `DESIGN_READY`: the design binary is available for visual mockup generation.
 Commands:
-- `$D generate --brief "..." --output /path.png` — generate a single mockup
-- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants
-- `$D compare --images "a.png,b.png,c.png" --output /path/board.html --serve` — comparison board + HTTP server
+- `$D generate --brief "..." --output /path.png` — generate a single mockup (prints `outputPath`)
+- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants (prints `paths`)
+- `$D compare --images-file /path/board-images.json --output /path/board.html --serve` — comparison board + HTTP server
 - `$D serve --html /path/board.html` — serve comparison board and collect feedback via HTTP
 - `$D check --image /path.png --brief "..."` — vision quality gate
 - `$D iterate --session /path/session.json --feedback "..." --output /path.png` — iterate
+
+Image commands never overwrite (a taken name gets `-2`) and always print JSON (`requested`, `saved`, `failures`); exit 0 ready, 2 nothing saved, 3 stopped after saving some. Capture without `set -e`: `_OUT=$($D ...); _RC=$?`.
 
 **Path rule:** Design artifacts belong in `$GSTACK_STATE_ROOT/projects/$SLUG/designs/`.
 Use `bin/gstack-paths` (docs/state-root.md). Keep it even if temporary; never substitute
@@ -454,7 +456,7 @@ GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_
 setopt +o nomatch 2>/dev/null || true
 _APPROVED=$(ls -t "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/approved.json 2>/dev/null | head -1)
 [ -n "$_APPROVED" ] && echo "APPROVED: $_APPROVED" || echo "NO_APPROVED"
-_VARIANTS=$(ls -t "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/variant-*.png "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/round-*/variant-*.png 2>/dev/null | head -1)
+_VARIANTS=$(ls -t "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/variant-*.png 2>/dev/null | head -1)
 [ -n "$_VARIANTS" ] && echo "VARIANTS: $_VARIANTS" || echo "NO_VARIANTS"
 _FINALIZED=$(ls -t "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/finalized.html 2>/dev/null | head -1)
 [ -n "$_FINALIZED" ] && echo "FINALIZED: $_FINALIZED" || echo "NO_FINALIZED"
@@ -465,11 +467,17 @@ Now route based on what was found. Check these cases in order:
 
 ### Case A: approved.json exists (design-shotgun ran)
 
-If `APPROVED` was found, read it. Extract: approved variant PNG path, user feedback,
-screen name. The PNG path is `approved_path` when present (it may sit in a `round-<N>/`
-directory); older files name only a letter in `approved_variant`, meaning
-`variant-<letter>.png` beside approved.json. If that file is missing, say so and ask
-which variant to use instead of picking the newest PNG. Also read the CEO plan if one exists (it adds strategic context).
+If `APPROVED` was found, read it for user feedback and screen name, and resolve the
+approved PNG (never guess it from a letter or the newest variant):
+
+```bash
+~/.claude/skills/gstack/bin/gstack-design-approved "<APPROVED path>"
+```
+
+It prints the approved image's absolute path. If it prints "approved image ... is
+missing; reselect from the board" instead, tell the user exactly that, offer
+/design-shotgun to reselect, and do not substitute another image. Also read the CEO
+plan if one exists (it adds strategic context).
 
 Read `DESIGN.md` if it exists in the repo root. These tokens take priority for
 system-level values (fonts, brand colors, spacing scale).

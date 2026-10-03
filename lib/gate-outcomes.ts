@@ -115,8 +115,8 @@ export const GATE_OUTCOMES = {
   },
   variant_save_failed: {
     state: 'unavailable', anchor: 'design-variant-save-failed',
-    summary: 'the image was generated but could not be saved to the output path (kept in the temp dir)',
-    fix: 'free disk space or fix permissions on the output dir, then copy the kept file from the printed path',
+    summary: 'the paid image was received but could not be saved to the output path (a recovery copy is in the temp dir)',
+    fix: 'follow the printed fix (disk space, permissions or a new --output), then copy the recovery file from the printed path',
   },
   design_unavailable: {
     state: 'unavailable', anchor: 'design-not-available',

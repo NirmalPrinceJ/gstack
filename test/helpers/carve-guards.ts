@@ -243,7 +243,7 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
     // tier-2+ skeleton (measured 89,184). Main's v1.64.0.0 adds ~340 B more
     // (telemetry --error-message/--failed-step preamble prose, PR #769).
     // Budget covers the sum of both waves.
-    maxSkeletonBytes: 79_500, // Harness-aware outside voice: validated dispatch and provenance.
+    maxSkeletonBytes: 80_500, // Harness-aware outside voice: validated dispatch and provenance. + v1.91.19.0 wave: design --version probe (B4) and verdict-form outside voice (INV-1) on top of v1.91.17.0's round accounting (#3022); measured 80,443 (2026-10-03).
     minUnionBytes: 99_200, // token-reduction Phases 1-2 (v1.69.x branch); measured union 110,293
     mustContain: ['design', 'visual'],
     maxSizeRatio: 1.12, // D1 1.104 + main's ~0.008
@@ -348,7 +348,7 @@ do not launch the downstream skill or open a browser.`,
     // the #538 opt-out + D1 evidence directive — ratio 1.104 measured.
     // #2499 project-scope MCP jq in the brain-sync block grew every tier-2+
     // skeleton ~1.5KB (entry resolution emitted once per SKILL.md).
-    maxSkeletonBytes: 88_300, // Office-hours + sketch outside voices include host guards and completion checks. + v1.91.19.0 wave: Q<N> open-question prose form (#2729, approved Q3), DESIGN_READY --version probe (B4), Aside ~/.local/bin fallback (E7), verdict-form outside voice (INV-1); measured 88,212 (2026-10-03).
+    maxSkeletonBytes: 89_700, // Office-hours + sketch outside voices include host guards and completion checks. + v1.91.19.0 wave: Q<N> open-question prose form (#2729, approved Q3), DESIGN_READY --version probe (B4), Aside ~/.local/bin fallback (E7), verdict-form outside voice (INV-1), plus v1.91.17.0's round accounting (#3022) merged in; measured 89,684 (2026-10-03).
     minUnionBytes: 115_800, // Phase 4 wave 4; measured union 118,175
     mustContain: ['design doc', 'problem statement'],
     maxSizeRatio: 1.12,
@@ -411,7 +411,7 @@ do not launch the downstream skill or open a browser.`,
     // eureka log, the office-hours lookup and the taste-profile read; measured
     // 1.0834 (2026-09-30). + named design-direction defaults to avoid in the native
     // subagent prompt (s02 H4a); measured 1.0911 (2026-10-02).
-    maxSizeRatio: 1.097, // + v1.91.19.0 wave: design --version probe (B4), taste-profile load (F3), per-round variant paths (F4), verdict-form outside voice (INV-1); measured 99,092 / 90,375 = 1.0965 (2026-10-03).
+    maxSizeRatio: 1.112, // + v1.91.19.0 wave: design --version probe (B4), taste-profile load (F3), verdict-form outside voice (INV-1), plus v1.91.17.0's round accounting and board/approval blocks (#3022) merged in; measured 100,446 / 90,375 = 1.1114 (2026-10-03).
   },
   cso: {
     skill: 'cso',
@@ -783,7 +783,7 @@ do not launch the downstream skill or open a browser.`,
       gateAfterStop: undefined,
     },
     behavioral: 'prompt',
-    maxSkeletonBytes: 54_300, // + v2.0 preamble growth (merged); measured 52_962 + v1.91.19.0 wave: reserved round dirs and approved_path/round (F4), design --version probe (B4), taste profile (F3); measured 54,198 (2026-10-03).
+    maxSkeletonBytes: 55_200, // + v2.0 preamble growth (merged); measured 52_962 + v1.91.19.0 wave: design --version probe (B4) and taste profile (F3) on top of v1.91.17.0's claim-based staging and round accounting (#3022); measured 55,168 (2026-10-03).
     minUnionBytes: 53_200, // Phase 4 wave 4; measured union 54,290
     mustContain: ["Don't make me think", "Users scan, they don't read", 'trunk test', '44px minimum'],
   },

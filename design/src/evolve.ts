@@ -6,10 +6,10 @@
  */
 
 import fs from "fs";
-import path from "path";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
 import { imageRequestBody, modelRejectionHint, visionRequestBody } from "./models";
+import { emitResult, exitCodeFor, newAccounting, persistImage, recordOutcome, type ExitCode } from "./persist";
 
 export interface EvolveOptions {
   screenshot: string;  // Path to current site screenshot
@@ -22,37 +22,68 @@ export interface EvolveOptions {
  * Sends the screenshot as context to the image model with image generation,
  * asking it to produce a new version incorporating the brief's changes.
  */
-export async function evolve(options: EvolveOptions): Promise<void> {
-  const apiKey = requireApiKey();
-  const screenshotData = fs.readFileSync(options.screenshot).toString("base64");
+export async function evolve(options: EvolveOptions): Promise<ExitCode> {
+  const acct = newAccounting(1);
+  let outputPath: string | null = null;
 
-  console.error(`Evolving ${options.screenshot} with: "${options.brief}"`);
-  const startTime = Date.now();
+  try {
+    const apiKey = requireApiKey();
+    const screenshotData = fs.readFileSync(options.screenshot).toString("base64");
 
-  // Use the Responses API with both a text prompt referencing the screenshot
-  // and the image_generation tool to produce the evolved version.
-  // Since we can't send reference images directly to image_generation,
-  // we describe the current state in detail first via vision, then generate.
+    console.error(`Evolving ${options.screenshot} with: "${options.brief}"`);
+    const startTime = Date.now();
 
-  // Step 1: Analyze current screenshot
-  const analysis = await analyzeScreenshot(apiKey, screenshotData);
-  console.error(`  Analyzed current design: ${analysis.slice(0, 100)}...`);
+    // Use the Responses API with both a text prompt referencing the screenshot
+    // and the image_generation tool to produce the evolved version.
+    // Since we can't send reference images directly to image_generation,
+    // we describe the current state in detail first via vision, then generate.
 
-  // Step 2: Generate evolved version using analysis + brief
-  const evolvedPrompt = [
-    "Generate a pixel-perfect UI mockup that is an improved version of an existing design.",
-    "",
-    "CURRENT DESIGN (what exists now):",
-    analysis,
-    "",
-    "REQUESTED CHANGES:",
-    options.brief,
-    "",
-    "Generate a new mockup that keeps the existing layout structure but applies the requested changes.",
-    "The result should look like a real production UI. All text must be readable.",
-    "1536x1024 pixels.",
-  ].join("\n");
+    // Step 1: Analyze current screenshot
+    const analysis = await analyzeScreenshot(apiKey, screenshotData);
+    console.error(`  Analyzed current design: ${analysis.slice(0, 100)}...`);
 
+    // Step 2: Generate evolved version using analysis + brief
+    const evolvedPrompt = [
+      "Generate a pixel-perfect UI mockup that is an improved version of an existing design.",
+      "",
+      "CURRENT DESIGN (what exists now):",
+      analysis,
+      "",
+      "REQUESTED CHANGES:",
+      options.brief,
+      "",
+      "Generate a new mockup that keeps the existing layout structure but applies the requested changes.",
+      "The result should look like a real production UI. All text must be readable.",
+      "1536x1024 pixels.",
+    ].join("\n");
+
+    const imageData = await requestEvolvedImage(apiKey, evolvedPrompt);
+    const outcome = persistImage(imageData, options.output);
+    outputPath = recordOutcome(acct, outcome);
+    if (outcome.ok) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.error(`Generated (${elapsed}s, ${(outcome.bytes / 1024).toFixed(0)}KB) → ${outcome.path}`);
+    }
+  } catch (err: any) {
+    const reason = err?.message || String(err);
+    console.error(reason);
+    acct.failures.push({ file: options.output, reason });
+  }
+
+  return emitResult({
+    outputPath,
+    sourceScreenshot: options.screenshot,
+    brief: options.brief,
+    attempts: acct.saved.map(p => ({ path: p })),
+    requested: acct.requested,
+    saved: acct.saved,
+    selected: outputPath,
+    failures: acct.failures,
+    recovered: acct.recovered,
+  }, exitCodeFor(outputPath !== null, acct.saved.length));
+}
+
+async function requestEvolvedImage(apiKey: string, evolvedPrompt: string): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 240_000);
 
@@ -85,19 +116,7 @@ export async function evolve(options: EvolveOptions): Promise<void> {
     if (!imageItem?.result) {
       throw new Error("No image data in response");
     }
-
-    fs.mkdirSync(path.dirname(options.output), { recursive: true });
-    const imageBuffer = Buffer.from(imageItem.result, "base64");
-    fs.writeFileSync(options.output, imageBuffer);
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(`Generated (${elapsed}s, ${(imageBuffer.length / 1024).toFixed(0)}KB) → ${options.output}`);
-
-    console.log(JSON.stringify({
-      outputPath: options.output,
-      sourceScreenshot: options.screenshot,
-      brief: options.brief,
-    }, null, 2));
+    return imageItem.result;
   } finally {
     clearTimeout(timeout);
   }

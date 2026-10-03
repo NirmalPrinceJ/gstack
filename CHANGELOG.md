@@ -5,7 +5,7 @@
 **A check that did not run now says so, and memory stops losing transcripts.**
 **Codex and the other non-Claude hosts find gstack in every step of every skill.**
 
-This release closes the severe bugs left in the tracker. Two promises lead. First, nothing is silently lost: memory ingest marks a transcript saved only after gbrain confirms it landed, regenerated design variants never overwrite the ones you paid for, and learnings that could not be written say so. Second, no false all-clear: a Codex review whose sandbox could not start, a retired Codex model, a design binary killed at launch, and a learnings search with no Bun all used to read as "ready", "pass" or "no results". Each now prints `not run` or `unavailable` with the reason and the fix command, and every one of those messages has a section in the new [docs/troubleshooting.md](docs/troubleshooting.md).
+This release closes the severe bugs left in the tracker. Two promises lead. First, nothing is silently lost: memory ingest marks a transcript saved only after gbrain confirms it landed, and learnings that could not be written say so. Second, no false all-clear: a Codex review whose sandbox could not start, a retired Codex model, a design binary killed at launch, and a learnings search with no Bun all used to read as "ready", "pass" or "no results". Each now prints `not run` or `unavailable` with the reason and the fix command, and every one of those messages has a section in the new [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ### The numbers that matter
 
@@ -78,7 +78,7 @@ The first two rows are the ones to care about: a review that read nothing, or fo
 - **Memory and gbrain.** Ingest stamped pages gbrain skipped or never stored (#2778); `--no-write` wrote state. A project's `.env` `DATABASE_URL` reached a local PGLite brain (#1931). Offline or off-VPN looked like a broken config, and dot-leading project names (`.claude`) blocked ingest forever (#2884). Transcripts from every repository shared one source (#2232). `/sync-gbrain` said "pushed" when the artifacts source had 0 indexed pages (#2670), forced the full dream cycle (#2783), always reported the call graph as unknown, and kept deleted worktrees' sources silently. The 1.27 artifacts-repo rename never worked, and installs it repointed at a repo that never existed are repaired (#1437). gbrain install and source wiring needed `jq` (#2369).
 - **Codex.** A retired model (HTTP 404) or a custom provider with a wrong `base_url` reported `ready` (#2843). Custom providers configured with `env_key` failed the auth check (#2192). Large prompts failed on argv limits (Windows 32 KB, Linux E2BIG) and the macOS fallback timeout dropped the prompt (#1674, #1686).
 - **Non-Claude hosts.** Later skill blocks lost `$GSTACK_*`, `$B` and `$D` and ran `/bin/gstack-...` (#1159). Codex skipped the symlinked router. design/dist and make-pdf/dist were missing from runtime roots (#2891). /ship and /plan-ceo-review overflowed the 160 KB host limit. The OpenCode `/gstack-review` command loaded nothing (#2651). `/browse` disappeared after toggling `skill_prefix` (#2263). Section files linked to checkout copies instead of rendered ones (#2707). skillify pointed at Claude's install on every host. /gstack-upgrade could run git cleanup in your own project when its path variable was unset.
-- **Design.** Regenerating variants overwrote earlier rounds (#1737). A design binary killed at launch reported `DESIGN_READY`. /design-consultation and /design-shotgun never loaded your taste profile. Plan reviews read a root DESIGN.md as the feature's design doc (#2840).
+- **Design.** A design binary killed at launch reported `DESIGN_READY`. /design-consultation and /design-shotgun never loaded your taste profile. Plan reviews read a root DESIGN.md as the feature's design doc (#2840).
 - **/ship, /review and daily tools.** /ship stopped in versionless repos and monorepos (#2334, #2343). The plan audit picked an unrelated plan (#2797). Worktrees split project state (#2792). Learnings search exited 0 without Bun (#2794) and ranked poorly (#2796, #2799). Logs ignored `$TMPDIR` in sandboxed shells (#2952). /plan-tune said "calibrated" with no signals. /setup-deploy printed part of the Render API key (#1096). /analytics durations read 0s (#1728). Rejected taste preferences used the wrong confidence bucket (#1777). /context-save duration was empty on Linux (#2704). /retro missed pytest, minitest, XCTest, Terraform and Bats tests and counted build output (#2812, #2809, #2037). Plan reviews now treat design docs and handoff notes as data (#2818).
 - **Browser.** Browse failed behind `HTTP_PROXY` (#494). Headless browse and make-pdf ignored `GSTACK_CHROMIUM_PATH` (#2771, #1968, #1633); extensions opened a window (#2281). `prettyscreenshot --hide ... out.png` wrote elsewhere (#1419). `gstack-ios-qa-daemon --help` started the daemon (#1932). Aside in `~/.local/bin` was not found (#2965).
 - **Windows.** /freeze, /guard and /investigate denied every edit and their hooks failed under cmd.exe (#2876, #2354). Generators crashed with EEXIST (#2329). The node-server bundle inlined sharp and socks (#2260), and a minimal install needed `browse/src/server.ts` (#2439). The /cso helper failed on the current SDK and was reported as "install Visual Studio" (#3015). `gstack-config gbrain-refresh` misread status (#1981).
@@ -99,7 +99,47 @@ The first two rows are the ones to care about: a review that read nothing, or fo
 - The weekly eval report counts only cases that ran: tests deselected for another tier or case shard are listed by reason with no credit, every result is attributed to its case (0 unattributed, was 72), and no PR-lane eval shard runs over 10 minutes (the deploy eval is split per case).
 - Codex evals pass only when Codex completed a command; a review whose sandbox failed now fails instead of passing. The AUQ matrix checks the `(recommended)` marker on option labels, where the auto-decide hook reads it.
 
-Contributed by @CermakM (#2843), @Haijie-Lee (#2192), @SomSamantray (#2965), @Vaughan-g-aus (#2329), @BharadwajMittapelli (#2729), @maxpetrusenkoagent (#1931, #1932, #1981), @Infiniteyieldai (#2884), @afshaker (#2778), @time-attack (#2232, #2229), @jzeisweiss (#2670), @liutiming (#2783), @agile-operators (#1437), @benjaminberes-bp (#2369), @lewispeel (#2885), @Yugz29 (#2899), @fcmerle (#2962), @cdecook23 (#2784), @mb1810 (#2913), @ntdatt812 (#2949), @pneumorea-ai (#2915), @gabrielrondon (#2811), @kevingrasso32 (#2876), @xwang4-svg (#2354), @DizzyWesterwald (#2936), @oli548 (#2771), @shofel (#1968), @ryanlaiwy (#1633), @yinanli1917-cloud (#2281), @Spooks444 (#2260), @punksterlabs (#2439), @himiaocc (#2492), @jbetala7 (#1419, #1777), @mamedov (#2891), @Lockyer228 (#2651), @topcoder1 (#2263), @jonahberg (#2707), @AlinValentin7 (#3015), @philhie (#2208), @Alchemist-DevAI (#2334), @merit-blake (#2343), @mvanhorn (#1737), @day-of-davon (#2952), @loulanyue (#2797, #2792, #2794, #2796), @Bit0ps (#2840), @szsunyuan (#2799), @frosimanuel (#2818), @JiayuuWang (#1096), @RyanAlberts (#1728), @exGeni (#2704), @Jino00 (#2812), @snig-17 (#2809) and @SholtoMc (#2037).
+Contributed by @CermakM (#2843), @Haijie-Lee (#2192), @SomSamantray (#2965), @Vaughan-g-aus (#2329), @BharadwajMittapelli (#2729), @maxpetrusenkoagent (#1931, #1932, #1981), @Infiniteyieldai (#2884), @afshaker (#2778), @time-attack (#2232, #2229), @jzeisweiss (#2670), @liutiming (#2783), @agile-operators (#1437), @benjaminberes-bp (#2369), @lewispeel (#2885), @Yugz29 (#2899), @fcmerle (#2962), @cdecook23 (#2784), @mb1810 (#2913), @ntdatt812 (#2949), @pneumorea-ai (#2915), @gabrielrondon (#2811), @kevingrasso32 (#2876), @xwang4-svg (#2354), @DizzyWesterwald (#2936), @oli548 (#2771), @shofel (#1968), @ryanlaiwy (#1633), @yinanli1917-cloud (#2281), @Spooks444 (#2260), @punksterlabs (#2439), @himiaocc (#2492), @jbetala7 (#1419, #1777), @mamedov (#2891), @Lockyer228 (#2651), @topcoder1 (#2263), @jonahberg (#2707), @AlinValentin7 (#3015), @philhie (#2208), @Alchemist-DevAI (#2334), @merit-blake (#2343), @day-of-davon (#2952), @loulanyue (#2797, #2792, #2794, #2796), @Bit0ps (#2840), @szsunyuan (#2799), @frosimanuel (#2818), @JiayuuWang (#1096), @RyanAlberts (#1728), @exGeni (#2704), @Jino00 (#2812), @snig-17 (#2809) and @SholtoMc (#2037).
+
+## [1.91.17.0] - 2026-10-03
+
+**Checkpoints say whether each next step was run, read or guessed, and `/context-restore` verifies the guesses first.**
+**Paid design images are never overwritten, and design skills always show the round you just paid for.**
+
+This wave rebuilds three community PRs from @mvanhorn on current main. A checkpoint's Remaining Work used to read the same whether a step had been run or only inferred, so a resumed session could act on a guess and hit the wrong system (#3004, reported by @tomg65). Running `$D variants` twice into one folder replaced `variant-A.png`, `$D generate --retry` kept only the last image, and skills built boards from fixed `variant-A/B/C` names, so you could pay for images you never saw (#1529, reported by @SakenW).
+
+### What changes for you
+
+- **Remaining Work carries provenance.** Every item starts with `Open.` and ends with how the saving session knows it: `(path run)` with the outcome, `(path read)` or `(path assumed)` for commands, flags, config values and files; `(target state checked)`, `(code read)` or `(path assumed)` for writes. For example:
+
+      1. Open. Run the migration check with SWITCH_B=1 against staging. (path assumed)
+      2. Open. Run bun test test/billing.test.ts. (path run) exit 0
+
+  `/context-restore` keeps the saved order but shows item 2 under **Next steps** and item 1 under **Verify first**, and "continue" starts by verifying item 1 read-only instead of jumping to item 2. Checkpoints saved before this release have no markers, so their command, path and write items land under Verify first, with a one-line banner saying so.
+- **Nothing paid is lost.** A taken image name gets `-2`, `-3` and so on (`variant-A-2.png`); stderr says `note: <requested> exists; saved to <actual> (existing file kept)` and the JSON reports the real path. Every `--retry` attempt is its own saved image. If saving fails after the API returned the image, the bytes go to a private recovery copy in your temp directory and the message says where; a local write failure never buys a second image.
+- **Every image command prints JSON, even on failure**: `requested`, `saved`, `selected`, `failures`, `recovered`. Exit 0 means the result is ready, 2 means nothing was saved, 3 means the run stopped after saving some images.
+- **Boards show this round only.** Skills tell you how many of the requested images were saved, write the round's printed paths to `board-images.json`, build the board with `$D compare --images-file`, archive an old `feedback.json` first, and record `approved_path` in `approved.json`, so a later session opens exactly the image you approved. Old letter-only approvals still work. /design-shotgun subagents stage in a fresh temp directory and publish with `gstack-design-claim`, which never overwrites.
+- **If you script `$D`,** read paths from the JSON instead of assuming the file name:
+
+      out=$($D generate --brief "pricing page" --output designs/pricing.png); rc=$?
+      img=$(printf '%s' "$out" | jq -r .outputPath)
+      [ "$rc" -eq 0 ] && $D check --image "$img" --brief "pricing page"
+
+  `variants` prints its list in `.paths`; `compare` takes it losslessly with `--images-file paths.json`.
+- **Windows console flashes (#1784)** were confirmed fixed on main (v1.91.15.0) by @kaiwulff on a real Windows 11 desktop; this release ships no code for them.
+
+### Itemized changes
+
+#### Fixed
+- `/context-save` Remaining Work did not record whether a step was run, read or assumed, and `/context-restore` offered the first item as the next action (#3004). Marker format from #3019 by @mvanhorn, field-tested by @tomg65.
+- Design images were silently overwritten by later rounds and `--retry` attempts (#1529). Exclusive-create claim idea from #1737 by @mvanhorn.
+- Comparison boards and quality checks read fixed `variant-A/B/C` names or a `variant-*.png` glob and mixed rounds; a stale `feedback.json` could approve a new round.
+- `$D` wrote iterate session files to `/tmp`, which does not exist on Windows, so `generate` could not record its session and `iterate` could not find it there; sessions now live in the OS temp directory.
+- /setup-deploy reported a failing status command as success (the pipe hid its exit code), matched `cd` anywhere in a workflow as a deploy workflow, and left the merge-method check, Fly `/health` detection and GitHub-Actions-only status command unspecified.
+
+#### Added
+- `$D compare --images-file` and JSON-array `--images`, `bin/gstack-design-claim`, `bin/gstack-design-approved`, and `approved_path` in approval records.
+- Periodic behavior eval `context-restore-provenance-order` (3-trial panel) and free contract tests for the provenance markers, `$D` persistence and the design-skill path rules.
 
 ## [1.91.16.0] - 2026-10-03
 

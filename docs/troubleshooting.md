@@ -338,15 +338,16 @@ This says it could not be found, instead of acting as if you had none.
 **Fix.** `cd <gstack checkout> && ./setup`.
 
 <a id="design-variant-save-failed"></a>
-### `image was generated but could not be saved to <path> (<err>); kept at <tmp path>`
+### `cannot save paid image to <path>: <code> (<cause>). Image bytes were received; saved a recovery copy to <tmp path>. Fix: ...`
 
-**Meaning.** The paid image generation succeeded but writing it to the round
-folder failed (disk or permissions). gstack never buys the same image twice.
+**Meaning.** The paid image generation succeeded but writing it to the output
+path failed (disk, permissions, or every name through `-999` taken). gstack never
+buys the same image twice and never overwrites an existing image.
 
-**What is kept.** The image, at the printed temp path.
+**What is kept.** The image, at the printed recovery path in your temp directory.
 
-**Fix.** Free disk space or fix the folder's permissions, then
-`cp <tmp path> <path>`.
+**Fix.** Follow the printed fix (free disk space, make the folder writable, or
+pick a new `--output`), then copy the recovery file to where you want it.
 
 ---
 
