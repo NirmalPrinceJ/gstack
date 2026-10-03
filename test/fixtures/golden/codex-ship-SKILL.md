@@ -396,7 +396,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-`~/.gstack/analytics/`, matching preamble analytics writes.
+`$GSTACK_STATE_ROOT/analytics/`, matching preamble analytics writes.
 
 ```bash
 $GSTACK_BIN/gstack-skill-end --skill "ship" --outcome OUTCOME \
@@ -939,7 +939,7 @@ Running bare test migrations without INSTANCE hits an orphan DB and corrupts str
 Run independent test suites in parallel, each wrapped in the evidence ledger. The
 wrapper is transparent (streams output live, exit code passes through) and
 records `{command, exit, working-tree fingerprint, log path}` to
-`~/.gstack/projects/<slug>/<branch>-evidence.jsonl` — Step 16 cites this
+`$GSTACK_STATE_ROOT/projects/<slug>/<branch>-evidence.jsonl` — Step 16 cites this
 record instead of re-running when the content hasn't changed:
 
 ```bash

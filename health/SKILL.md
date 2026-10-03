@@ -358,7 +358,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-`~/.gstack/analytics/`, matching preamble analytics writes.
+`$GSTACK_STATE_ROOT/analytics/`, matching preamble analytics writes.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-skill-end --skill "health" --outcome OUTCOME \
@@ -642,7 +642,7 @@ eval "$(~/.claude/skills/gstack/bin/gstack-slug 2>/dev/null)" && mkdir -p "$GSTA
 ```
 
 Only when a numeric composite exists, append one JSONL line to
-`~/.gstack/projects/$SLUG/health-history.jsonl`. Zero-check and capture-error runs
+`$GSTACK_STATE_ROOT/projects/$SLUG/health-history.jsonl` (the `PROJECT_DIR` printed above). Zero-check and capture-error runs
 must leave any existing history unchanged:
 
 ```json
@@ -663,7 +663,7 @@ with no `gbrain` field as `null` for that category.
 
 ## Step 6: Trend Analysis + Recommendations
 
-Read the last 10 entries from `~/.gstack/projects/$SLUG/health-history.jsonl` (if the
+Read the last 10 entries from `$GSTACK_STATE_ROOT/projects/$SLUG/health-history.jsonl` (if the
 file exists and has prior entries).
 
 ```bash

@@ -30,7 +30,7 @@ gbrain:
       render_as: "## DESIGN.md (project design system)"
     - id: recent-design-docs
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/*-design-*.md"
+      glob: "{gstack_state_root}/projects/{repo_slug}/*-design-*.md"
       sort: mtime_desc
       limit: 3
       render_as: "## Recent design docs"
@@ -377,7 +377,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-`~/.gstack/analytics/`, matching preamble analytics writes.
+`$GSTACK_STATE_ROOT/analytics/`, matching preamble analytics writes.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-skill-end --skill "design-shotgun" --outcome OUTCOME \
@@ -578,7 +578,7 @@ fonts [top-3], colors [top-3], layouts [top-3], aesthetics [top-3]. Bias
 generation toward these unless the user explicitly requests a different direction.
 Also avoid their strong rejections: [top-3 rejected per dimension]."
 
-**Legacy fallback:** Glob `~/.gstack/projects/$SLUG/designs/**/approved.json`; Read the five newest. Use explicit feedback only, never infer fonts/colors from variant letters. No usable files: continue without a taste profile.
+**Legacy fallback:** Glob `$GSTACK_STATE_ROOT/projects/$SLUG/designs/**/approved.json` (resolve the root with gstack-paths); Read the five newest. Use explicit feedback only, never infer fonts/colors from variant letters. No usable files: continue without a taste profile.
 
 **Conflict handling:** If the current user request contradicts a strong persistent
 signal (e.g., "make it playful" when taste profile strongly prefers minimal), flag

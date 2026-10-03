@@ -57,7 +57,7 @@ Build this question's options from a LIVE check of installed skills at ask time 
 ## Archive and upload
 
 1. Archive and export the signed Release build with `gym` (it drives xcodebuild and the signing minted in preflight). Projects with custom archive requirements may drop to `xcodebuild archive` directly; the output either way is an App Store-signed `.ipa`.
-2. The upload is an external effect: run `pilot` (TestFlight) or `deliver` (App Store) under the durable-effect contract: before executing, append the key `appstore.upload.<bundle-id>.<build>` to `~/.gstack/projects/$SLUG/apple-effects.log`; if the key is already present from a prior run (crash, retry), treat the upload as possibly-done and do NOT re-run it. Never re-upload on ambiguity; inspect App Store Connect for the build first.
+2. The upload is an external effect: run `pilot` (TestFlight) or `deliver` (App Store) under the durable-effect contract: before executing, append the key `appstore.upload.<bundle-id>.<build>` to `$GSTACK_STATE_ROOT/projects/$SLUG/apple-effects.log` (resolve the state root and slug in the same command that reads or appends it); if the key is already present from a prior run (crash, retry), treat the upload as possibly-done and do NOT re-run it. Never re-upload on ambiguity; inspect App Store Connect for the build first.
 3. The cached session, the minted key, and every credential file are env- or file-level secrets: never argv, never echoed, never committed.
 4. NEVER demand an app-specific password — the session MINTS the upload key instead.
 

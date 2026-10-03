@@ -302,7 +302,7 @@ describe('CEO finding fixture establishes scope before launch', () => {
       const design = '# Settings export design\n\n## Problem\nOperators need saved settings in a spreadsheet for offline comparison.\n\n## Approach\nReuse the settings API and escape commas, quotes, and newlines in a CSV formatter.\n';
       seedCeoFindingProject(cwd, plan, design);
       const output = execFileSync('bash', ['-c', `SLUG=fixture; BRANCH=main; ${DESIGN_DOC_DISCOVERY_BLOCK}`], {
-        cwd, env: { PATH: process.env.PATH!, HOME: home }, encoding: 'utf8', timeout: 10_000,
+        cwd, env: { PATH: process.env.PATH!, HOME: home, GSTACK_STATE_ROOT: path.join(root, 'state') }, encoding: 'utf8', timeout: 10_000,
       });
       expect(output).toBe(`Design doc found: ${path.join(cwd, 'DESIGN.md')}\n`);
       expect(execFileSync('git', ['show', 'HEAD:DESIGN.md'], { cwd, encoding: 'utf8', timeout: 30_000 })).toBe(design);

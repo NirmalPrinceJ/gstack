@@ -441,7 +441,7 @@ describe('gen-skill-docs', () => {
     expect(SKILL_END_SCRIPT).toContain('analytics/skill-usage.jsonl');
     // The render still tells the model where telemetry lands.
     const content = fs.readFileSync(path.join(ROOT, 'SKILL.md'), 'utf-8');
-    expect(content).toContain('~/.gstack/analytics');
+    expect(content).toContain('$GSTACK_STATE_ROOT/analytics/');
   });
 
   test('plan-review generated preambles stay under the Option A budget', () => {
@@ -1905,13 +1905,15 @@ describe('BENEFITS_FROM resolver', () => {
       fs.chmodSync(helper, 0o755);
       fs.copyFileSync(path.join(ROOT, 'bin/gstack-state-root.sh'), path.join(path.dirname(helper), 'gstack-state-root.sh'));
       fs.copyFileSync(path.join(ROOT, 'bin/gstack-remote-identity.sh'), path.join(path.dirname(helper), 'gstack-remote-identity.sh'));
-      const expected = path.join(home, '.gstack/projects/canonical-override/session-unknown-design-current.md');
-      const wrong = path.join(home, '.gstack/projects/project/session-unknown-design-wrong.md');
+      fs.copyFileSync(path.join(ROOT, 'bin/gstack-paths'), path.join(path.dirname(helper), 'gstack-paths'));
+      fs.chmodSync(path.join(path.dirname(helper), 'gstack-paths'), 0o755);
+      const expected = path.join(dir, 'state/projects/canonical-override/session-unknown-design-current.md');
+      const wrong = path.join(dir, 'state/projects/project/session-unknown-design-wrong.md');
       for (const file of [expected, wrong]) {
         fs.mkdirSync(path.dirname(file), {recursive: true});
         fs.writeFileSync(file, '# Design fixture\n');
       }
-      const env = {...process.env, HOME: home, GSTACK_HOME: path.join(home, '.gstack'),
+      const env = {...process.env, HOME: home, GSTACK_HOME: path.join(dir, 'state'), GSTACK_STATE_ROOT: path.join(dir, 'state'),
         GSTACK_PROJECT_SLUG: 'canonical-override', GIT_CEILING_DIRECTORIES: dir};
       for (const command of [initial, recheck]) {
         expect(command).toContain('if _REVIEW_SLUG=$(~/.claude/skills/gstack/bin/gstack-slug); then');

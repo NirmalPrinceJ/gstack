@@ -356,7 +356,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-`~/.gstack/analytics/`, matching preamble analytics writes.
+`$GSTACK_STATE_ROOT/analytics/`, matching preamble analytics writes.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-skill-end --skill "canary" --outcome OUTCOME \
@@ -701,7 +701,7 @@ mkdir -p "$GSTACK_STATE_ROOT"/projects/$SLUG
 ```
 
 Write a JSONL entry: `{"skill":"canary","timestamp":"<ISO>","status":"<HEALTHY/DEGRADED/BROKEN>","url":"<url>","duration_min":<N>,"alerts":<N>}`
-Append it to `~/.gstack/projects/$SLUG/canary-history.jsonl`; never overwrite history.
+Append it to `$GSTACK_STATE_ROOT/projects/$SLUG/canary-history.jsonl` (the directory this block created); never overwrite history.
 
 ### Phase 7: Baseline Update
 

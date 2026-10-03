@@ -44,12 +44,12 @@ gbrain:
       render_as: "## Prior investigations in this repo"
     - id: project-learnings
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/learnings.jsonl"
+      glob: "{gstack_state_root}/projects/{repo_slug}/learnings.jsonl"
       tail: 10
       render_as: "## Recent learnings (patterns + pitfalls)"
     - id: recent-eureka
       kind: filesystem
-      glob: "~/.gstack/analytics/eureka.jsonl"
+      glob: "{gstack_state_root}/analytics/eureka.jsonl"
       tail: 5
       render_as: "## Recent eureka moments (cross-project)"
 ---
@@ -397,7 +397,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-`~/.gstack/analytics/`, matching preamble analytics writes.
+`$GSTACK_STATE_ROOT/analytics/`, matching preamble analytics writes.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-skill-end --skill "investigate" --outcome OUTCOME \

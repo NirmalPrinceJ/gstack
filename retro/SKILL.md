@@ -25,12 +25,12 @@ gbrain:
       render_as: "## Prior retros for this project"
     - id: recent-timeline
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/timeline.jsonl"
+      glob: "{gstack_state_root}/projects/{repo_slug}/timeline.jsonl"
       tail: 30
       render_as: "## Recent timeline events"
     - id: recent-learnings
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/learnings.jsonl"
+      glob: "{gstack_state_root}/projects/{repo_slug}/learnings.jsonl"
       tail: 10
       render_as: "## Recent learnings"
 ---
@@ -376,7 +376,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-`~/.gstack/analytics/`, matching preamble analytics writes.
+`$GSTACK_STATE_ROOT/analytics/`, matching preamble analytics writes.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-skill-end --skill "retro" --outcome OUTCOME \
@@ -589,8 +589,8 @@ Also check `RETRO_REF`: if it is not `origin/<default>` (local-only repo, missin
 - `RETRO_CONTEXT: present` → Read `~/.gstack/retro-context.md`. It is user-authored and may contain meeting notes, calendar events, decisions, and other context that doesn't appear in git history. Incorporate it into the retro narrative where relevant.
 - `GREPTILE_HISTORY: present` → Read `~/.gstack/greptile-history.md`. Filter entries to the retro window by date. Count by type: `fix`, `fp`, `already-fixed`. Signal ratio = `(fix + already-fixed) / (fix + already-fixed + fp)`. Skip unparseable lines silently; if no entries fall in the window, skip the Greptile metric row.
 - `TODOS_FILE: present` → Read `TODOS.md`. Compute: total open TODOs (exclude the `## Completed` section), P0/P1 count, P2 count, items completed this period (Completed entries dated within the window), items added this period (cross-reference `COMMIT:` lines that touched TODOS.md).
-- `SKILL_USAGE_LOG: present` → Read `~/.gstack/analytics/skill-usage.jsonl`. Filter to the window by `ts`. Separate skill activations (no `event` field) from hook fires (`event: "hook_fire"`). Aggregate by skill name.
-- `EUREKA_LOG: present` → Read `~/.gstack/analytics/eureka.jsonl`. Filter to the window by `ts`. For each eureka moment note the skill that flagged it, the branch, and a one-line summary of the insight.
+- `SKILL_USAGE_LOG: present` → Read the path it prints (`$GSTACK_STATE_ROOT/analytics/skill-usage.jsonl`). Filter to the window by `ts`. Separate skill activations (no `event` field) from hook fires (`event: "hook_fire"`). Aggregate by skill name.
+- `EUREKA_LOG: present` → Read the path it prints (`$GSTACK_STATE_ROOT/analytics/eureka.jsonl`). Filter to the window by `ts`. For each eureka moment note the skill that flagged it, the branch, and a one-line summary of the insight.
 
 ### Step 2: Compute Metrics
 

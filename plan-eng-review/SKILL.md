@@ -430,7 +430,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-`~/.gstack/analytics/`, matching preamble analytics writes.
+`$GSTACK_STATE_ROOT/analytics/`, matching preamble analytics writes.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-skill-end --skill "plan-eng-review" --outcome OUTCOME \
@@ -567,12 +567,13 @@ Sanitize every query before it leaves the machine: strip hostnames, IPs, file pa
 ### Design Doc Check
 ```bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
+eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 if _REVIEW_SLUG=$(~/.claude/skills/gstack/bin/gstack-slug); then
   eval "$_REVIEW_SLUG"
-  _LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
-[ -z "$_LOCALDOC" ] && _LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
+  _LOCALDOC=$(ls -t "$GSTACK_STATE_ROOT"/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+[ -z "$_LOCALDOC" ] && _LOCALDOC=$(ls -t "$GSTACK_STATE_ROOT"/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
 # Repo-local docs win when at least as fresh (#703): office-hours dual-writes
-# docs/designs/ alongside ~/.gstack, and the committed copy is what teammates
+# docs/designs/ alongside the state root, and the committed copy is what teammates
 # see. A stale old repo doc never shadows a newer private session.
 _REPOTOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _REPODOC=""

@@ -368,7 +368,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-`~/.gstack/analytics/`, matching preamble analytics writes.
+`$GSTACK_STATE_ROOT/analytics/`, matching preamble analytics writes.
 
 ```bash
 ~/.claude/skills/gstack/bin/gstack-skill-end --skill "plan-tune" --outcome OUTCOME \
@@ -419,7 +419,7 @@ Each gate is guarded by a marker so the user is prompted at most once per choice
    `~/.gstack/.declared-setup-prompted` is missing → run `5-Q setup` below.
    Touch the marker after setup completes OR is declined.
 3. **Dream-cycle gate.** If
-   `~/.gstack/projects/<slug>/distillation-proposals.json` exists AND has
+   `$GSTACK_STATE_ROOT/projects/<slug>/distillation-proposals.json` exists AND has
    `applied_at` missing on any proposal → run `Dream cycle review` below.
    Marker: each proposal carries its own `applied_at` so re-firing this
    gate naturally skips already-handled items.

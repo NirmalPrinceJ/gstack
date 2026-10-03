@@ -606,6 +606,51 @@ gbrain:
   }
 });
 
+describe("gstack-brain-context-load — shipped state-root manifest files read the configured root", () => {
+  const cases = [
+    { skill: "investigate", id: "project-learnings", file: ["projects", "test-repo", "learnings.jsonl"] },
+    { skill: "investigate", id: "recent-eureka", file: ["analytics", "eureka.jsonl"] },
+    { skill: "office-hours", id: "design-doc-history", file: ["projects", "test-repo", "alice-main-design-20260914.md"] },
+  ];
+  for (const c of cases) it(`${c.skill}:${c.id} reads only the configured root`, () => {
+    const dir = mkdtempSync(join(tmpdir(), "gstack-state-manifest-"));
+    const home = join(dir, "home");
+    const configured = join(dir, "configured");
+    try {
+      const target = join(configured, ...c.file);
+      mkdirSync(join(target, ".."), { recursive: true });
+      writeFileSync(target, "{}\n");
+      mkdirSync(home, { recursive: true });
+      const query = parseSkillManifest(join(import.meta.dir, "..", c.skill, "SKILL.md.tmpl"))!
+        .context_queries.find(item => item.id === c.id)!;
+      expect(query.glob!.startsWith("{gstack_state_root}/")).toBe(true);
+      const skillFile = join(dir, "SKILL.md");
+      writeFileSync(skillFile, `---
+name: state-manifest-fixture
+gbrain:
+  schema: 1
+  context_queries:
+    - id: ${query.id}
+      kind: filesystem
+      glob: "${query.glob}"
+      render_as: "${query.render_as}"
+---
+`);
+      const env = { HOME: home, USERPROFILE: home, GSTACK_HOME: configured, CLAUDE_PLUGIN_DATA: "", CLAUDE_PLUGIN_ROOT: "" };
+      const r = runScript(["--skill-file", skillFile, "--repo", "test-repo", "--explain"], env);
+      expect(r.exitCode).toBe(0);
+      expect(r.stderr).toContain(`OK    ${c.id}`);
+      expect(r.stdout).toContain(c.file[c.file.length - 1]!);
+      rmSync(target);
+      mkdirSync(join(home, ".gstack", ...c.file.slice(0, -1)), { recursive: true });
+      writeFileSync(join(home, ".gstack", ...c.file), "{}\n");
+      const legacyOnly = runScript(["--skill-file", skillFile, "--repo", "test-repo", "--explain"], env);
+      expect(legacyOnly.exitCode).toBe(0);
+      expect(legacyOnly.stderr).toContain(`SKIP  ${c.id}`);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
 describe("gstack-brain-context-load — real gbrain CLI contract (#2883)", () => {
   const ROWS = [
     "plans/brand-plan\\tceo-plan\\t2026-10-01\\tBrand plan",
