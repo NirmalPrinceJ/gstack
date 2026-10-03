@@ -57,6 +57,8 @@ import {
   runCaseDiagnosis,
   caseFile,
   parseCliOptions,
+  loadPaidTestDurations,
+  shardDurationViolations,
   type CaseTrialPlan,
   type ShardOutcome,
 } from '../scripts/test-paid-shards';
@@ -214,6 +216,29 @@ describe('marathon tier lane', () => {
       expect(marathonSkipReason(file, source), file).toBeNull();
     }
     expect(selected.length + excluded.length).toBe(collectPaidTestFiles().length);
+  });
+});
+
+describe('PR-lane shard wall (I5)', () => {
+  const census = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/fixtures/paid-report-census/gate-census-durations.json'), 'utf8')).durations as Record<string, number>;
+  const gateKeys = () => buildRunManifest({ tier: 'gate', sliceCount: 1, evalsAll: true, env: { EVALS_ALL: '1' } })
+    .entries.filter(entry => entry.status === 'planned').map(entry => entry.file);
+
+  test('no planned gate shard has a recorded wall over 600 s (committed seed and the last gate census)', () => {
+    const keys = gateKeys();
+    expect(keys.length).toBeGreaterThan(50);
+    expect(shardDurationViolations(keys, loadPaidTestDurations(ROOT, 'gate'))).toEqual([]);
+    expect(shardDurationViolations(keys, census)).toEqual([]);
+  });
+
+  test('the guard names an over-limit shard and its recorded wall; deploy runs one shard per case', () => {
+    expect(shardDurationViolations(['test/skill-e2e-deploy.test.ts', 'test/skill-e2e-qa-workflow.test.ts'], census))
+      .toEqual(['test/skill-e2e-deploy.test.ts: recorded 668s > 600s']);
+    expect(shardDurationViolations(['test/a.test.ts#x~t2'], { 'test/a.test.ts#x': 612_000 })).toEqual(['test/a.test.ts#x~t2: recorded 612s > 600s']);
+    expect(CASE_SHARDED_FILES).toContain('test/skill-e2e-deploy.test.ts');
+    expect(gateKeys().filter(key => shardFile(key) === 'test/skill-e2e-deploy.test.ts').sort()).toEqual([
+      'benchmark-workflow', 'canary-workflow', 'land-and-deploy-first-run', 'land-and-deploy-review-gate', 'land-and-deploy-workflow', 'setup-deploy-workflow',
+    ].map(id => `test/skill-e2e-deploy.test.ts#${id}`));
   });
 });
 

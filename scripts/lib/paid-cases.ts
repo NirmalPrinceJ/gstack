@@ -67,6 +67,7 @@ import { type PaidTier, ROOT, fileCaseRegistration } from '../test-paid-shards';
  * id or its CASE_TEST_NAMES label (test/paid-shards.test.ts scans the sources).
  */
 export const CASE_SHARDED_FILES: readonly string[] = [
+  'test/skill-e2e-deploy.test.ts',
   'test/skill-e2e-design.test.ts',
   'test/skill-e2e-plan.test.ts',
   'test/skill-e2e-review-army.test.ts',
