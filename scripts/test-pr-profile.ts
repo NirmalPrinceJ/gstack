@@ -26,12 +26,13 @@ export const PR_PROFILE_CASE_IDS = [
   'gstack-upgrade-happy-path',
   'investigate-owned-completion', 'investigate-owned-abort', 'investigate-owned-ending-error',
   'ship-coverage-value', 'review-test-value', 'test-audit-report-only',
-  'office-hours-auto-mode',
+  'office-hours-auto-mode', 'plan-ceo-review-plan-mode',
 ] as const;
 
 /** Audited ownership: unknown/direct-describe files remain broad coverage. */
 export const PR_PROFILE_FILES: Record<string, readonly string[]> = {
   'test/skill-e2e-office-hours-auto-mode.test.ts': ['office-hours-auto-mode'],
+  'test/skill-e2e-plan-ceo-plan-mode.test.ts': ['plan-ceo-review-plan-mode'],
   'test/skill-e2e-investigate-owned-completion.test.ts': ['investigate-owned-completion'],
   'test/skill-e2e-investigate-owned-termination.test.ts': ['investigate-owned-abort', 'investigate-owned-ending-error'],
   'test/skill-e2e-hermetic-canary.test.ts': ['hermetic-canary', 'hermetic-sentinel'],

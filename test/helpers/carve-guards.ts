@@ -410,8 +410,9 @@ do not launch the downstream skill or open a browser.`,
     // + W1 guarded state-root resolution in the Context Recovery preamble, the
     // eureka log, the office-hours lookup and the taste-profile read; measured
     // 1.0834 (2026-09-30). + named design-direction defaults to avoid in the native
-    // subagent prompt (s02 H4a); measured 1.0911 (2026-10-02).
-    maxSizeRatio: 1.092,
+    // subagent prompt (s02 H4a); measured 1.0911 (2026-10-02). Re-measured
+    // 1.0758 (2026-10-03); cap = measured + 0.005 headroom.
+    maxSizeRatio: 1.081,
   },
   cso: {
     skill: 'cso',
@@ -537,7 +538,7 @@ do not launch the downstream skill or open a browser.`,
     },
     behavioral: 'prompt',
     maxSkeletonBytes: 74_500, // + Aside browser contract for Step 7 canary ({{ASIDE_SETUP}}); measured 73_523
-    maxSizeRatio: 1.108, // + v1.81 Aside contract + gstack-browser fallback block; measured 1.077. + both untrusted-content marker formats in the browser fallback (W7f) + the readiness gate's project test command and live eval-store paths (s06 H6/H7); measured 1.1076 (2026-10-02).
+    maxSizeRatio: 1.100, // + v1.81 Aside contract + gstack-browser fallback block; measured 1.077. + both untrusted-content marker formats in the browser fallback (W7f) + the readiness gate's project test command and live eval-store paths (s06 H6/H7); measured 1.1076 (2026-10-02). Re-measured 1.0943 (2026-10-03); cap = measured + 0.005 headroom.
     minUnionBytes: 91_000, // Phase 4 wave 1; estimated union ~94.9KB
     mustContain: ['readiness', 'merge', 'canary', 'revert', 'staging'],
   },

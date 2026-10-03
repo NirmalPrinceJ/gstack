@@ -206,7 +206,13 @@ function deterministicPlanFloorFinding(input: PlanFloorReview): PlanFloorAssessm
   });
 }
 
-/** Same warmup CLI, one turn and 30s cap as the replaced waiting-state judge.
+/** Per-call cap on the warmup-model assessment. Measured 2026-10-03 with
+ * Claude Code 2.1.284 and claude-haiku-4-5 on the committed captured inputs:
+ * 25 calls (10 sequential, 15 at 3-way concurrency), p50 14.7s, p95 27.4s,
+ * max 31.3s, so the old 30s cap cut the tail. 90s is about 3x p95. */
+export const PLAN_FLOOR_ASSESSMENT_CAP_MS = 90_000;
+
+/** Same warmup CLI and one turn as the replaced waiting-state judge.
  * The original case deadline bounds each call; complete input is never truncated. */
 export function judgePlanFloorReview(input: PlanFloorReview, opts: {
   binary: string; model: string; deadlineAt: number;
@@ -225,7 +231,7 @@ export function judgePlanFloorReview(input: PlanFloorReview, opts: {
   try {
     const result = (opts.invoke ?? spawnSync)(opts.binary,
       ['-p', '--model', opts.model, '--max-turns', '1'],
-      { input: prompt, stdio: ['pipe', 'pipe', 'pipe'], timeout: Math.min(30_000, remaining), encoding: 'utf8' });
+      { input: prompt, stdio: ['pipe', 'pipe', 'pipe'], timeout: Math.min(PLAN_FLOOR_ASSESSMENT_CAP_MS, remaining), encoding: 'utf8' });
     Object.assign(diagnostic, { rawOutput: String(result.stdout ?? ''), stderr: String(result.stderr ?? ''), status: result.status });
     if (result.error || result.status !== 0 || Date.now() >= opts.deadlineAt)
       throw Error(`Floor assessment did not complete: ${result.error?.message ?? `exit ${result.status}`} ${String(result.stderr ?? '').slice(-3000)}`.trim());

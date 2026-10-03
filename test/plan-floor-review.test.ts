@@ -1,5 +1,5 @@
 import {expect,test,spyOn} from 'bun:test';
-import {buildPlanFloorReviewPrompt,validatePlanFloorAssessment,resolvePlanFloorCitations,judgePlanFloorReview,pickPlanFloorMode,pickPlanFloorProductType,type PlanFloorReview} from './helpers/plan-floor-review';
+import {buildPlanFloorReviewPrompt,validatePlanFloorAssessment,resolvePlanFloorCitations,judgePlanFloorReview,pickPlanFloorMode,pickPlanFloorProductType,PLAN_FLOOR_ASSESSMENT_CAP_MS,type PlanFloorReview} from './helpers/plan-floor-review';
 import {FORCING_FLOOR_CEO, FORCING_FLOOR_DEVEX} from './fixtures/forcing-finding-seeds';
 import capturedQuotes from './fixtures/plan-floor-quote-70b.json';
 import productTypes from './fixtures/plan-floor-product-type-70b.json';
@@ -57,14 +57,15 @@ test('large complete input is preserved; over-limit input is rejected without in
  expect(()=>judgePlanFloorReview(input,{binary:'fake',model:'warmup',deadlineAt:Date.now()+30_000,invoke:(()=>{calls++;throw Error('must not execute');}) as any})).toThrow();
  expect(calls).toBe(0);
 });
-test('replacement judge retains the original CLI model, one turn, 30s cap and absolute case deadline',()=>{
- for(const remaining of [5000,60_000]){
+test('replacement judge retains the original CLI model, one turn, measured cap and absolute case deadline',()=>{
+ expect(PLAN_FLOOR_ASSESSMENT_CAP_MS).toBeGreaterThan(30_000);
+ for(const remaining of [5000,60_000,PLAN_FLOOR_ASSESSMENT_CAP_MS+60_000]){
   const deadlineAt=Date.now()+remaining;let calls=0;
   const actual=judgePlanFloorReview(review(),{binary:'/fake/claude',model:'unchanged-warmup',deadlineAt,invoke:((file,args,opts)=>{
    calls++;expect(file).toBe('/fake/claude');expect(args).toEqual(['-p','--model','unchanged-warmup','--max-turns','1']);
    expect(opts.stdio).toEqual(['pipe','pipe','pipe']);expect(opts.encoding).toBe('utf8');
    expect(opts.input).toBe(buildPlanFloorReviewPrompt(review()));
-   expect(opts.timeout).toBeGreaterThan(0);expect(opts.timeout).toBeLessThanOrEqual(Math.min(30_000,remaining));
+   expect(opts.timeout).toBeGreaterThan(0);expect(opts.timeout).toBeLessThanOrEqual(Math.min(PLAN_FLOOR_ASSESSMENT_CAP_MS,remaining));
    return {status:0,stdout:JSON.stringify(citationFinding()),stderr:''};
   }) as any});expect(calls).toBe(1);expect(actual.kind).toBe('finding');
  }

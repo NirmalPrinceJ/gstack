@@ -148,6 +148,7 @@
       "test/skill-e2e-office-hours.test.ts": 136970,
       "test/skill-e2e-outside-plan-disabled.test.ts": 53292,
       "test/skill-e2e-outside-voice.test.ts": 1000,
+      "test/skill-e2e-overlay-harness-claude-dedicated-tools-vs-bash-opus-5-5.test.ts": 56080,
       "test/skill-e2e-overlay-harness-claude-dedicated-tools-vs-bash-sonnet.test.ts": 85282,
       "test/skill-e2e-overlay-harness-claude-dedicated-tools-vs-bash.test.ts": 80465,
       "test/skill-e2e-overlay-harness-opus-4-7-effort-match-trivial.test.ts": 49282,

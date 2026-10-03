@@ -325,6 +325,37 @@ export const OVERLAY_FIXTURES: OverlayFixture[] = [
     pass: lowerIsBetter20Pct,
   },
 
+  // Opus 5.5 measures the generic claude overlay (resolveModel maps
+  // claude-opus-5-5 to `claude`); it adds no Opus 5.5 nudges.
+  {
+    id: 'claude-dedicated-tools-vs-bash-opus-5-5',
+    overlayPath: 'model-overlays/claude.md',
+    model: 'claude-opus-5-5',
+    trials: 10,
+    concurrency: 3,
+    direction: 'lower_is_better',
+    maxTurns: 15,
+    setupWorkspace: (dir) => {
+      fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
+      fs.writeFileSync(path.join(dir, 'src', 'index.ts'), "export const x = 1;\n");
+      fs.writeFileSync(path.join(dir, 'src', 'util.ts'), "export function util() { return 42; }\n");
+      fs.writeFileSync(path.join(dir, 'src', 'types.ts'), "export type Foo = { a: number };\n");
+      fs.writeFileSync(path.join(dir, 'src', 'config.ts'), "export const c = { n: 'demo' };\n");
+      fs.writeFileSync(path.join(dir, 'src', 'api.ts'), "export async function fetchFoo() { return null; }\n");
+    },
+    userPrompt:
+      "List every TypeScript file under src/ and tell me what each exports. " +
+      "Return only a JSON object mapping each src/ path to an array of its exported symbol names. " +
+      "The final message is consumed directly by JSON.parse: return the exact JSON object, with no Markdown fences and no other prose. " +
+      "You may use any tools available.",
+    metric: bashToolCallCount,
+    metricName: 'bash_tool_calls',
+    verify: (r) => assertFinalJson(r, { 'src/index.ts': ['x'], 'src/util.ts': ['util'], 'src/types.ts': ['Foo'], 'src/config.ts': ['c'], 'src/api.ts': ['fetchFoo'] }),
+    gate: lowerIsBetter20PctOrZeroBaseline,
+    comparison: { direction: 'lower_is_better', minimum: 0 },
+    pass: lowerIsBetter20Pct,
+  },
+
 ];
 
 // Validate at module load so a broken fixture fails fast at test startup,
