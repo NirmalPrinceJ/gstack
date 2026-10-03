@@ -544,6 +544,7 @@ describe('installed QA pointers', () => {
     '_gstack_generated_header', '_claude_entry_owned_strongly', '_claude_entry_is_ours', '_write_owned_marker',
     '_backup_skill_md', '_cleanup_weak_dir', '_gstack_dir_only_links', '_cleanup_linked_dir',
     '_owned_for_windows_refresh', '_sidecar_root_user_owned', '_prune_stale_generated', '_skill_source_exists',
+    '_link_runtime_dists', '_copy_skill_md', '_skill_copy_hash', '_skill_copy_unmodified', '_preserve_skill_copy_edits', '_record_skill_copies',
   ].map(setupFunction).join('\n')
     // Install-registry rows (setup's _setup_arm_* / _setup_row) are not under test here.
     + '\n_setup_arm_begin() { :; }\n_setup_arm_publish() { :; }\n_setup_row() { :; }';
@@ -583,7 +584,8 @@ describe('installed QA pointers', () => {
             const script = [
               'set -e', `IS_WINDOWS=${copy ? 1 : 0}`, `SKILL_PREFIX=${prefix}`, 'QUIET=1',
               '_FOREIGN_SKIPPED_ENTRIES=()', '_BACKED_UP_SKILL_MDS=()', '_SKILL_BACKUP_ROOT="$HOME/backups"',
-              'GSTACK_USER_RENDER_DIR="$HOME/absent-render"', helpers,
+              'GSTACK_USER_RENDER_DIR="$HOME/absent-render"',
+              'GSTACK_STATE_ROOT="$HOME/.gstack"', '_SKILL_COPIES_FILE="$GSTACK_STATE_ROOT/skill-copies.tsv"', helpers,
               'log() { :; }', '_browser_hint() { :; }', 'bun_cmd() { :; }', install,
             ].join('\n');
             const runInstall = () => runBashScript(script, {

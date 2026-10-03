@@ -3332,8 +3332,12 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
       echo "  error: could not back up an edited SKILL.md copy under $KIRO_GSTACK; Kiro install stopped before overwriting it" >&2
       exit 1
     fi
-    _copy_skill_md "$KIRO_DIR/gstack-upgrade/SKILL.md" "$KIRO_GSTACK/gstack-upgrade/SKILL.md"
-    _copy_skill_md "$KIRO_DIR/gstack/SKILL.md" "$KIRO_GSTACK/SKILL.md"
+    if [ -f "$KIRO_DIR/gstack-upgrade/SKILL.md" ]; then
+      _copy_skill_md "$KIRO_DIR/gstack-upgrade/SKILL.md" "$KIRO_GSTACK/gstack-upgrade/SKILL.md"
+    fi
+    if [ -f "$KIRO_DIR/gstack/SKILL.md" ]; then
+      _copy_skill_md "$KIRO_DIR/gstack/SKILL.md" "$KIRO_GSTACK/SKILL.md"
+    fi
     if [ -f "$KIRO_DIR/gstack-office-hours/SKILL.md" ]; then
       mkdir -p "$KIRO_GSTACK/office-hours"
       _copy_skill_md "$KIRO_DIR/gstack-office-hours/SKILL.md" "$KIRO_GSTACK/office-hours/SKILL.md"
