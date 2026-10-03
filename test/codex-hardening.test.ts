@@ -383,7 +383,11 @@ describe('gstack-codex-probe: timeout wrapper + namespace hygiene', () => {
         const target = resolved.stdout.toString().trim();
         if (target.startsWith('/')) fs.symlinkSync(target, path.join(dir, tool));
       }
-      const r = runProbe({ snippet: `printf 'prompt on stdin' | _gstack_codex_timeout_wrapper 5 cat; echo " rc=$?"`, env: native ? { PATH: dir } : {} });
+      // A redirect onto the wrapper is how callers feed `codex exec -`; a
+      // backgrounded command without job control would otherwise read /dev/null.
+      const input = path.join(dir, 'prompt.txt');
+      fs.writeFileSync(input, 'prompt on stdin');
+      const r = runProbe({ snippet: `_gstack_codex_timeout_wrapper 5 cat < "${input}"; echo " rc=$?"`, env: native ? { PATH: dir } : {} });
       expect(r.stdout).toBe('prompt on stdin rc=0\n');
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
