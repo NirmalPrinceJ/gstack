@@ -24,9 +24,11 @@ exec ${JSON.stringify(process.execPath)} ${JSON.stringify(scanner)} "$@"
 `, { mode: 0o755 });
       const block = template.match(/```bash\n(: "\$\{NEW_TITLE:[\s\S]*?)\n```/)?.[1];
       expect(block).toBeDefined();
+      writeFileSync(join(root, 'section.md'), '**Status:** current — no edits.');
       const result = Bun.spawnSync(['bash', '-c', block!], {
         cwd: root,
-        env: { ...process.env, HOME: root, NEW_TITLE: 'v1.2.3.4 fix: publication checks', FAIL_AT: failure },
+        env: { ...process.env, HOME: root, NEW_TITLE: 'v1.2.3.4 fix: publication checks', FAIL_AT: failure,
+          DOCS_SECTION_FILE: join(root, 'section.md') },
         stdout: 'pipe', stderr: 'pipe', timeout: 10_000,
       });
       const output = result.stdout.toString();
@@ -47,6 +49,33 @@ exec ${JSON.stringify(process.execPath)} ${JSON.stringify(scanner)} "$@"
     }
   });
 }
+
+test('publication composes the saved documentation section unchanged and refuses to scan without it', () => {
+  const block = template.match(/```bash\n(: "\$\{NEW_TITLE:[\s\S]*?)\n```/)?.[1]!;
+  const compose = block.slice(block.indexOf('PR_BODY_FILE=$(mktemp)'), block.indexOf('~/.claude/skills/gstack/bin/gstack-redact --from-file'));
+  const root = mkdtempSync(join(tmpdir(), 'ship-compose-'));
+  try {
+    const section = '**Status:** current — no edits.\n\n- Diagram drift: none (no diagrams in any doc).';
+    writeFileSync(join(root, 'section.md'), section);
+    const run = (file: string) => Bun.spawnSync(['bash', '-c', `${compose}cat -- "$PR_BODY_FILE"`], {
+      cwd: root, env: { ...process.env, HOME: root, DOCS_SECTION_FILE: file }, stdout: 'pipe', stderr: 'pipe', timeout: 10_000,
+    });
+    const composed = run(join(root, 'section.md'));
+    expect(composed.exitCode).toBe(0);
+    expect(composed.stdout.toString()).toContain(`## Documentation" heading line>\n${section}\n<rest of the PR body`);
+    const missing = run(join(root, 'absent.md'));
+    expect(missing.exitCode).toBe(1);
+    expect(missing.stdout.toString()).toBe('');
+    const unset = Bun.spawnSync(['bash', '-c', block], {
+      cwd: root, env: { ...process.env, HOME: root, NEW_TITLE: 'v1.2.3.4 fix: publication checks', DOCS_SECTION_FILE: '' },
+      stdout: 'pipe', stderr: 'pipe', timeout: 10_000,
+    });
+    expect(unset.exitCode).not.toBe(0);
+    expect(unset.stderr.toString()).toContain('Restore the saved Step 14.5 section file path');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test('publication reports unavailable triage separately from an empty successful fetch', () => {
   const section = template.slice(template.indexOf('## Greptile Review'), template.indexOf('## Scope Drift'));

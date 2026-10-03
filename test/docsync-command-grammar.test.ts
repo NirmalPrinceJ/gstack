@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from 'bun:test';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fixtureDocs, gitAt, repoSnapshot } from './helpers/docsync-fixture';
@@ -104,4 +105,52 @@ test('parent and child receive resolved local platform and base without new prob
     report: path.join(fixture.home, 'report.md'), publish: path.join(fixture.home, 'publish.ts'),
     scenario: 'current', testName: 'docsync-command-grammar', runId: 'free-control', timeout: 10000 });
   expect(options.prompt).toContain('Platform: local/git-native. Base: main.');
+});
+
+test('declared section insert appends one private Markdown artifact to another byte-for-byte', () => {
+  const source = path.join(fixture.home, 'audit-1-documentation.md');
+  const target = path.join(fixture.home, 'ship-report.md');
+  const section = '**Status:** current — no edits.\n\n- Diagram drift: none.';
+  fs.writeFileSync(source, section);
+  fs.writeFileSync(target, '# Report\n\n## Documentation\n\n');
+  const before = repoSnapshot(fixture.repo);
+  for (const command of [`cat ${source} >> ${target}`, `cat '${source}' >> '${target}'`, `cat "${source}" >> "${target}"`]) {
+    expect(docsCommandAllowed(command, fixture)).toBe(true);
+    expect(docsToolFailures(nativeResult(command), fixture, [], true)).toEqual([]);
+  }
+  const result = spawnSync('bash', ['-c', `cat ${source} >> ${target}`], { cwd: fixture.repo, encoding: 'utf8', timeout: 10000 });
+  expect(result.status).toBe(0);
+  expect(fs.readFileSync(target, 'utf8')).toBe(`# Report\n\n## Documentation\n\n${section}`);
+  expect(repoSnapshot(fixture.repo)).toEqual(before);
+});
+
+test('section insert grants no write or source outside private fixture Markdown', () => {
+  const home = fixture.home;
+  const source = path.join(home, 'audit-1-documentation.md');
+  const target = path.join(home, 'ship-report.md');
+  fs.writeFileSync(source, 'section');
+  const link = path.join(home, 'linked-report.md');
+  fs.rmSync(link, { force: true });
+  fs.symlinkSync(path.join(fixture.repo, 'README.md'), link);
+  for (const command of [
+    `cat ${source} > ${target}`, `cat ${source} >> ${path.join(fixture.repo, 'README.md')}`,
+    `cat ${path.join(fixture.repo, 'README.md')} >> ${target}`, `cat ${source} >> ${link}`,
+    `cat ${source} >> ${path.join(home, 'report.txt')}`, `cat ${source} >> ${path.join(home, 'publication.json')}`,
+    `cat ${source} >> ${path.join(fixture.skills, 'ship/SKILL.md')}`, `cat ${source} >> ship-report.md`,
+    `cat ${source} ${source} >> ${target}`, `cat ${source} >> ${target}; ls`, `cat ${source} 2>> ${target}`,
+    `cat ${source} >> ${target} >> ${target}`, `cat ${path.join(home, '*.md')} >> ${target}`,
+    `cat ${path.join(home, '$x.md')} >> ${target}`, `cat ${source} >> ${path.join(home, '..', 'outside.md')}`, `cat ${source} >> ${home}/../outside.md`,
+  ]) {
+    expect(docsCommandAllowed(command, fixture)).toBe(false);
+    expect(docsToolFailures(nativeResult(command), fixture, [], true)).toEqual(['command outside declared docs observation interface']);
+  }
+});
+
+test('only the native ship parent interface declares the section insert', () => {
+  const options = docsSessionOptions({ fixture, phase: path.join(fixture.home, 'phase.md'),
+    report: path.join(fixture.home, 'report.md'), publish: path.join(fixture.home, 'publish.ts'),
+    scenario: 'current', testName: 'docsync-command-grammar', runId: 'free-control', timeout: 10000 });
+  expect(options.prompt).toContain('cat SOURCE.md >> TARGET.md');
+  expect(options.prompt).toContain('.qa-state/ directory is the fixture owner');
+  for (const transport of [false, true]) expect(docsNativeInterface(fixture, [], transport)).not.toContain('>> TARGET.md');
 });

@@ -170,7 +170,7 @@ type DocsSessionOptionsInput = {
 export function docsSessionOptions(input: DocsSessionOptionsInput): Parameters<typeof import('./session-runner').runSkillTest>[0] {
   const { fixture, phase, report, publish, scenario, testName, runId, timeout } = input;
   return {
-    prompt: `Load gstack's /ship workflow. Steps 0–14 are complete in this isolated fixture. Execute the next phase from ${phase}, then stop before the next numbered phase. Skill assets are installed under ${fixture.skills}; HOME=${fixture.home}. Base: main. ${scenario === 'current' ? 'This is a second /ship invocation for an existing open PR; the docs-only branch is already pushed. Earlier audit results are not evidence for this invocation.' : ''} ${scenario === 'store' ? 'The selected store-release source is the current working tree on main. All App Store operations are mocked and out of scope; no permissions to edit source are granted.' : ''} After the phase, write the ship outcome to ${report}. Only if the workflow gate actually allows continuing, run the isolated publication stand-in: bun ${publish}. No real PR, push, store action or later ship phase is authorized. If a decision is required, record the exact blocker and stop; no risk exception is granted. Preserve all partial content.\n\n${docsNativeInterface(fixture, [publish])}`,
+    prompt: `Load gstack's /ship workflow. Steps 0–14 are complete in this isolated fixture. Execute the next phase from ${phase}, then stop before the next numbered phase. Skill assets are installed under ${fixture.skills}; HOME=${fixture.home}. Base: main. ${scenario === 'current' ? 'This is a second /ship invocation for an existing open PR; the docs-only branch is already pushed. Earlier audit results are not evidence for this invocation.' : ''} ${scenario === 'store' ? 'The selected store-release source is the current working tree on main. All App Store operations are mocked and out of scope; no permissions to edit source are granted.' : ''} After the phase, write the ship outcome to ${report}. Only if the workflow gate actually allows continuing, run the isolated publication stand-in: bun ${publish}. No real PR, push, store action or later ship phase is authorized. If a decision is required, record the exact blocker and stop; no risk exception is granted. Preserve all partial content. The repository's Git-excluded .qa-state/ directory is the fixture owner's write-observer probe, not product content or child output.\n\n${docsNativeInterface(fixture, [publish], false, true)}`,
     workingDirectory: fixture.repo,
     maxTurns: 30,
     allowedTools: ['Bash', 'Read', 'Grep', 'Glob', 'Write', 'Edit', 'Agent', 'Task'],
@@ -192,6 +192,9 @@ Keep artifacts concise: update the invocation record in place with ids, counts, 
 export function docsCommandAllowed(command: string, fixture: ReturnType<typeof fixtureDocs>, scripts: string[] = []): boolean {
   const text = command.trim();
   if (docsPreambleCommands(fixture).some(block => block.trim() === text)) return true;
+  const insert = /^cat (['"]?)([^\s'"]+)\1 >> (['"]?)([^\s'"]+)\3$/.exec(text);
+  if (insert) return [insert[2], insert[4]].every(file => path.isAbsolute(file) && /\.md$/i.test(file) &&
+    !/[\x00-\x1f\x7f;&|<>`$\\()*?\[\]{}~#]/.test(file) && docsPrivateArtifact(file, fixture, scripts));
   if (/[\x00-\x08\x0a-\x1f\x7f;&|<>`$\\()]/.test(text)) return false;
   const args: string[] = [];
   const literal = /(?:'([^']*)'|"([^"]*)"|([^\s'"]+))(?:[ \t]+|$)/y;
@@ -224,9 +227,9 @@ export function docsCommandAllowed(command: string, fixture: ReturnType<typeof f
   return (commandName === marker && rest[0] === start || commandName === start || commandName === end) && args.includes('document-release');
 }
 
-export function docsNativeInterface(fixture: Pick<ReturnType<typeof fixtureDocs>, 'home' | 'repo' | 'skills'>, scripts: string[] = [], transport = false): string {
+export function docsNativeInterface(fixture: Pick<ReturnType<typeof fixtureDocs>, 'home' | 'repo' | 'skills'>, scripts: string[] = [], transport = false, insert = false): string {
   const skills = fixture.skills.split(path.sep).join('/');
-  return `Fixture observation interface (applies to parent and every child; include this interface in child prompts): Bash may execute only separate literal pwd, ls, cat, stat, sha256sum, Git read commands (status, diff, show, log, ls-files, rev-parse, merge-base, hash-object without -w, branch --show-current), the exact generated Preamble block with its spawned prefix, or literal installed gstack-skill-start/gstack-skill-end commands for document-release (start requires GSTACK_SESSION_KIND=spawned). No shell composition, custom interpreters, arbitrary scripts, inline eval or memory-mapped writes. The only additional scripts are ${scripts.length ? scripts.join(', ') : 'none'}. Read/Glob/Grep remain available; Read skill and section files with Read (offset/limit for ranges), because Bash output over 30KB becomes a preview that no permitted Bash command can page. Use Write/Edit for permitted docs and private JSON/Markdown artifacts under ${fixture.home}; do not rewrite installed skills, config, actor state or scripts. No effects outside the owned fixture. The owner preserves evidence and cleans up. Missing observer coverage blocks acceptance; the Linux kernel monitor covers syscall writes in the product tree, not hostile processes or arbitrary external destinations.
+  return `Fixture observation interface (applies to parent and every child; include this interface in child prompts): Bash may execute only separate literal pwd, ls, cat, stat, sha256sum, Git read commands (status, diff, show, log, ls-files, rev-parse, merge-base, hash-object without -w, branch --show-current), the exact generated Preamble block with its spawned prefix, or literal installed gstack-skill-start/gstack-skill-end commands for document-release (start requires GSTACK_SESSION_KIND=spawned). No shell composition, custom interpreters, arbitrary scripts, inline eval or memory-mapped writes. The only additional scripts are ${scripts.length ? scripts.join(', ') : 'none'}.${insert ? ` To insert one saved private Markdown artifact into another (a saved section file into a report), Bash may also run the single literal command cat SOURCE.md >> TARGET.md with absolute paths under ${fixture.home}.` : ''} Read/Glob/Grep remain available; Read skill and section files with Read (offset/limit for ranges), because Bash output over 30KB becomes a preview that no permitted Bash command can page. Use Write/Edit for permitted docs and private JSON/Markdown artifacts under ${fixture.home}; do not rewrite installed skills, config, actor state or scripts. No effects outside the owned fixture. The owner preserves evidence and cleans up. Missing observer coverage blocks acceptance; the Linux kernel monitor covers syscall writes in the product tree, not hostile processes or arbitrary external destinations.
 
 The working directory for parent and child Bash calls is already ${fixture.repo}. Run Git reads directly, for example: git status, git diff --cached, git merge-base main HEAD, git rev-parse HEAD. Do not use Git global options such as -C, -c, --git-dir or --work-tree, and do not prepend cd or another shell wrapper. The literal git subcommand must immediately follow git; an absolute owned repository path does not make git -C an allowed command.
 
@@ -267,13 +270,25 @@ function actualWritePath(file: string): string | null {
   }
 }
 
-export function docsToolFailures(result: SkillTestResult, fixture: ReturnType<typeof fixtureDocs>, scripts: string[] = [], readOnly = false): string[] {
-  const failures: string[] = [];
+/** True when `file` is a private .json/.md artifact under the fixture home, outside the product tree, protected roots and scripts. */
+function docsPrivateArtifact(file: string, fixture: ReturnType<typeof fixtureDocs>, scripts: string[]): boolean {
   const home = fs.realpathSync(fixture.home);
   const repo = fs.realpathSync(fixture.repo);
-  const authoredDoc = path.join(repo, DOC_PATH);
+  const actual = actualWritePath(file);
   const protectedRoots = [fixture.skills, fixture.env.CLAUDE_CONFIG_DIR, fixture.env.GSTACK_HOME,
     path.join(fixture.home, 'remote.git')];
+  return actual !== null && within(file, fixture.home) && within(actual, home) &&
+    !within(file, fixture.repo) && !within(actual, repo) &&
+    /\.(?:json|md|markdown)$/i.test(file) && /\.(?:json|md|markdown)$/i.test(actual) &&
+    !protectedRoots.some(root => within(file, root) || within(actual, actualWritePath(root) ?? root)) &&
+    !scripts.some(script => file === script || actual === actualWritePath(script)) &&
+    path.basename(file) !== 'actor-state.json' && path.basename(actual) !== 'actor-state.json';
+}
+
+export function docsToolFailures(result: SkillTestResult, fixture: ReturnType<typeof fixtureDocs>, scripts: string[] = [], readOnly = false): string[] {
+  const failures: string[] = [];
+  const repo = fs.realpathSync(fixture.repo);
+  const authoredDoc = path.join(repo, DOC_PATH);
   for (const call of result.toolCalls) {
     if (call.tool === 'Bash' && !docsCommandAllowed(String(call.input?.command ?? ''), fixture, scripts)) failures.push('command outside declared docs observation interface');
     if (['Write', 'Edit'].includes(call.tool)) {
@@ -285,13 +300,7 @@ export function docsToolFailures(result: SkillTestResult, fixture: ReturnType<ty
       if (productWrite && !allowedDoc) {
         failures.push('non-document product write attempt');
       }
-      if (!within(file, fixture.home) || !actual || !within(actual, home) ||
-          (!allowedDoc &&
-          (productWrite || !/\.(?:json|md|markdown)$/i.test(file) || !/\.(?:json|md|markdown)$/i.test(actual) ||
-            protectedRoots.some(root => within(file, root) || within(actual, actualWritePath(root) ?? root)) ||
-            scripts.some(script => file === script || actual === actualWritePath(script)) ||
-            path.basename(file) === 'actor-state.json' || path.basename(actual) === 'actor-state.json')))
-        failures.push('write outside docs fixture authority');
+      if (!allowedDoc && !docsPrivateArtifact(file, fixture, scripts)) failures.push('write outside docs fixture authority');
     }
     if (call.tool === 'Read' && path.basename(call.input?.file_path ?? '') === 'actor-state.json') failures.push('private actor state was read');
   }
