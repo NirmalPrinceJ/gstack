@@ -28,7 +28,7 @@
  *      depend on receiving "" successfully.
  *
  * The reverse direction is pinned too: every key in the DEFAULTS table must
- * be read by code (bin/, lib/, scripts/, setup, or a .tmpl), or be listed in
+ * be read by code (bin/, lib/, scripts/, browse/src/, setup, or a .tmpl), or be listed in
  * PROSE_ONLY_KEYS with a reason. A documented setting no code reads is a
  * switch that does nothing, which is how a consent choice once went unread.
  */
@@ -118,9 +118,11 @@ function keysReadInTree(root = ROOT): string[] {
  * DEFAULTS-table keys no code reads. Each entry needs a reason; an empty list
  * means every documented setting has a reader.
  */
-const PROSE_ONLY_KEYS: Record<string, string> = {};
+const PROSE_ONLY_KEYS: Record<string, string> = {
+  browse_extension_id: 'D1: read by the browse daemon (browse/src) once the browse lane lands; delete this entry then',
+};
 
-const READER_DIRS = ['bin', 'lib', 'scripts'];
+const READER_DIRS = ['bin', 'lib', 'scripts', 'browse/src'];
 const READER_FILES = ['setup'];
 
 /**
