@@ -667,7 +667,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
     // (PPID=1, STAT=Ss) and survives the spawning shell's exit. Mirrors
     // the Windows path's rationale — same root cause, different OS API.
     const daemonLogFd = openDaemonLogSink();
-    const child = nodeSpawn('bun', [...BUN_CHILD_FLAGS, 'run', server.script], {
+    const child = nodeSpawn('bun', ['run', ...BUN_CHILD_FLAGS, server.script], {
       detached: true,
       windowsHide: true,
       stdio: ['ignore', daemonLogFd, daemonLogFd],

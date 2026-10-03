@@ -204,7 +204,7 @@ export function spawnTerminalAgent(opts: {
     writeAgentRecord(stateDir, reservation);
     let proc: any;
     try {
-      proc = (Bun as any).spawn(['bun', ...BUN_CHILD_FLAGS, 'run', script, `--agent-gen=${gen}`], {
+      proc = (Bun as any).spawn(['bun', 'run', ...BUN_CHILD_FLAGS, script, `--agent-gen=${gen}`], {
         cwd: opts.cwd || process.cwd(),
         env: {
           ...process.env,
