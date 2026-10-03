@@ -14,7 +14,7 @@ import { afterAll, expect } from 'bun:test';
 import { JUDGE_MS } from './helpers/eval-budgets';
 import * as fs from 'fs';
 import * as path from 'path';
-import { callJudge, judge, JudgeRefusalError, DEFAULT_JUDGE_MAX_TOKENS, judgePanel, judgePanelMean, judgePanelMajority, judgePanelReasoning, JUDGE_SCORE_DIMENSIONS } from './helpers/llm-judge';
+import { callJudge, judge, JudgeRefusalError, buildQaWorkflowJudgePrompt, buildQaHealthRubricJudgePrompt, buildQaAntiRefusalJudgePrompt, buildCrossSkillConsistencyJudgePrompt, buildVoiceDirectiveJudgePrompt, DEFAULT_JUDGE_MAX_TOKENS, judgePanel, judgePanelMean, judgePanelMajority, judgePanelReasoning, JUDGE_SCORE_DIMENSIONS } from './helpers/llm-judge';
 import { ASK_QUESTIONS_HEADING, ENG_REVIEW_EXCERPT } from './helpers/workflow-excerpt';
 import type { JudgeScore } from './helpers/llm-judge';
 import { readWorkflowJudgeInput, buildWorkflowJudgePrompt, QA_DISCOVERY_REFERENCES, WORKFLOW_JUDGE_RESPONSE_SCHEMA, type WorkflowJudgeInput } from './helpers/workflow-judge-input';
@@ -205,26 +205,7 @@ describeIfSelected('QA skill quality evals', ['qa/SKILL.md workflow', 'qa/SKILL.
       // qa-patterns.md loads both browser assets; judges penalized their absence.
       references: ['qa/templates/functional-report-template.md', 'qa/templates/qa-report-template.md', 'qa/references/issue-taxonomy.md'] }).text;
 
-    const samples = await judgePanel(() => callJudge<JudgeScore>(`You are evaluating the quality of a QA testing workflow document for an AI coding agent.
-
-The agent reads this source-file bundle to select browser, native functional or mixed
-surfaces, explore with bounded probes, reproduce and diagnose defects, add a regression
-before repair, recheck behavior and report evidence/coverage. Sections are separate
-files loaded only at their stated conditions; bundle order is not execution order.
-Evaluate the complete workflow, including authority, isolation, native contracts,
-conditional browser/DX loading and blocked paths, for clarity and executable decisions.
-
-Rate on three dimensions (1-5 scale):
-- **clarity** (1-5): Can an agent follow the step-by-step phases without ambiguity?
-- **completeness** (1-5): Are all phases, decision points, and outputs well-defined?
-- **actionability** (1-5): Can an agent execute the workflow and produce the expected deliverables?
-
-Respond with ONLY valid JSON:
-{"clarity": N, "completeness": N, "actionability": N, "reasoning": "brief explanation"}
-
-Here is the QA workflow to evaluate:
-
-${section}`));
+    const samples = await judgePanel(() => callJudge<JudgeScore>(buildQaWorkflowJudgePrompt(section)));
     const scores = judgePanelMean(samples, JUDGE_SCORE_DIMENSIONS);
     console.log('QA workflow panel:', JSON.stringify({ mean: scores, samples }, null, 2));
 
@@ -250,24 +231,7 @@ ${section}`));
     const t0 = Date.now();
     const section = sliceQaPatterns('## Health Score Rubric');
 
-    const samples = await judgePanel(() => callJudge<JudgeScore>(`You are evaluating a health score rubric that an AI agent must follow to compute a numeric QA score.
-
-The agent uses this rubric after QA testing a website. It needs to:
-1. Understand each scoring category and what counts as a deduction
-2. Apply the weights correctly to compute a final score out of 100
-3. Produce a consistent, reproducible score
-
-Rate on three dimensions (1-5 scale):
-- **clarity** (1-5): Are the categories, deduction criteria, and weights unambiguous?
-- **completeness** (1-5): Are all edge cases and scoring boundaries defined?
-- **actionability** (1-5): Can an agent compute a correct score from this rubric alone?
-
-Respond with ONLY valid JSON:
-{"clarity": N, "completeness": N, "actionability": N, "reasoning": "brief explanation"}
-
-Here is the rubric to evaluate:
-
-${section}`));
+    const samples = await judgePanel(() => callJudge<JudgeScore>(buildQaHealthRubricJudgePrompt(section)));
     const scores = judgePanelMean(samples, JUDGE_SCORE_DIMENSIONS);
     console.log('QA health rubric panel:', JSON.stringify({ mean: scores, samples }, null, 2));
 
@@ -298,31 +262,7 @@ ${section}`));
     const diffAwareSection = sliceQaPatterns('### Diff-aware', '### Full');
     const rulesSection = sliceQaPatterns('## Important Rules');
 
-    const samples = await judgePanel(() => callJudge<{ would_browse: boolean; fallback_behavior: string; confidence: number; reasoning: string }>(`You are evaluating whether a QA testing skill document would cause an AI agent to USE THE BROWSER or REFUSE to use the browser in a specific scenario.
-
-SCENARIO:
-A user runs /qa (a browser-based QA testing skill). The branch diff shows ONLY prompt template files and config file changes — no routes, views, controllers, components, or CSS were changed. The changes are "purely backend" with no obvious UI surface.
-
-QUESTION: Based on the document excerpts below, would the agent open the browser and test the application, or would it decline/refuse to browse and suggest running evals or unit tests instead?
-
-DOCUMENT EXCERPT 1 (Diff-aware mode instructions):
-${diffAwareSection}
-
-DOCUMENT EXCERPT 2 (Important Rules):
-${rulesSection}
-
-Respond with ONLY valid JSON:
-{
-  "would_browse": true or false,
-  "fallback_behavior": "description of what the agent would do when no UI pages are identified from the diff",
-  "confidence": N (1-5, how confident you are in your answer),
-  "reasoning": "brief explanation"
-}
-
-Rules:
-- would_browse should be true if the document instructs the agent to always use the browser regardless of diff content
-- would_browse should be false if the document allows the agent to skip browser testing for non-UI changes
-- confidence: 5 = document is unambiguous, 1 = document is unclear or contradictory`));
+    const samples = await judgePanel(() => callJudge<{ would_browse: boolean; fallback_behavior: string; confidence: number; reasoning: string }>(buildQaAntiRefusalJudgePrompt(diffAwareSection, rulesSection)));
     const result = { would_browse: judgePanelMajority(samples, 'would_browse'), ...judgePanelMean(samples, ['confidence'] as const) };
 
     console.log('QA anti-refusal panel:', JSON.stringify({ result, samples }, null, 2));
@@ -367,28 +307,7 @@ describeIfSelected('Cross-skill consistency evals', ['cross-skill greptile consi
       extractGrepLines(retroContent, 'retro/SKILL.md'),
     ].join('\n\n');
 
-    const samples = await judgePanel(() => callJudge<{ consistent: boolean; issues: string[]; score: number; reasoning: string }>(`You are evaluating whether multiple skill configuration files implement the same data architecture consistently.
-
-INTENDED ARCHITECTURE:
-- greptile-history has TWO paths: per-project (~/.gstack/projects/{slug}/greptile-history.md) and global (~/.gstack/greptile-history.md)
-- /review and /ship WRITE to BOTH paths (per-project for suppressions, global for retro aggregation)
-- /review and /ship delegate write mechanics to greptile-triage.md
-- /retro READS from the GLOBAL path only (it aggregates across all projects)
-- REMOTE_SLUG derivation should be consistent across files that use it
-
-Below are greptile-related lines extracted from each skill file:
-
-${collected}
-
-Evaluate consistency. Respond with ONLY valid JSON:
-{
-  "consistent": true/false,
-  "issues": ["issue 1", "issue 2"],
-  "score": N,
-  "reasoning": "brief explanation"
-}
-
-score (1-5): 5 = perfectly consistent, 1 = contradictory`));
+    const samples = await judgePanel(() => callJudge<{ consistent: boolean; issues: string[]; score: number; reasoning: string }>(buildCrossSkillConsistencyJudgePrompt(collected)));
     const result = { consistent: judgePanelMajority(samples, 'consistent'), ...judgePanelMean(samples, ['score'] as const) };
 
     console.log('Cross-skill consistency panel:', JSON.stringify({ result, samples }, null, 2));
@@ -813,20 +732,7 @@ describeIfSelected('Voice directive eval', ['voice directive tone'], () => {
       avoids_ai_vocabulary: number;
       connects_user_outcomes: number;
       reasoning: string;
-    }>(`You are evaluating a voice directive for an AI coding assistant framework called GStack.
-Score each dimension 1-5 where 5 is excellent:
-
-1. directness: Does it instruct the agent to be direct, lead with the point, take positions?
-2. concreteness: Does it instruct the agent to name specific files, commands, line numbers, real numbers?
-3. avoids_corporate: Does it explicitly ban corporate/formal/academic tone and provide alternatives?
-4. avoids_ai_vocabulary: Does it ban AI-tell words and phrases with specific lists?
-5. connects_user_outcomes: Does it instruct the agent to connect technical work to real user experience?
-
-Return JSON only:
-{"directness": N, "concreteness": N, "avoids_corporate": N, "avoids_ai_vocabulary": N, "connects_user_outcomes": N, "reasoning": "..."}
-
-THE VOICE DIRECTIVE:
-${voiceSection}`));
+    }>(buildVoiceDirectiveJudgePrompt(voiceSection)));
     const result = judgePanelMean(samples, ['directness', 'concreteness', 'avoids_corporate', 'avoids_ai_vocabulary', 'connects_user_outcomes'] as const);
 
     console.log('Voice directive panel:', JSON.stringify({ mean: result, samples }, null, 2));
