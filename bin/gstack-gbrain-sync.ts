@@ -40,7 +40,7 @@ import { detectEngineTier, withErrorContext, canonicalizeRemote } from "../lib/g
 import { ensureSourceRegistered, sourcePageCount, parseSourcesList, cycleCompleted, type CycleStatus } from "../lib/gbrain-sources";
 import { detectAutopilot, decideSourceRemove, decideCodeSync } from "../lib/gbrain-guards";
 import { writeReceipt } from "../lib/egress-receipt";
-import { localEngineStatus, type LocalEngineStatus } from "../lib/gbrain-local-status";
+import { dbUnreachableReason, localEngineStatus, localEngineStatusDetail, type LocalEngineStatus } from "../lib/gbrain-local-status";
 import { buildGbrainEnv, spawnGbrain, spawnGbrainAsync, execGbrainJson, NEEDS_SHELL_ON_WINDOWS, bashScriptInvocation } from "../lib/gbrain-exec";
 import { repoPolicyTier as sharedRepoPolicyTier } from "../lib/gbrain-repo-policy-client";
 import { checkOwnedStagingDir } from "../lib/staging-guard";
@@ -992,6 +992,7 @@ function skipStageForLocalStatus(
       "PGLite is busy (often held by gbrain serve); stop the holding process or run /sync-gbrain outside the live Claude session, then retry",
     "timeout":
       "engine probe timed out; raise GSTACK_GBRAIN_PROBE_TIMEOUT_MS if your pooler is slow",
+    "db-unreachable": localEngineStatusDetail() ?? dbUnreachableReason("network error", ""),
     "thin-client":
       "thin client (remote-HTTP MCP brain, no local engine by design, #2051); " +
       "code indexing runs on the brain server, memory syncs via the remote " +

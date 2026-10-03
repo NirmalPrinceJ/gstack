@@ -220,6 +220,41 @@ canonical config files from the brain repo.
 
 ---
 
+## `database host unreachable (<code> <host>); your gbrain config is unchanged. Fix: check network or VPN, then re-run /sync-gbrain.`
+
+**Problem.** `/sync-gbrain` skipped the code, memory and dream stages, or
+`/setup-gbrain` reported `gbrain_local_status: db-unreachable`.
+
+**Cause.** gbrain could not reach the database named in `~/.gbrain/config.json`
+because of a network error (`ENOTFOUND` / `EAI_AGAIN` in an offline sandbox, a
+VPN that is down, a refused or timed-out connection). Nothing is known to be
+wrong with the config, so gstack leaves it alone and keeps brain-aware skill
+blocks rendered, the same way it treats a slow `timeout`.
+
+**Fix.** Restore network access (or the VPN), then:
+```bash
+/sync-gbrain
+```
+Do not move `~/.gbrain/config.json` aside; that remediation is only for
+`broken-db` / `broken-config`.
+
+---
+
+## `[memory-ingest] ... dot-leading slug` (pages under `.claude`-style project slugs never landed)
+
+**Problem.** Before this release, ingest refused every batch that held a page
+from a project whose slug starts with a dot (for example `.claude`), with
+`gbrain import accounted for N-1 of N staged page(s) ... Refusing to advance state`.
+
+**Cause.** gbrain's import walker skips every path segment that starts with a
+dot, so the staged page was never collected.
+
+**Fix.** Nothing to do after upgrading: such slugs now stage as `dot-claude`,
+and state recorded under the old name maps to the new one. Run
+`/sync-gbrain` once to import the pages that were stuck.
+
+---
+
 ## Nothing is syncing but I expect it to
 
 **Not an error, but a common gotcha.** Check in order:

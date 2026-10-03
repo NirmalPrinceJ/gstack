@@ -792,6 +792,19 @@ function repoSlug(remote: string): string {
   return remote.replace(/\//g, "-");
 }
 
+/**
+ * gbrain's import walker prunes every path segment that starts with a dot
+ * (isPathPruned in gbrain's core/sync.ts), and a page slug maps 1:1 onto its
+ * staged path. A `.claude` project slug therefore staged a file gbrain never
+ * collected, the batch was refused, and ingest wedged on it forever (#2884).
+ * Leading dots become "dot-" in every segment; state recorded under the old
+ * slug maps through the same function (disambiguateSlugs), so a source keeps
+ * one page instead of gaining a second.
+ */
+export function safeSlug(slug: string): string {
+  return slug.split("/").map((seg) => seg.replace(/^\.+/, "dot-")).join("/");
+}
+
 function dateOnly(ts: string | undefined): string {
   if (!ts) return new Date().toISOString().slice(0, 10);
   try {
@@ -806,7 +819,7 @@ export function buildTranscriptPage(path: string, session: ParsedSession): PageR
   const slug_repo = repoSlug(remote);
   const date = dateOnly(session.start_time);
   const sessionPrefix = session.session_id.slice(0, 12);
-  const slug = `transcripts/${session.agent}/${slug_repo}/${date}-${sessionPrefix}`;
+  const slug = safeSlug(`transcripts/${session.agent}/${slug_repo}/${date}-${sessionPrefix}`);
   const title = `${session.agent} session — ${slug_repo} — ${date}`;
   const tags = [
     "transcript",
@@ -882,7 +895,7 @@ function buildArtifactPage(path: string, type: MemoryType, raw?: string): PageRe
   const date = new Date(stats.mtimeMs).toISOString().slice(0, 10);
   const baseName = basename(path, path.endsWith(".jsonl") ? ".jsonl" : ".md");
 
-  const slug = `${type}s/${slug_repo}/${date}-${baseName}`;
+  const slug = safeSlug(`${type}s/${slug_repo}/${date}-${baseName}`);
   const title = `${type} — ${slug_repo} — ${date} — ${baseName}`;
 
   const tags = [type, `repo:${slug_repo}`, `date:${date}`];
@@ -1421,14 +1434,16 @@ export function disambiguateSlugs(
   // duplicate records; state key order is stable (re-read from the same file).
   const ownedBy = new Map<string, string>();
   for (const [src, rec] of Object.entries(state?.sessions ?? {})) {
-    if (rec?.page_slug && !ownedBy.has(rec.page_slug)) ownedBy.set(rec.page_slug, src);
+    const owned = rec?.page_slug ? safeSlug(rec.page_slug) : "";
+    if (owned && !ownedBy.has(owned)) ownedBy.set(owned, src);
   }
   const claimed = new Set<string>();
   const available = (slug: string, src: string) =>
     !claimed.has(slug) && (!ownedBy.has(slug) || ownedBy.get(slug) === src);
 
   for (const p of pages) {
-    const recorded = state?.sessions[p.source_path]?.page_slug;
+    const recordedRaw = state?.sessions[p.source_path]?.page_slug;
+    const recorded = recordedRaw ? safeSlug(recordedRaw) : undefined;
     if (recorded && !claimed.has(recorded) && ownedBy.get(recorded) === p.source_path) {
       claimed.add(recorded);
       p.slug = recorded;

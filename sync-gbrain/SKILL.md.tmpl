@@ -166,6 +166,10 @@ BEFORE invoking the orchestrator:
   will run. Do NOT abort.
 - **`missing-config`** AND `gbrain_mcp_mode != "remote-http"`: STOP. "Local
   gbrain CLI is installed but no engine config. Run `/setup-gbrain` first."
+- **`db-unreachable`**: STOP. Print `gbrain_local_status_detail` from the
+  detect JSON verbatim (for example "database host unreachable (ENOTFOUND
+  db.example.com); your gbrain config is unchanged. Fix: check network or
+  VPN, then re-run /sync-gbrain."). Never suggest moving the config aside.
 - **`broken-config`** OR **`broken-db`**: STOP with a clear message:
   ```
   Local gbrain config at ~/.gbrain/config.json points at an unreachable
