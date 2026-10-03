@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { generateReviewArmy } from '../scripts/resolvers/review-army';
 import { generateCrossReviewDedup, generateSharedCodeReuse, generateScopeDrift } from '../scripts/resolvers/review-scope';
-import { generatePlanCompletionAuditReview, generatePlanCompletionAuditShip } from '../scripts/resolvers/plan-gates';
+import { generatePlanCompletionAuditReview, generatePlanCompletionAuditShip, generatePlanCompletionGateShip, PLAN_AUDIT_NOT_RUN } from '../scripts/resolvers/plan-gates';
 import { generateQAReview } from '../scripts/resolvers/qa';
 import { generateConfidenceCalibration } from '../scripts/resolvers/confidence';
 import { HOST_PATHS, type TemplateContext } from '../scripts/resolvers/types';
@@ -468,12 +468,15 @@ test('review keeps its smoke-clock, setup-authority, plan-gate and findings-sour
   expect(qa).not.toContain('Ask for setup/permission');
   expect(generateQAReview({ ...ctx, skillName: 'ship', tmplPath: 'ship/SKILL.md.tmpl' })).not.toContain('/review sets none');
   const audit = generatePlanCompletionAuditReview(ctx).replace(/\s+/g, ' ');
-  expect(audit).toContain('"No plan file detected."');
-  expect(audit).toContain('Fallback Intent Sources');
-  expect(audit).not.toContain('skip with "No plan file detected — skipping."');
+  // F1 (#2768): no bound plan prints the exact not-run line instead of the old notice.
+  expect(audit).toContain(PLAN_AUDIT_NOT_RUN);
+  expect(audit).toMatch(/use the Fallback Intent Sources below/);
+  expect(audit).not.toMatch(/skip dispatch/);
   expect(audit).toContain('**HIGH-impact plan-file discrepancies** trigger AskUserQuestion');
   expect(audit).toMatch(/derived only from fallback sources[\s\S]{0,80}never trigger this question/i);
-  expect(generatePlanCompletionAuditShip({ ...ctx, skillName: 'ship', tmplPath: 'ship/SKILL.md.tmpl' })).toContain('skip with "No plan file detected — skipping."');
+  const shipCtx = { ...ctx, skillName: 'ship', tmplPath: 'ship/SKILL.md.tmpl' };
+  expect(generatePlanCompletionGateShip(shipCtx, ['discovery'])).toMatch(/skip dispatch and record zero counts/);
+  expect(generatePlanCompletionAuditShip(shipCtx)).toContain('Do not search for another plan');
   const persist = skill.slice(skill.indexOf('### 2. Fill the record')).replace(/\s+/g, ' ');
   expect(persist).toMatch(/combined final-pass findings \(core, specialist, adversarial, actionable Greptile, verified exploratory QA findings\)/i);
 });
