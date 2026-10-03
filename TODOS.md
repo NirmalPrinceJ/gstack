@@ -75,6 +75,34 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
   (`GIT_OBJECT_DIRECTORY` + `GIT_ALTERNATE_OBJECT_DIRECTORIES` under
   `$TMPDIR`) for the fingerprint, and report the fetch as stale-base coverage.
   **Effort:** S. **Priority:** P2.
+- **P1: Codex paid evals cannot run commands in CI** — Docker's default
+  seccomp blocks bubblewrap's user namespace; on Ubicloud hosts
+  (`kernel.apparmor_restrict_unprivileged_userns=1`) `seccomp=unconfined` gives
+  "bwrap: Failed to make / slave", and adding `apparmor=unconfined` gives
+  "loopback: Failed RTM_NEWADDR". A stock Ubicloud VM ran `codex sandbox` only
+  with host `sysctl kernel.apparmor_restrict_unprivileged_userns=0` plus both
+  `--security-opt` options. Container jobs cannot set the host sysctl, so the
+  Codex cases need a host-run job or different isolation (in progress as the
+  wave/evals2 lane). Also audit every Codex case's validator for execution
+  evidence (shared-libs-codex-read-only and outside-voice-codex-to-claude-code
+  passed in 37158847998 with commands possibly failing). Runs 37151477069,
+  37158847998. **Effort:** M. **Priority:** P1.
+- **plan-eng-review-artifact skips the QA test plan** — red in 37151477069 and
+  37158847998: the model writes review-output.md without any Bash call, so the
+  artifact's gstack-paths/gstack-slug block never runs. Removing the "write
+  only when resolved" contradiction did not fix it. Next: check whether the
+  fixture prompt ("skip the preamble bash block", one named output) suppresses
+  the artifact; one paid rerun per change. **Priority:** P2.
+- **office-hours-brain-writeback turn budget** — 14/18 trials across six runs;
+  every failure is `error_max_turns` at 12 turns with `gbrain search` but no
+  `gbrain put`, after chunked re-reads of the 1260-line SKILL.md that Bash output
+  truncation forces. The budget must not rise: add reading guidance or decide
+  whether a smaller rendered fixture still tests the point. **Priority:** P2.
+- **ship-exploratory-late-input (gate) returns `inconclusive` in 2 of 8
+  censuses** (36920606897, 37158847998). It can redden the PR lane;
+  characterize it before relying on the lane. **Priority:** P2.
+- **plan-eng-multi-finding-batching** — red in 6 of 12 runs read (batching:
+  reviewCount 0-1, or Step 0 exhausting the 1495 s budget). **Priority:** P2.
 - **Gate-outcome telemetry** — count `not_run`/`unavailable` outcomes per
   reason code from `lib/gate-outcomes.ts` so the most common gaps get fixed
   first. **Effort:** S. **Priority:** P3.
@@ -92,8 +120,6 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
   `<option>` 500 ms probe, 0600 modes on ingest state and staging files,
   gbrain-sync's held-checkpoint refusal, and the question-preference hook's
   fail-closed allowlist. **Priority:** P3 each.
-- **Close the skillify gate TODO once I2 is green** (see "skillify gate test
-  red" below). **Priority:** P3.
 
 ### P1: paid-eval follow-ups from the v1.91.12.0 proof censuses (filed 2026-09-29)
 
@@ -1192,22 +1218,12 @@ behind the secret. **Risk:** a long-lived credential in CI.
 
 **Effort:** S. **Priority:** P3.
 
-### P1: skillify gate test red — HOME-override sessions never discover project skills (pre-existing)
+### ✅ DONE (2026-10-03, v1.91.19.0 severe fix wave, I2): skillify gate test red
 
-**What:** `test/skill-e2e-skillify.test.ts` `skillify-provenance-refusal` fails
-on BOTH this branch and origin/main @ b5a951e6 (proven 2026-08-29: identical
-2-turn `Unknown skill: skillify` transcripts). Every test in that file passing
-`env: { HOME: workDir }` gets ZERO seeded project skills in the session init
-(claude CLI 2.1.237); the passing siblings recover by Reading the SKILL.md
-directly, the refusal test's agent stops at the Skill error. Fix the harness
-(seed skills wherever HOME-overridden discovery looks, or drop the HOME
-override and pass the write target another way), or report upstream if
-project-scope `.claude/skills` discovery genuinely keys off HOME.
-
-**Why:** A gate-tier safety test that is red for environmental reasons trains
-people to ignore gate reds.
-
-**Effort:** S-M (harness). **Priority:** P1 (gate hygiene).
+The gate `skill-e2e-skillify` cases (provenance-refusal, approval-reject,
+happy-path) passed in all 6 gate censuses 09-30..10-03 (latest
+https://github.com/garrytan/gstack/actions/runs/37151477069), and the periodic
+scrape-match-path and scrape-prototype-path cases passed 18/18 trials.
 
 ### P2: auq-verbose-vs-carved-ab PRE arm reads a branch-local ref (same fragility class the repetition-cut A/B just fixed)
 
