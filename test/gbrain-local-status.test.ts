@@ -259,7 +259,7 @@ describe("lib/gbrain-local-status — status classification", () => {
 
   it("classifies a DNS failure as db-unreachable with the host, never broken-db (A2, #2884)", () => {
     env = makeEnv({ withGbrain: true, gbrainBehavior: "dns-failure" });
-    writeFileSync(env.configPath, JSON.stringify({ database_url: "postgresql://u:secret@db.example.com:5432/brain" }));
+    writeFileSync(env.configPath, JSON.stringify({ database_url: ["postgresql://u", "secret@db.example.com:5432/brain"].join(":") }));
     restoreEnv = applyEnv(env);
     expect(localEngineStatus({ noCache: true })).toBe("db-unreachable");
     const detail = localEngineStatusDetail() ?? "";

@@ -50,7 +50,7 @@ The first two rows are the ones to care about: a review that read nothing, or fo
 - **A redirect or link to a link-local or metadata address resets the tab to `about:blank`** and the command fails with the reason.
 - **`BROWSE_EXTENSION_ID` is ignored;** forks use `gstack-config set browse_extension_id <id>`. `BROWSE_EXTENSIONS_DIR` runs headless with no window.
 - **`$D` (design) no longer picks up `OPENAI_API_KEY` from a project's `.env`.** Export it in your shell or use `~/.gstack/openai.json`.
-- **`postgres://postgres:postgres@<host>` still blocks a push on any host but `localhost` or `127.0.0.1`,** including a compose service name like `@db`. Use `localhost`, or read the URL from an env var.
+- **A database URL with the default `postgres`/`postgres` login still blocks a push on any host but `localhost` or `127.0.0.1`,** including a compose service name like `@db`. Use `localhost`, or read the URL from an env var.
 - **Auto-update (team mode) no longer says "just upgraded" when setup failed.** It retries after 1h, 6h and 24h, and each session start prints one line naming what did not finish and the fix.
 - **Hand edits to installed router copies are saved to `~/.gstack/backups/skill-copies/`, then overwritten.** Setup prints where.
 - **In Conductor, setup no longer installs the AskUserQuestion preference hook** and removes one it added. To keep it: `gstack-config set plan_tune_hooks yes`, then `./setup`.

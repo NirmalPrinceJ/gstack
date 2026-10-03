@@ -600,7 +600,7 @@ gstack-gbrain-sync --prune-gone-worktrees
 ## Push guard (redaction)
 
 <a id="redact-postgres-default-pair"></a>
-### `db.url_with_password` HIGH on `postgres://postgres:postgres@db...` (pre-push BLOCKED)
+### `db.url_with_password` HIGH on a default `postgres`/`postgres` login whose host is a service name like `@db` (pre-push BLOCKED)
 
 **Meaning.** The default `postgres:postgres` pair is exempt only on `localhost`
 or `127.0.0.1`. A service name like `@db` says nothing about where the URL ends

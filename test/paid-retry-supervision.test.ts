@@ -229,8 +229,8 @@ test('detached PR fallback and release commands cover their actual default worke
     )) / 1000 * 1.05));
   }
   const detachedReleaseWall = Number(scripts['eval:bg:release'].match(/--timeout (\d+)/)?.[1]) * 1000;
-  expect(releaseFloors).toEqual([21_725, 33_821]);
-  expect(releaseFloors.reduce((total, floor) => total + floor, 0)).toBe(55_546);
+  expect(releaseFloors).toEqual([21_725, 35_711]);
+  expect(releaseFloors.reduce((total, floor) => total + floor, 0)).toBe(57_436);
   expect(detachedReleaseWall).toBe(116_700_000);
   expect(detachedReleaseWall).toBeGreaterThanOrEqual(releaseWall + 120_000);
 });

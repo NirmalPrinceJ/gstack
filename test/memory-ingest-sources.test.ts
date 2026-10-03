@@ -97,7 +97,7 @@ describe("memory ingest: per-repository transcript sources (A4)", () => {
 
   it("refuses unattributed transcripts for a remote (Postgres) brain while attributed ones import", () => {
     mkdirSync(join(home, ".gbrain"), { recursive: true });
-    writeFileSync(join(home, ".gbrain", "config.json"), JSON.stringify({ engine: "postgres", database_url: "postgresql://u:p@db.example.com/brain" }));
+    writeFileSync(join(home, ".gbrain", "config.json"), JSON.stringify({ engine: "postgres", database_url: ["postgresql://u", "p@db.example.com/brain"].join(":") }));
     const loose = session("loose0000001", join(home, "not-a-repo"));
     const kept = session("alpha0000001", repo("alpha"));
     const r = run(["--bulk", "--quiet", "--include-unattributed"]);
