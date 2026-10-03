@@ -304,6 +304,37 @@ export const POSTURE_SCORE_SCHEMA = {
   additionalProperties: false,
 };
 
+// W2 comparison (1): schema transport for armJudge and the inline judges; prompt prose unchanged.
+export const ARM_JUDGE_SCHEMA = {
+  type: 'object',
+  properties: {
+    over_engineering: { type: 'integer', enum: [0, 1, 2, 3] },
+    construct: { type: 'string' },
+    reasoning: { type: 'string' },
+  },
+  required: ['over_engineering', 'construct', 'reasoning'],
+  additionalProperties: false,
+};
+export const QA_ANTI_REFUSAL_JUDGE_SCHEMA = {
+  type: 'object',
+  properties: { would_browse: { type: 'boolean' }, fallback_behavior: { type: 'string' }, confidence: score, reasoning: { type: 'string' } },
+  required: ['would_browse', 'fallback_behavior', 'confidence', 'reasoning'],
+  additionalProperties: false,
+};
+export const CROSS_SKILL_CONSISTENCY_JUDGE_SCHEMA = {
+  type: 'object',
+  properties: { consistent: { type: 'boolean' }, issues: { type: 'array', items: { type: 'string' } }, score, reasoning: { type: 'string' } },
+  required: ['consistent', 'issues', 'score', 'reasoning'],
+  additionalProperties: false,
+};
+export const VOICE_DIRECTIVE_DIMENSIONS = ['directness', 'concreteness', 'avoids_corporate', 'avoids_ai_vocabulary', 'connects_user_outcomes'] as const;
+export const VOICE_DIRECTIVE_JUDGE_SCHEMA = {
+  type: 'object',
+  properties: { ...Object.fromEntries(VOICE_DIRECTIVE_DIMENSIONS.map(key => [key, score])), reasoning: { type: 'string' } },
+  required: [...VOICE_DIRECTIVE_DIMENSIONS, 'reasoning'],
+  additionalProperties: false,
+};
+
 /**
  * Score documentation quality on clarity/completeness/actionability (1-5).
  */

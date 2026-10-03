@@ -184,3 +184,59 @@ describe('judge calibration harness (free, stubbed provider)', () => {
     } finally { fs.rmSync(root, { recursive: true, force: true }); }
   });
 });
+
+describe('committed calibration configurations and corpora', () => {
+  test('comparison (1) changes only the JSON schema; prompts come from the eval builders', async () => {
+    const { CALIBRATION_CONFIGS } = await import('../scripts/judge-calibration-configs');
+    expect(CALIBRATION_CONFIGS.map(config => config.id)).toEqual(['arm', 'qa-workflow', 'qa-health-rubric', 'qa-anti-refusal', 'cross-skill', 'voice', 'workflow-default']);
+    expect(CALIBRATION_CONFIGS.map(config => config.priority)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    for (const config of CALIBRATION_CONFIGS) {
+      const { jsonSchema, ...rest } = config.newOptions;
+      expect(jsonSchema).toBeTruthy();
+      expect(rest).toEqual(config.oldOptions);
+      expect(config.oldOptions).not.toHaveProperty('jsonSchema');
+    }
+  });
+
+  test('every corpus is 24 preregistered, second-reviewed items with a stratified held-out third', async () => {
+    const { CALIBRATION_CONFIGS } = await import('../scripts/judge-calibration-configs');
+    for (const config of CALIBRATION_CONFIGS) {
+      const raw = JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures', 'judge-calibration', config.id, 'corpus.json'), 'utf8'));
+      const items = loadCorpus(config.id);
+      expect(items).toHaveLength(24);
+      for (const category of ['pass', 'fail', 'adjacent'] as const) expect(items.filter(entry => entry.category === category)).toHaveLength(8);
+      expect(items.filter(entry => entry.split === 'heldout').map(entry => entry.id).sort()).toEqual(['a07', 'a08', 'f06', 'f07', 'f08', 'p06', 'p07', 'p08']);
+      for (const entry of raw.items) {
+        expect(['pass', 'fail']).toContain(entry.expected);
+        if (entry.category !== 'adjacent') expect(entry.expected).toBe(entry.category);
+        expect(['pass', 'fail']).toContain(entry.second_review?.verdict);
+        if (entry.second_review.verdict !== (entry.author_expected ?? entry.expected)) expect(entry.adjudication).toBeTruthy();
+      }
+      for (const entry of items) {
+        const prompt = config.build(entry.inputs);
+        for (const value of Object.values(entry.inputs)) expect(prompt).toContain(value.trim().slice(0, 200));
+      }
+    }
+  });
+
+  test('panel verdicts restate each eval pass rule', async () => {
+    const { CALIBRATION_CONFIGS } = await import('../scripts/judge-calibration-configs');
+    const byId = Object.fromEntries(CALIBRATION_CONFIGS.map(config => [config.id, config]));
+    const qa = (clarity: number, completeness: number, actionability: number) => ({ clarity, completeness, actionability, reasoning: '' });
+    for (const id of ['qa-workflow', 'qa-health-rubric', 'workflow-default']) {
+      expect(byId[id]!.verdict([qa(3, 3, 4), qa(3, 3, 4), qa(3, 3, 4)])).toBe('pass');
+      expect(byId[id]!.verdict([qa(5, 5, 4), qa(5, 5, 4), qa(5, 5, 3)])).toBe('fail');
+      expect(() => byId[id]!.validate({ ...qa(3, 3, 4), clarity: '3' })).toThrow();
+    }
+    const arm = (over_engineering: number) => ({ over_engineering, construct: over_engineering ? 'helper' : 'none', reasoning: '' });
+    expect(byId.arm!.verdict([arm(0), arm(1), arm(3)])).toBe('pass');
+    expect(byId.arm!.verdict([arm(1), arm(2), arm(2)])).toBe('fail');
+    expect(() => byId.arm!.validate({ over_engineering: 0, construct: 'helper', reasoning: '' })).toThrow();
+    const browse = (would_browse: boolean, confidence: number) => ({ would_browse, confidence, fallback_behavior: '', reasoning: '' });
+    expect(byId['qa-anti-refusal']!.verdict([browse(true, 4), browse(true, 4), browse(false, 5)])).toBe('pass');
+    expect(byId['qa-anti-refusal']!.verdict([browse(true, 4), browse(true, 3), browse(true, 4)])).toBe('fail');
+    const voice = (low: number) => ({ directness: 5, concreteness: 5, avoids_corporate: 5, avoids_ai_vocabulary: low, connects_user_outcomes: 5, reasoning: '' });
+    expect(byId.voice!.verdict([voice(4), voice(4), voice(4)])).toBe('pass');
+    expect(byId.voice!.verdict([voice(4), voice(4), voice(3)])).toBe('fail');
+  });
+});
