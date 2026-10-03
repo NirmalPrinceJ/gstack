@@ -14,9 +14,9 @@
  * The fixture seeds 5 independent scope candidates (chat-platform
  * integrations) — each carries an independent include/defer/cut decision.
  * The existing semantic scope validator examines every acknowledged native
- * call, including candidate choices before mode selection. It keeps the
- * N-1 call floor and requires independent offered dispositions for all five
- * candidates. The review-phase counter reports progress, not target coverage.
+ * call, including candidate choices before mode selection. It requires
+ * independent offered dispositions for all five candidates; the call floor
+ * is two, the minimum for five options at four per call. The review-phase counter reports progress, not target coverage.
  * Collection ends once all five native choices are acknowledged; the same
  * semantic validator then decides whether those choices satisfy the metric.
  *
@@ -46,14 +46,14 @@ import {
   ceoStep0Boundary,
 } from './helpers/claude-pty-runner';
 import { FORCING_SPLIT_OVERFLOW_CEO } from './fixtures/forcing-finding-seeds';
-import { ceoSplitDecisionFingerprints, isCeoSplitCandidateCall, isCeoSplitCollectionComplete, pickCeoSplitCountQuestion } from './helpers/ceo-split-question-policy';
+import { CEO_SPLIT_CALL_FLOOR, ceoSplitDecisionFingerprints, isCeoSplitCandidateCall, isCeoSplitCollectionComplete, pickCeoSplitCountQuestion } from './helpers/ceo-split-question-policy';
 import { CEO_SCOPE_CANDIDATES } from './helpers/plan-review-cases';
 import { evaluatePlanReviewDecisions } from './helpers/plan-review-decisions';
 
 const describeE2E = describeE2ETier('marathon');
 
 const N = 5;
-const FLOOR = N - 1; // 4 — must fire at least one AUQ per non-dropped option
+const FLOOR = CEO_SPLIT_CALL_FLOOR;
 
 /** Plan-file target baked into the FORCING_SPLIT_OVERFLOW_CEO fixture prompt.
  *  Rewritten per-run to a mkdtemp path so concurrent runs (--retry,
@@ -101,9 +101,9 @@ describeE2E('/plan-ceo-review split-overflow regression (marathon)', () => {
               `--- evidence (last 3KB) ---\n${obs.evidence}`,
           );
         }
-        // The phase counter is progress, not target coverage. The existing scope
-        // validator keeps FLOOR=4 and requires all five independent candidate
-        // decisions, complete native evidence, and offered Include/Defer/Cut ACKs.
+        // The phase counter is progress, not target coverage. The scope validator
+        // requires all five independent candidate decisions, complete native
+        // evidence, and offered Include/Defer/Cut ACKs; FLOOR only bounds calls.
         await evaluatePlanReviewDecisions({ plan: followUpPrompt, targets: CEO_SCOPE_CANDIDATES,
           fingerprints: ceoSplitDecisionFingerprints(obs.transcript, obs.fingerprints),
           floor: FLOOR, kind: 'scope', deadlineAt });
