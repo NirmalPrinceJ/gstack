@@ -867,7 +867,6 @@
     "test/spawnsync-timeout-tripwire.test.ts": 163,
     "test/spec-quality-gate-secret-sink.test.ts": 1048,
     "test/spec-template-invariants.test.ts": 23,
-    "test/spec-template-sync.test.ts": 145,
     "test/static-no-legacy-writes.test.ts": 1195,
     "test/strict-output-capture.test.ts": 89,
     "test/strict-output-formats.test.ts": 899,
