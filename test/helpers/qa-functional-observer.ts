@@ -285,7 +285,7 @@ export function qaWriteVerdict(observation: QAWriteObservation, mode: QAMode): s
 
 /** Asking an installed gstack QA helper for its own usage text is read-only and always declared. */
 export function qaHelperUsageCommand(command: string): boolean {
-  return /^bun (?:[\w./-]+\/)?bin\/gstack-qa-(?:evidence|deadline) --help$/.test(command.trim());
+  return /^bun (?:[\w./-]+\/)?bin\/gstack-qa-(?:evidence|deadline)(?: --help)?$/.test(command.trim());
 }
 
 export function qaCommandAllowed(command: string, root?: string): boolean {
