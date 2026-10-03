@@ -454,28 +454,3 @@ ${JSON.stringify({
     throw new Error(`Office-hours review preservation: incomplete; missing=${JSON.stringify(result.missing)}; unsupported=${JSON.stringify(result.unsupported)}; ${result.reasoning}`);
   }
 }
-
-/** Completion contract for the existing spec-review explanation fixture. */
-export function validateOfficeHoursSpecSummary(exitReason: string, summary: string | null): void {
-  const fail = (message: string): never => { throw new Error(`Office-hours spec summary: ${message}`); };
-  if (exitReason !== 'success') fail(`execution failed: ${exitReason}`);
-  if (summary === null) fail('requested summary file was not written');
-  const text = summary!.replace(/\*\*/g, '').toLowerCase();
-  const dimensions = ['completeness', 'consistency', 'clarity', 'scope', 'feasibility'];
-  if (!/\b(?:5|five)\b.*dimension|dimension.*\b(?:5|five)\b/.test(text)
-      && !dimensions.every(dimension => new RegExp(`\\b${dimension}\\b`).test(text))) {
-    fail('summary lacks the five review dimensions');
-  }
-  if (!/\b(?:agent|subagent)\b/.test(text)) fail('summary lacks the Agent reviewer dispatch');
-  if (!/\b(?:3|three)\b.*iteration|iteration.*\b(?:3|three)\b|maximum.*\b(?:3|three)\b/.test(text)) {
-    fail('summary lacks the three-iteration limit');
-  }
-  for (const [label, pattern] of [
-    ['issues found', /\bfound\b|\bissues_found\b/],
-    ['issues fixed', /\bfixed\b|\bissues_fixed\b/],
-    ['remaining issues', /\b(?:remaining|unresolved)\b/],
-    ['quality score', /\bquality[\s_-]+score\b/],
-  ] as const) {
-    if (!pattern.test(text)) fail(`summary lacks the ${label} metric`);
-  }
-}

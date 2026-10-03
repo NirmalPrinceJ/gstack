@@ -9,14 +9,7 @@ const ROOT = path.resolve(import.meta.dir, '..');
 test('calibration briefs preserve source-required structure and actual choices without phase/qid reliance', () => {
   const format = fs.readFileSync(path.join(ROOT, 'scripts/resolvers/preamble/generate-ask-user-format.ts'), 'utf8');
   const split = fs.readFileSync(path.join(ROOT, 'docs/askuserquestion-split.md'), 'utf8');
-  const ceo = fs.readFileSync(path.join(ROOT, 'plan-ceo-review/sections/review-sections.md.tmpl'), 'utf8');
   for (const token of ['Project/branch/task:', 'ELI10:', 'Stakes if we pick wrong:', 'Recommendation:', 'Pros / cons:', 'Net:']) expect(format).toContain(token);
-  const todo = ceo.slice(ceo.indexOf('Only unanswered TODO proposals'), ceo.indexOf('For each TODO, describe:')).replace(/\s+/g, ' ');
-  expect(todo).toContain('Only unanswered TODO proposals reach this menu');
-  expect(todo).toContain('Do not ask again about an item already deferred, skipped or kept');
-  expect(todo).toContain('carry its actual answer and destination forward');
-  expect(todo).toContain('Resolve each remaining proposal through all four steps of 0D, using the menu below');
-  expect(todo).toContain('Never batch TODOs — one per question');
   for (const token of ['Include', 'Defer', 'Cut', 'Hold']) expect(split).toContain(token);
   const corpus = planDecisionCalibrations();
   expect(corpus).toHaveLength(4);

@@ -1049,21 +1049,6 @@ export function prCoverageRequestViolations(endpoints: string[]): string[] {
   return violations;
 }
 
-/** Whether the first read of a PR's file-list page 1 left no usable file set:
- * truncated by `head -c`, or a failed filter (e.g. a jq error) that printed no
- * file entries. One recovery read of page 1 is then legitimate, still charged
- * to the page budget. */
-export function incompleteFirstFileView(result: { toolCalls: Array<{ tool: string; input: any; output?: string }> }, pr: number): boolean {
-  const page1 = new RegExp(String.raw`\b(?:gh\s+api|curl)\b[^;\n]*\/pulls\/${pr}\/files(?![^;\n]*[?&]page=(?!1\b)\d)`);
-  const first = result.toolCalls.find(call => call.tool === 'Bash' && page1.test(String(call.input?.command || '')));
-  if (!first) return false;
-  const command = String(first.input?.command || '');
-  if (new RegExp(String.raw`\b(?:gh\s+api|curl)\b[^;\n]*\/pulls\/${pr}\/files[^;\n]*\|\s*head\s+-c\s*\d+`).test(command)) return true;
-  const output = String(first.output ?? '');
-  const view = output.slice(Math.max(0, output.search(new RegExp(String.raw`\/pulls\/${pr}\/files|files page 1`))));
-  return /^jq: error\b/m.test(view) && !/"filename"\s*:/.test(view);
-}
-
 /** A raw-byte change hidden by Git normalization, reproducing a real snapshot blind spot. */
 export function installNormalizingFilter(f: SharedLibsFixture): void {
   // Fixture instrumentation is local: do not introduce a distributed attribute

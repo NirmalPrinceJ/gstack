@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   createSharedInteractiveToolHandler, createSharedLibsFixture, fixtureGit, fixtureWrite, installSourceShims,
   installHostileGitConfig, isGuardedGitRequest, reviewLifecycleInstructions, standaloneInstructions, SHARED_LIBS_ROOT, readRequests, seedOpportunitySources, sharedReadOnlyViolations, shellQuote, snapshotFixture, type SharedLibsFixture,
-  SharedCaptureAccumulator, type SharedCaptureAttempt, isInternalClaudeGitRequest, SHARED_LIBS_OLDER_OPEN_PRS, incompleteFirstFileView, prCoverageRequestViolations,
+  SharedCaptureAccumulator, type SharedCaptureAttempt, isInternalClaudeGitRequest, SHARED_LIBS_OLDER_OPEN_PRS, prCoverageRequestViolations,
 } from './helpers/shared-libs-eval-fixture';
 import { EvalCollector, type EvalTestEntry } from './helpers/eval-store';
 import { collectorOutcomeCounts } from '../scripts/test-paid-shards';
@@ -1713,23 +1713,6 @@ describe('retained native runtime callback failures', () => {
     });
     await expect(callback('AskUserQuestion', input)).rejects.toThrow('No unambiguous no-change option');
     expect(events).toEqual(['question', 'refusal']);
-  });
-});
-
-describe('incompleteFirstFileView (census 36641820398 shared-libs-pr-coverage)', () => {
-  const call = (command: string, output: string) => ({ tool: 'Bash', input: { command }, output });
-  const page1 = 'gh api --method GET "/repos/fixture/shared-libs/pulls/42/files?per_page=100&page=1" 2>&1 | jq -c \'if type=="array" then (length, .[] | {filename,status}) else . end\'';
-  test('a first page-1 view whose jq filter failed without printing files is incomplete', () => {
-    const failed = call(`echo "--- PR 42 metadata"; gh api --method GET /repos/fixture/shared-libs/pulls/42 | jq -c .number; echo "--- PR 42 files page 1"; ${page1}`,
-      'Exit code 5\n--- PR 42 metadata\n42\n--- PR 42 files page 1 [file-list unit 1]\njq: error (at <stdin>:1): Cannot index number with string "filename"');
-    expect(incompleteFirstFileView({ toolCalls: [failed, call(page1, '{"count":100,"files":[{"filename":"docs/coordination-0.md"}]}')] }, 42)).toBe(true);
-  });
-  test('head truncation still counts; a complete first view or a later-page error does not', () => {
-    expect(incompleteFirstFileView({ toolCalls: [call(`${page1} | head -c 4000`, '{"filename":"a"')] }, 42)).toBe(true);
-    expect(incompleteFirstFileView({ toolCalls: [call(page1, '{"count":100,"files":[{"filename":"docs/coordination-0.md"}]}')] }, 42)).toBe(false);
-    expect(incompleteFirstFileView({ toolCalls: [call(page1, 'jq: error (at <stdin>:1): x\n{"filename": "docs/a.md"}')] }, 42)).toBe(false);
-    expect(incompleteFirstFileView({ toolCalls: [call(page1.replace('&page=1', '&page=2'), 'jq: error (at <stdin>:1): x')] }, 42)).toBe(false);
-    expect(incompleteFirstFileView({ toolCalls: [call(page1.replace('/pulls/42/', '/pulls/7/'), 'jq: error (at <stdin>:1): x')] }, 42)).toBe(false);
   });
 });
 

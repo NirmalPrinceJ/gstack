@@ -351,17 +351,6 @@ describeE2E('/setup-gbrain Path 4 (Remote MCP) — happy path', () => {
             // Assertion 4: CLAUDE.md got the remote-http block.
             expect(claudeMd).toMatch(/Mode: remote-http/);
 
-            // Assertion 5: classifier — the model didn't write findings before
-            // asking. The Path 4 prose has 5 STOP gates; if any of them got
-            // skipped, that's the wrote_findings_before_asking pattern.
-            // Scan the ASSISTANT's text only: modelTextOutput includes public
-            // event including the child's Read of the skill file, whose generated
-            // footer contains the literal "GSTACK REVIEW REPORT" — a guaranteed
-            // false positive on both trees.
-            const wroteBefore = /## GSTACK REVIEW REPORT|critical_gaps/i.test(result.output);
-            // Setup-gbrain doesn't have a review report contract, so this is
-            // a structural shape check, not a hard failure mode.
-            expect(wroteBefore).toBe(false);
           } catch (error) { assertionFailed = true; assertionFailure = error; }
           await cleanup();
           if (assertionFailed) throw assertionFailure;

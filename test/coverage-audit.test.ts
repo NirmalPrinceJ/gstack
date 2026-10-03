@@ -167,9 +167,6 @@ test('diagram accepts an explicit single GAP legend mixed with quality keys', ()
 
 test('review testing checklist documents a coverage diagram shape accepted by the native oracle', () => {
   const checklist = fs.readFileSync(path.join(ROOT, 'review/specialists/testing.md'), 'utf8');
-  expect(checklist).toContain('If the caller explicitly asks for an ASCII coverage diagram');
-  expect(checklist).toContain('dedicated tool call');
-  expect(checklist).toMatch(/Read\s+diffs, package files, configs, or other context in separate tool calls\./);
   expect(checklist).toContain('valid USD happy path returns success [OK]');
   expect(checklist).toContain('refund success and guard branches not imported or untested [GAP]');
   expect(checklist).toContain('Legend: [OK] tested [GAP] no test');

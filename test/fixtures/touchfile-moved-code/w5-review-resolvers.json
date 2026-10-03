@@ -6,10 +6,8 @@
       "e2e": [
         "autoplan-dual-voice",
         "carve-section-loading",
-        "codex-offered-eng-review",
         "llm-judge-recommendation",
         "office-hours-section-loading",
-        "office-hours-spec-review",
         "outside-plan-disabled-no-fallback",
         "outside-voice-claude-code-to-codex",
         "outside-voice-codex-to-claude-code",
