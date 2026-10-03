@@ -90,10 +90,6 @@ describe('CLAUDE.md facts match the code that owns them', () => {
 // it is exempt from title checks but must still match its reference.
 const SHIP_STEP_REFERENCES: Array<{ file: string; step: string; title?: string; historical?: string }> = [
   { file: 'document-release/sections/release-body.md.tmpl', step: '14', title: 'TODOS.md' },
-  {
-    file: 'scripts/resolvers/constants.ts', step: '18',
-    historical: 'source comment recording where the third foreground-dispatch recurrence happened (#2440 class); the documentation dispatch now lives at /ship Step 14.5, so this is incident history, not an instruction',
-  },
 ];
 const SHIP_REFERENCE = /\/ship`?(?:'s)? Step (\d+(?:\.\d+)?)\b/g;
 
