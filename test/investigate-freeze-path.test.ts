@@ -18,8 +18,9 @@ describe('investigate freeze path resolution', () => {
     const content = fs.readFileSync(path.join(ROOT, rel), 'utf-8');
 
     test(`${rel} hook resolves check-freeze via the $HOME anchor`, () => {
-      expect(content).toContain('S="$HOME/.claude/skills/gstack/freeze/bin/check-freeze.sh"');
-      expect(content).toContain('[ -x "$S" ] && exec bash "$S"; exit 0');
+      // E1: cmd.exe-safe — no single-quoted words, no variable POSIX sh would expand to empty.
+      expect(content).toContain(`command: 'bash -c "test -x \\"$HOME/.claude/skills/gstack/freeze/bin/check-freeze.sh\\" && exec bash \\"$HOME/.claude/skills/gstack/freeze/bin/check-freeze.sh\\"; exit 0"'`);
+      expect(content).not.toContain('S="$HOME/.claude/skills/gstack/freeze/bin/check-freeze.sh"');
       const commandLines = content.split('\n').filter((l) => l.trim().startsWith('command:'));
       expect(commandLines.length).toBeGreaterThan(0);
       for (const line of commandLines) {

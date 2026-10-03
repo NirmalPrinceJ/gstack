@@ -2537,7 +2537,7 @@ describe('DESIGN_DETECTOR resolver', () => {
     expect(c).not.toContain('document.documentElement.cloneNode');
     expect(c).toContain('_DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")');
     expect(c).toContain(`const html = await pg.evaluate('"$_DUMP"');`);
-    expect(c).toContain('_TMP=$(mktemp -d); _DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")');
+    expect(c).toContain('_TMP=$(mktemp -d "${TMPDIR:-/tmp}/gstack-dom.XXXXXX"); _DUMP=$(cat "$HOME/.claude/skills/gstack/lib/dom-dump.js")');
   });
 
   test('every rendered Aside script is single-quoted: a page-controlled <url> is never inside a double-quoted bash string', () => {
@@ -2920,7 +2920,9 @@ describe('Codex generation (--host codex)', () => {
     // Check a skill that has a preamble (review is a good candidate)
     const content = fs.readFileSync(path.join(AGENTS_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
     expect(content).toContain('GSTACK_ROOT');
-    expect(content).toContain('$_ROOT/.agents/skills/gstack');
+    // C1: one shared root resolution — repo-local first, then CODEX_HOME's global root.
+    expect(content).toContain('_r=$(git rev-parse --show-toplevel 2>/dev/null)/.agents/skills/gstack');
+    expect(content).toContain('_r=${CODEX_HOME:-~/.codex}/skills/gstack');
     // Phase 1/2: config reads moved into gstack-skill-start — the fence itself
     // is the bin asset the preamble must resolve through $GSTACK_BIN, and the
     // question-preference runtime call still resolves the same way.
@@ -3236,7 +3238,7 @@ describe('Factory generation (--host factory)', () => {
   test('Factory preamble uses .factory paths', () => {
     const content = fs.readFileSync(path.join(FACTORY_DIR, 'gstack-review', 'SKILL.md'), 'utf-8');
     expect(content).toContain('GSTACK_ROOT');
-    expect(content).toContain('$_ROOT/.factory/skills/gstack');
+    expect(content).toContain('_r=$(git rev-parse --show-toplevel 2>/dev/null)/.factory/skills/gstack');
     expect(content).toContain('$GSTACK_BIN/gstack-config');
   });
 });
