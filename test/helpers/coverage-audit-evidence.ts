@@ -162,7 +162,7 @@ function readsFile(command: unknown, file: string, cwd: string, output: unknown,
       // observed display flag. Quoted/concatenated or unknown options may write
       // files or invoke helpers, so they cannot borrow a read-only classification.
       const gitDisplay = git !== null && (!git[2] || git[2].split(/\s+/).every(token =>
-        token === (git[1] === 'log' ? '--oneline' : '--stat') ||
+        token === (git[1] === 'log' ? '--oneline' : '--stat') || token === '--' ||
         (git[1] === 'log' && /^-[1-9]\d{0,4}$/.test(token)) || /^[A-Za-z0-9_][A-Za-z0-9_./~^-]*$/.test(token)));
       return /^(?:cat|grep|head|ls|echo)(?:\s|$)/.test(stage) || stage === 'pwd' || stage === 'wc -l' || stage === 'git ls-files' || stage === "sed 's/^/TESTFILES:/'" || /^\[ -f [A-Za-z0-9_.\/-]+ \]$/.test(stage) ||
         readTargets(stage).length > 0 || gitDisplay || displayAwk;

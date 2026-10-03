@@ -1019,3 +1019,23 @@ describe('coverage reads with neighboring display commands', () => {
   });
 });
 });
+
+describe('coverage audit native evidence: pathspec git displays', () => {
+  const run = (command: string) => {
+    const s = synthetic();
+    const numberedLines = (text: string) => text.replace(/\n$/, '').split('\n').map((line, i) => `${String(i + 1).padStart(6)}\t${line}`).join('\n');
+    Object.assign(block(s, 1), { name: 'Bash', input: { command } });
+    block(s, 2).content = `${numberedLines(s.files.source.content)}\n======\n${numberedLines(s.files.tests.content)}\n======\n src/billing.ts | 2 ++\n`;
+    s.result.transcript.splice(3);
+    return verdict(s);
+  };
+  test('a ;-list of cat -n reads followed by git diff with a -- pathspec credits both reads (CI 37094035231 shape)', () => {
+    expect(run('cat -n src/billing.ts; echo ======; cat -n test/billing.test.ts; echo ======; git diff main --stat; echo; git diff main -- src/billing.ts test/billing.test.ts'))
+      .toMatchObject({ sourceRead: true, testsRead: true });
+  });
+  test('the pathspec form still cannot write or run helpers', () => {
+    for (const tail of ['git diff main -- src/billing.ts > out.txt', 'git diff main --output=x -- src/billing.ts', 'git diff main --ext-diff -- src/billing.ts']) {
+      expect(run(`cat -n src/billing.ts; echo ======; cat -n test/billing.test.ts; ${tail}`), tail).toMatchObject({ sourceRead: false, testsRead: false });
+    }
+  });
+});
