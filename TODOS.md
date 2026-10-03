@@ -65,6 +65,16 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
   once by hand (fresh `CODEX_HOME`, fresh clone, `./setup --host codex`, one
   multi-block skill). Make it a periodic case so a regression shows up weekly.
   **Effort:** M. **Priority:** P2.
+- **/review's working-tree fingerprint under Codex's default sandbox** — the
+  live Codex check (v1.91.19.0) showed `bin/gstack-wtree` exits 1 inside
+  `codex exec -s workspace-write`, because Codex mounts `.git` read-only and the
+  fingerprint writes untracked content into `.git/objects`. `gstack-review-log
+  --start review` then fails with `cannot capture a diff review without a
+  working-tree fingerprint` (loud, not a false pass), and `git fetch` cannot
+  write `FETCH_HEAD`. Use a private object directory
+  (`GIT_OBJECT_DIRECTORY` + `GIT_ALTERNATE_OBJECT_DIRECTORIES` under
+  `$TMPDIR`) for the fingerprint, and report the fetch as stale-base coverage.
+  **Effort:** S. **Priority:** P2.
 - **Gate-outcome telemetry** — count `not_run`/`unavailable` outcomes per
   reason code from `lib/gate-outcomes.ts` so the most common gaps get fixed
   first. **Effort:** S. **Priority:** P3.
