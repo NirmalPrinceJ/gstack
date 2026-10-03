@@ -37,11 +37,15 @@ most 80% of `JUDGE_MS` (96 s).
 | `qa-anti-refusal` | 0/24 | 0/24 | 23 / 23 | 0 | 0 / 0 | 12.5 / 13.4 | 0/8, 8/8 | $7.02 | lands |
 | `cross-skill` | 0/24 | 0/24 | 23 / 23 | 0 | 0 / 0 | 19.7 / 22.6 | 0/8, 8/8 | $19.86 | lands |
 | `voice` | 0/24 | 0/24 | 22 / 22 | 0 | 0 / 0 | 13.3 / 13.7 | 0/8, 8/8 | $8.09 | lands |
+| `workflow-default` | 2/23 | 3/23 | 21 / 21 | 0 | 1 / 1 (refusal, f03) | 29.5 / 25.8 | 0/8, 8/8 | $19.66 | lands; UC3 prose step triggered by the errored sample |
 
-No sample errored (refusal, truncation, parse, schema or transport) under either prompt.
-`workflow-default` has a corpus but was not dispatched: its priced cost (about $20) exceeded
-what remained of the W2 reservation after the higher-priority configurations, so the shared
-workflow judge stays on today's request (only `ship` sends `WORKFLOW_JUDGE_RESPONSE_SCHEMA`,
-as before). The frontier (`review`) and cookie workflow configurations have no corpus yet.
-A $0.12 two-call pilot sized output tokens before the manifest was priced. Total W2 spend:
-$70.81 of $90.
+No sample errored under either prompt except one refusal each on `workflow-default` item
+`f03` (a stubbed cookie-import workflow): the old prompt refused once in `old-b` and the new
+prompt once, so that item's panels are incomplete and it is excluded from the flip counts
+(23 compared). The refusal is content-driven rather than format-driven, but under the eng
+trigger any errored new sample calls for a calibrated prose step, which is deferred to
+TODOS. `workflow-default` was funded after the first pass with a $25 extension of the W2
+reservation; its 14 cases now send `WORKFLOW_JUDGE_RESPONSE_SCHEMA` without the
+compact-reasoning validator (still only on `ship`). The frontier (`review`) and cookie workflow
+configurations have no corpus and stay on today's request. A $0.12 two-call pilot sized
+output tokens before the manifest was priced. Total W2 spend: $90.47 of $115.

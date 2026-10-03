@@ -511,6 +511,7 @@ describeIfSelected('Ship & Release skill evals', ['ship/SKILL.md workflow', 'doc
   testIfSelected('document-release/SKILL.md workflow', async () => {
     await runWorkflowJudge({
       testName: 'document-release/SKILL.md workflow',
+      schemaTransport: true,
       suite: 'Ship & Release skill evals',
       skillPath: 'document-release/SKILL.md',
       startMarker: '# Document Release:',
@@ -528,6 +529,7 @@ describeIfSelected('Plan Review skill evals', [
   testIfSelected('plan-ceo-review/SKILL.md modes', async () => {
     await runWorkflowJudge({
       testName: 'plan-ceo-review/SKILL.md modes',
+      schemaTransport: true,
       suite: 'Plan Review skill evals',
       skillPath: 'plan-ceo-review/SKILL.md',
       startMarker: '## Step 0: Nuclear Scope Challenge',
@@ -540,6 +542,7 @@ describeIfSelected('Plan Review skill evals', [
   testIfSelected('plan-eng-review/SKILL.md sections', async () => {
     await runWorkflowJudge({
       testName: 'plan-eng-review/SKILL.md sections',
+      schemaTransport: true,
       suite: 'Plan Review skill evals',
       skillPath: ENG_REVIEW_EXCERPT.skillPath,
       startMarker: '# Plan Review Mode',
@@ -552,6 +555,7 @@ describeIfSelected('Plan Review skill evals', [
   testIfSelected('plan-design-review/SKILL.md passes', async () => {
     await runWorkflowJudge({
       testName: 'plan-design-review/SKILL.md passes',
+      schemaTransport: true,
       suite: 'Plan Review skill evals',
       skillPath: 'plan-design-review/SKILL.md',
       startMarker: '## Review Sections',
@@ -567,6 +571,7 @@ describeIfSelected('Design skill evals', ['design-review/SKILL.md fix loop', 'de
   testIfSelected('design-review/SKILL.md fix loop', async () => {
     await runWorkflowJudge({
       testName: 'design-review/SKILL.md fix loop',
+      schemaTransport: true,
       suite: 'Design skill evals',
       skillPath: 'design-review/SKILL.md',
       startMarker: '## Phase 7:',
@@ -579,6 +584,7 @@ describeIfSelected('Design skill evals', ['design-review/SKILL.md fix loop', 'de
   testIfSelected('design-consultation/SKILL.md research', async () => {
     await runWorkflowJudge({
       testName: 'design-consultation/SKILL.md research',
+      schemaTransport: true,
       suite: 'Design skill evals',
       skillPath: 'design-consultation/SKILL.md',
       startMarker: '## Phase 0:',
@@ -597,6 +603,7 @@ describeIfSelected('Deploy skill evals', [
   testIfSelected('land-and-deploy/SKILL.md workflow', async () => {
     await runWorkflowJudge({
       testName: 'land-and-deploy/SKILL.md workflow',
+      schemaTransport: true,
       suite: 'Deploy skill evals',
       skillPath: 'land-and-deploy/SKILL.md',
       startMarker: '## Step 1: Pre-flight',
@@ -609,6 +616,7 @@ describeIfSelected('Deploy skill evals', [
   testIfSelected('canary/SKILL.md monitoring loop', async () => {
     await runWorkflowJudge({
       testName: 'canary/SKILL.md monitoring loop',
+      schemaTransport: true,
       suite: 'Deploy skill evals',
       skillPath: 'canary/SKILL.md',
       startMarker: '### Phase 2: Baseline Capture',
@@ -621,6 +629,7 @@ describeIfSelected('Deploy skill evals', [
   testIfSelected('benchmark/SKILL.md perf collection', async () => {
     await runWorkflowJudge({
       testName: 'benchmark/SKILL.md perf collection',
+      schemaTransport: true,
       suite: 'Deploy skill evals',
       skillPath: 'benchmark/SKILL.md',
       startMarker: '### Phase 3: Performance Data Collection',
@@ -633,6 +642,7 @@ describeIfSelected('Deploy skill evals', [
   testIfSelected('setup-deploy/SKILL.md platform setup', async () => {
     await runWorkflowJudge({
       testName: 'setup-deploy/SKILL.md platform setup',
+      schemaTransport: true,
       suite: 'Deploy skill evals',
       skillPath: 'setup-deploy/SKILL.md',
       startMarker: '### Step 2: Detect platform',
@@ -665,6 +675,7 @@ describeIfSelected('Other skill evals', [
   testIfSelected('sync-gbrain/SKILL.md read-only readiness', async () => {
     await runWorkflowJudge({
       testName: 'sync-gbrain/SKILL.md read-only readiness',
+      schemaTransport: true,
       suite: 'Other skill evals',
       skillPath: 'sync-gbrain/SKILL.md',
       startMarker: '## Step 4: Refresh',
@@ -677,6 +688,7 @@ describeIfSelected('Other skill evals', [
   testIfSelected('retro/SKILL.md instructions', async () => {
     await runWorkflowJudge({
       testName: 'retro/SKILL.md instructions',
+      schemaTransport: true,
       suite: 'Other skill evals',
       skillPath: 'retro/SKILL.md',
       startMarker: '## Instructions',
@@ -689,6 +701,7 @@ describeIfSelected('Other skill evals', [
   testIfSelected('qa-only/SKILL.md workflow', async () => {
     await runWorkflowJudge({
       testName: 'qa-only/SKILL.md workflow',
+      schemaTransport: true,
       suite: 'Other skill evals',
       skillPath: 'qa-only/SKILL.md',
       startMarker: '# /qa-only:',
@@ -702,6 +715,7 @@ describeIfSelected('Other skill evals', [
   testIfSelected('gstack-upgrade/SKILL.md upgrade flow', async () => {
     await runWorkflowJudge({
       testName: 'gstack-upgrade/SKILL.md upgrade flow',
+      schemaTransport: true,
       suite: 'Other skill evals',
       skillPath: 'gstack-upgrade/SKILL.md',
       startMarker: '## Inline upgrade flow',

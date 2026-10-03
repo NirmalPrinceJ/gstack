@@ -279,9 +279,18 @@ describe('landed schemas match the recorded calibration', () => {
     expect(judgeSource).toContain('buildArmJudgePrompt(task, diff), ARM_JUDGE_MODEL, { jsonSchema: ARM_JUDGE_SCHEMA })');
   });
 
-  test('uncalibrated workflow configurations stay on today\'s request; only ship keeps its existing schema', () => {
-    expect(fs.existsSync(path.join(import.meta.dir, 'fixtures', 'judge-calibration', 'workflow-default', 'runs'))).toBe(false);
-    expect(evalSource.match(/schemaTransport: true/g)).toHaveLength(1);
-    expect(evalSource.match(/compactReasoning: true/g)).toHaveLength(1);
+  test('workflow transport follows the workflow-default calibration; uncalibrated configurations stay on today\'s request', () => {
+    const recorded = result('workflow-default');
+    expect(recorded.complete).toBe(true);
+    const registrations = [...evalSource.matchAll(/await runWorkflowJudge\(\{([\s\S]*?)\n    \}\);/g)].map(match => match[1]!);
+    expect(registrations.length).toBeGreaterThan(14);
+    for (const body of registrations) {
+      const testName = /testName: '([^']+)'/.exec(body)![1];
+      const defaultConfig = !/^\s+(?:agentCapability|model|readInput|thresholds|maxTokens|stream|effort):|\.\.\.COOKIE_WORKFLOW_JUDGE/m.test(body);
+      const expected = testName === 'ship/SKILL.md workflow' || (defaultConfig && recorded.landing.lands);
+      expect(body.includes('schemaTransport: true'), testName).toBe(expected);
+      expect(body.includes('compactReasoning: true'), testName).toBe(testName === 'ship/SKILL.md workflow');
+    }
+    expect(registrations.filter(body => body.includes('schemaTransport: true'))).toHaveLength(15);
   });
 });
