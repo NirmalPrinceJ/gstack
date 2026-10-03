@@ -562,7 +562,10 @@ describe('host config correctness', () => {
 
   test('codex has boundary instruction', () => {
     expect(codex.boundaryInstruction).toBeDefined();
-    expect(codex.boundaryInstruction).toContain('Do NOT read');
+    expect(codex.boundaryInstruction).toMatch(/do not read or execute any files under/i);
+    for (const glob of ['~/.claude/', '~/.agents/', '.claude/skills/', 'agents/']) {
+      expect(codex.boundaryInstruction).toContain(glob);
+    }
   });
 
   test('openclaw has tool rewrites for exec/read/write', () => {
