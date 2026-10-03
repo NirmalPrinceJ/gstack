@@ -1859,6 +1859,17 @@ describe('BENEFITS_FROM resolver', () => {
     expect(ceoContent).toContain('/office-hours');
   });
 
+  test('plan-ceo-review offers /office-hours when no design doc exists and detects a lost user mid-session', () => {
+    const offer = extractMarkdownSection(ceoContent, '## Prerequisite Skill Offer');
+    expect(offer.replace(/\s+/g, ' ')).toMatch(/when the design doc check above prints "No design doc found,?"/i);
+    expect(offer).toContain('A) Run /office-hours now');
+    expect(offer).toContain('B) Skip — proceed with standard review');
+    expect(offer).toMatch(/do not re-offer later in the session/i);
+    expect(ceoContent).toContain('**Mid-session detection (0A):**');
+    const midSession = ceoContent.indexOf('**Mid-session detection (0A):**');
+    expect(ceoContent.slice(midSession, midSession + 300)).toMatch(/offer `\/office-hours`/);
+  });
+
   test('plan-eng-review contains prerequisite skill offer', () => {
     expect(engContent).toContain('Prerequisite Skill Offer');
     expect(engContent).toContain('/office-hours');
