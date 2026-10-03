@@ -131,6 +131,10 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
       expect(status.status).toBe(0);
       expect(status.stdout).toMatch(new RegExp(`\\b${host}\\s+${ALL_HOST_CONFIGS.find(c => c.name === host)!.tier}\\s+global\\s+current`));
 
+      // C5 (#2651): OpenCode's builtin /review shadows the review skill, so
+      // /gstack-review loads it by the name the skill tool knows.
+      if (host === 'opencode') expect(readFileSync(join(f.home, '.config/opencode/commands/gstack-review.md'), 'utf8')).toContain('Load the `review` skill with the skill tool');
+
       // INV-3 install-level checks (C2, C3, ENG-1, ENG-14).
       if (host !== 'claude') {
         const runtimeRoot = rows[0][4];
@@ -154,7 +158,8 @@ describe.skipIf(process.platform === 'win32')('host conformance kit', () => {
     expect(runSetup(f, join(src, 'setup'), ['--host', 'opencode']).status).toBe(0);
     const ship = readFileSync(join(commands, 'gstack-ship.md'), 'utf8');
     expect(ship).toMatch(/^---\ndescription: "[^"]+"\nagent: build\nsubtask: false\n---\n/);
-    expect(ship).toContain('Load the `gstack-ship` skill with the skill tool');
+    // The skill tool loads by frontmatter name, not directory name (#2651).
+    expect(ship).toContain('Load the `ship` skill with the skill tool');
     expect(ship).toContain('$ARGUMENTS');
     expect(readFileSync(join(commands, 'gstack-review.md'), 'utf8')).toBe('my own review command\n');
     expect(existsSync(join(commands, 'gstack-retired.md'))).toBe(false);

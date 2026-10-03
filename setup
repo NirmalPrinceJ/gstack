@@ -2942,7 +2942,7 @@ link_cursor_skill_dirs() {
 # marker is the user's and is never touched; managed files whose skill is gone
 # or disabled are removed.
 write_opencode_commands() {
-  local skills_dir="$1/.opencode/skills" cmd_dir="$2" d name file desc marker
+  local skills_dir="$1/.opencode/skills" cmd_dir="$2" d name file desc marker skill
   marker='<!-- gstack-managed command (./setup --host opencode): edits are overwritten -->'
   mkdir -p "$cmd_dir"
   for d in "$skills_dir"/gstack-*/; do
@@ -2955,8 +2955,11 @@ write_opencode_commands() {
     fi
     case "${_DISABLED_SKILLS:- }" in *" ${name#gstack-} "*) rm -f "$file"; continue ;; esac
     desc="$(awk '/^description:/ { f = 1; next } f && /^[^ ]/ { exit } f && NF { sub(/^ +/, ""); print; exit }' "$d/SKILL.md" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+    # The skill tool knows a skill by its frontmatter name (gstack-review's is
+    # `review`, which OpenCode's builtin /review shadows as a command, #2651).
+    skill="$(awk '/^---$/ { fm++; next } fm == 1 && $1 == "name:" { print $2; exit }' "$d/SKILL.md")"
     printf -- '---\ndescription: "%s"\nagent: build\nsubtask: false\n---\n%s\nLoad the `%s` skill with the skill tool and follow its instructions.\n\n$ARGUMENTS\n' \
-      "${desc:-gstack $name}" "$marker" "$name" > "$file.tmp.$$" && mv -f "$file.tmp.$$" "$file"
+      "${desc:-gstack $name}" "$marker" "${skill:-$name}" > "$file.tmp.$$" && mv -f "$file.tmp.$$" "$file"
   done
   for file in "$cmd_dir"/gstack-*.md; do
     [ -f "$file" ] && grep -qF "$marker" "$file" 2>/dev/null || continue
