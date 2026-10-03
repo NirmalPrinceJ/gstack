@@ -22,7 +22,10 @@
  *    (outside plan mode with no named target, the gate is the FIRST
  *    question by contract).
  *  - plan-devex-review: no no-target scope gate, so only the terminal
- *    outcome and the absent plan-mode reminder are asserted.
+ *    outcome and the absent plan-mode reminder are asserted. It reviews a
+ *    pasted developer-facing plan: without one it reviews the checkout's
+ *    branch diff, and a tests-only diff legitimately ends at its
+ *    applicability gate, which is neither 'asked' nor 'plan_ready'.
  *  - named-target case: a pasted draft (initialPlanContent) IS an
  *    explicitly-named target, so the gate must NOT ask — and the review
  *    must actually consume the pasted content.
@@ -59,6 +62,18 @@ weekly export emails. One new component, one route, one test file.
 - test/${SEED_TOKEN}.test.tsx (new)
 `;
 
+const DEVEX_PLAN = `
+# Plan: tasks export command
+
+## Scope
+Add a \`tasks export --format csv|json\` CLI subcommand for developers who
+script against the task tracker. Prints to stdout; --out writes a file.
+
+## Developer experience
+- New flag help text and a README quickstart example.
+- Exit code 2 with a one-line error for an unknown --format value.
+`;
+
 describeE2E('plan-mode-info no-op outside plan mode (gate regression)', () => {
   for (const skillName of ['plan-ceo-review', 'plan-eng-review', 'plan-design-review', 'plan-devex-review'] as const) {
     const hasScopeGate = skillName === 'plan-eng-review' || skillName === 'plan-design-review';
@@ -80,6 +95,7 @@ describeE2E('plan-mode-info no-op outside plan mode (gate regression)', () => {
         ...(hasScopeGate
           ? { extraArgs: ['--disallowedTools', 'AskUserQuestion'], requireProseEvidence: true }
           : {}),
+        ...(skillName === 'plan-devex-review' ? { initialPlanContent: DEVEX_PLAN } : {}),
       });
 
       if (obs.outcome === 'silent_write' || obs.outcome === 'exited' || obs.outcome === 'timeout') {
