@@ -19,6 +19,7 @@ import { resolveConfig, ensureStateDir, readVersionHash, isPairAgentEnabled, res
 import { parseProxyConfig, computeConfigHash, ProxyConfigError } from './proxy-config';
 import { redactProxyUrl } from './proxy-redact';
 import { spawnTerminalAgent, BUN_CHILD_FLAGS } from './terminal-agent-control';
+import { profileOwner, ensureProjectProfile, runProfilesCommand } from './chromium-profiles';
 // Zero side effects on import (documented invariant in token-registry.ts) —
 // safe to pull the shared pairing default into the CLI.
 import { DEFAULT_PAIR_SCOPES } from './token-registry';
@@ -285,23 +286,21 @@ function cleanChromiumProfileLocks(profileDir: string = chromiumProfileDir()): v
   }
 }
 
-/** Kill an orphaned Chromium that still holds the profile's SingletonLock. The
- * lock symlink target is "hostname-PID"; killing that PID tears down its
- * renderer tree so the next launch starts clean. No-op when absent/stale. */
+/** Kill an orphaned Chromium that still holds the profile's SingletonLock so
+ * the next launch starts clean (#1781). Only a Chromium on this host that uses
+ * this profile and whose daemon is gone is killed; a profile held by a live
+ * process is never killed — browse stops and names the holder (D5, #2492). */
 async function killOrphanChromium(profileDir: string = chromiumProfileDir()): Promise<void> {
-  try {
-    const lockTarget = fs.readlinkSync(path.join(profileDir, 'SingletonLock')); // "hostname-12345"
-    const orphanPid = parseInt(lockTarget.split('-').pop() || '', 10);
-    if (orphanPid && isProcessAlive(orphanPid)) {
-      safeKill(orphanPid, 'SIGTERM');
-      await new Promise(r => setTimeout(r, 1000));
-      if (isProcessAlive(orphanPid)) {
-        safeKill(orphanPid, 'SIGKILL');
-        await new Promise(r => setTimeout(r, 500));
-      }
-    }
-  } catch (err: any) {
-    if (err?.code !== 'ENOENT' && err?.code !== 'EINVAL') throw err;
+  const owner = profileOwner(profileDir);
+  if (owner.state === 'free') return;
+  if (owner.state === 'live') {
+    throw new Error(`Headed Chromium profile ${profileDir} is ${owner.detail}. Close that browser first, or set CHROMIUM_PROFILE to a different directory.`);
+  }
+  safeKill(owner.pid, 'SIGTERM');
+  await new Promise(r => setTimeout(r, 1000));
+  if (isProcessAlive(owner.pid)) {
+    safeKill(owner.pid, 'SIGKILL');
+    await new Promise(r => setTimeout(r, 500));
   }
 }
 
@@ -621,6 +620,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
   // blocked by the previous Chromium's SingletonLock — the self-inflicted
   // crash-loop. Previously only the manual connect preamble did this.
   if ((extraEnv?.BROWSE_HEADED ?? process.env.BROWSE_HEADED) === '1') {
+    ensureProjectProfile(chromiumProfileDir());
     await killOrphanChromium();
     cleanChromiumProfileLocks();
   }
@@ -1676,6 +1676,7 @@ Multi-step:     chain (reads JSON from stdin)
 Tabs:           tabs | tab <id> | newtab [url] | closetab [id]
 Server:         status | cookie <n>=<v> | header <n>:<v>
                 useragent <str> | stop | restart
+                profiles [list] | profiles prune [--days N]  (per-project headed profiles)
                 tunnel revoke <name> | tunnel agents  (paired-agent tokens)
                 --force-restart: replace a live-but-busy daemon (any command;
                 LOSES tabs/cookies/logins — never done automatically)
@@ -1692,6 +1693,8 @@ Refs:           After 'snapshot', use @e1, @e2... as selectors:
 
   const command = args[0];
   const commandArgs = args.slice(1);
+
+  if (command === 'profiles') process.exit(runProfilesCommand(commandArgs));
 
   // ─── Headed Connect (pre-server command) ────────────────────
   // connect must be handled BEFORE ensureServer() because it needs

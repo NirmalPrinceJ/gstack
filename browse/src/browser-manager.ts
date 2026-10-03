@@ -23,6 +23,7 @@ import { emitActivity } from './activity';
 import { validateNavigationUrl, blockedNavigationReason } from './url-validation';
 import { TabSession, type RefEntry } from './tab-session';
 import { resolveChromiumProfile, cleanSingletonLocks, resolveConfig } from './config';
+import { ensureProjectProfile } from './chromium-profiles';
 import { launchWithXProtectHeal } from './xprotect-heal';
 import { readPidStartTime, shouldSpawnXvfb, pickFreeDisplay, spawnXvfb, xvfbInstallHint, type XvfbHandle } from './xvfb';
 import { withCdpSession } from './cdp-bridge';
@@ -750,6 +751,7 @@ export class BrowserManager {
     const fs = require('fs');
     const path = require('path');
     const userDataDir = resolveChromiumProfile();
+    ensureProjectProfile(userDataDir);
     fs.mkdirSync(userDataDir, { recursive: true });
 
     // Pre-launch cleanup of stale SingletonLock/Socket/Cookie. Chromium's
@@ -1913,6 +1915,7 @@ export class BrowserManager {
       // ignoring $CHROMIUM_PROFILE / $GSTACK_HOME and skipping the lock
       // cleanup — the third shipped drift between the three launch paths.
       const userDataDir = resolveChromiumProfile();
+      ensureProjectProfile(userDataDir);
       fs.mkdirSync(userDataDir, { recursive: true });
       cleanSingletonLocks(userDataDir);
 
