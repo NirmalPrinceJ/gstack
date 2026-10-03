@@ -299,6 +299,47 @@ _dir_only_links() {
   return 0
 }
 
+# _serve_rendered_assets SKILL TARGET — F5 (#2706): when the gbrain render has
+# a counterpart of a runtime asset setup linked from the checkout (sections/,
+# ...), serve the rendered file instead, per file (render dirs carry only the
+# generated *.md). An asset whose render counterpart is gone goes back to the
+# checkout. Only entries that are our links, or directories of nothing but our
+# links, are touched; anything else is the user's and stays.
+_serve_rendered_assets() {
+  local skill="$1" target="$2" asset name t child
+  for asset in "$INSTALL_DIR/$skill"/*; do
+    [ -e "$asset" ] || continue
+    name="${asset##*/}"
+    case "$name" in SKILL.md|node_modules|dist|test|*.tmpl) continue ;; esac
+    t="$target/$name"
+    if [ -L "$t" ]; then
+      _target_is_ours "$(_link_target_abs "$t")" || continue
+    elif [ -d "$t" ]; then
+      _dir_only_links "$t" || continue
+    else
+      continue
+    fi
+    if [ -d "$asset" ] && [ -d "$RENDER_DIR/$skill/$name" ]; then
+      rm -rf "$t"
+      mkdir -p "$t"
+      for child in "$asset"/*; do
+        [ -e "$child" ] || continue
+        if [ -f "$RENDER_DIR/$skill/$name/${child##*/}" ]; then
+          ln -snf "$RENDER_DIR/$skill/$name/${child##*/}" "$t/${child##*/}"
+        else
+          ln -snf "$child" "$t/${child##*/}"
+        fi
+      done
+    elif [ -f "$asset" ] && [ -f "$RENDER_DIR/$skill/$name" ]; then
+      rm -rf "$t"
+      ln -snf "$RENDER_DIR/$skill/$name" "$t"
+    elif [ -d "$t" ] && [ ! -L "$t" ] || [ "$(_link_target_abs "$t")" != "$asset" ]; then
+      rm -rf "$t"
+      ln -snf "$asset" "$t"
+    fi
+  done
+}
+
 _link_root_skill_alias() {
   local target="$SKILLS_DIR/_gstack-command"
 
@@ -399,6 +440,7 @@ for skill_dir in "$INSTALL_DIR"/*/; do
     fi
   fi
   ln -snf "$skill_md_src" "$target/SKILL.md"
+  _serve_rendered_assets "$skill" "$target"
   # Provenance marker on every platform (path-independent proof; on Windows
   # without Developer Mode `ln -snf` degrades to a copy and this is the only
   # proof), but only for a directory we created or already owned.
