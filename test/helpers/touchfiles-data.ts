@@ -642,6 +642,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // Learnings
   'learnings-show': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'learn/**', 'bin/gstack-learnings-search', 'bin/gstack-learnings-log', 'scripts/resolvers/learnings.ts', 'test/skill-e2e-learnings.test.ts'],
   // W1 safety-rule evals (test/helpers/safety-rules.ts registry; E3).
+  'safety-design-risk-stop': ['design-review/**', 'scripts/resolvers/browse.ts', 'scripts/resolvers/testing.ts', 'lib/aside-render.ts', 'test/skill-e2e-safety-design-risk.test.ts', 'test/helpers/browser-available.ts', 'test/helpers/aside-available.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts', 'test/helpers/llm-judge.ts'],
   'safety-codex-consult-embed': ['codex/**', 'bin/gstack-codex-probe', 'bin/gstack-paths', 'scripts/resolve-codex-generation-model.ts', 'test/skill-e2e-safety-codex-consult.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
   'safety-ios-demo-ui-only': ['ios-qa/**', 'test/skill-e2e-safety-ios-demo.test.ts', 'test/helpers/ios-stub-state-server.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
   'safety-pair-agent-block': ['pair-agent/**', 'browse/src/cli.ts', 'test/skill-e2e-safety-pair-agent.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
@@ -1336,6 +1337,7 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   // Learnings — gate (functional guardrail: seeded learnings must appear)
   'learnings-show': 'gate',
   // W1 safety-rule evals.
+  'safety-design-risk-stop': 'periodic',
   'safety-codex-consult-embed': 'gate',
   'safety-ios-demo-ui-only': 'periodic',
   'safety-pair-agent-block': 'gate',
@@ -1706,6 +1708,7 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'cso-infra-scope': 'rule',
   'learnings-show': 'rule',
   // W1 safety-rule evals.
+  'safety-design-risk-stop': 'rule',
   'safety-codex-consult-embed': 'rule',
   'safety-ios-demo-ui-only': 'rule',
   'safety-pair-agent-block': 'rule',
