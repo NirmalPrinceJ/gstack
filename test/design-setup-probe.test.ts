@@ -1,11 +1,16 @@
 /**
- * F3: the rendered taste-profile fence, executed with stub binaries.
- * The taste-profile probe double-quoted `~/.claude/...`, so it never found
+ * B4 (#1076, #1254) and F3: the rendered DESIGN SETUP and taste-profile fences,
+ * executed with stub binaries.
+ *
+ * B4: an executable design binary that dies at launch (SIGKILL from an invalid
+ * macOS code signature) used to print DESIGN_READY. Now the binary must start
+ * within 10 seconds; a success is cached by inode + mtime.
+ * F3: the taste-profile probe double-quoted `~/.claude/...`, so it never found
  * gstack-slug and always printed NO_TASTE_PROFILE; a failed slug lookup is now
  * reported as TASTE_PROFILE_UNAVAILABLE instead of "no profile".
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -43,6 +48,68 @@ beforeAll(async () => {
   if (r.exitCode !== 0) throw new Error(r.diagnostics.filter(d => d.kind === 'error').map(d => d.message).join('\n'));
 });
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+describe('B4: DESIGN_READY requires a binary that starts', () => {
+  for (const host of HOSTS) {
+    const setup = () => fenceAfter(path.join(host.dir('design-review'), 'SKILL.md'), '## DESIGN SETUP');
+
+    test(`${host.name}: a binary that launches is ready, and the success is cached by inode and mtime`, () => {
+      const w = world(host.root, 'exit 0');
+      const first = run(setup(), w);
+      expect(first.stdout.trim(), first.stderr).toBe(`DESIGN_READY: ${w.install}/design/dist/design`);
+      expect(run(setup(), w).stdout.trim()).toStartWith('DESIGN_READY: ');
+      expect(w.launches()).toBe(1);
+      fs.writeFileSync(path.join(w.install, 'design/dist/design'), `#!/bin/sh\necho launched >> "${w.home}/launches"\nexit 3\n`);
+      fs.utimesSync(path.join(w.install, 'design/dist/design'), new Date(), new Date(Date.now() + 5_000));
+      expect(run(setup(), w).stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design exited 3 at launch`);
+    });
+
+    test(`${host.name}: a binary killed at launch is not ready and names the fix`, () => {
+      const w = world(host.root, 'kill -9 $$');
+      const r = run(setup(), w);
+      expect(r.stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design exited 137 (killed at launch; on macOS usually an invalid code signature). Fix: cd ${w.install} && ./setup`);
+      expect(fs.existsSync(path.join(w.state, 'design-ready'))).toBe(false);
+    });
+
+    test(`${host.name}: a missing binary says how to install it`, () => {
+      const w = world(host.root, null);
+      expect(run(setup(), w).stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design is not installed. Fix: cd ${w.install} && ./setup`);
+    });
+  }
+
+  test('claude: without timeout, gtimeout or perl the launch is not attempted unbounded', () => {
+    const w = world(HOSTS[0].root, 'exit 0');
+    const bin = path.join(w.home, 'minbin');
+    fs.mkdirSync(bin);
+    for (const tool of ['ls', 'awk', 'stat', 'cat', 'git', 'bash', 'sh', 'env']) {
+      const found = spawnSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf8', timeout: 5_000 }).stdout.trim();
+      if (found) fs.symlinkSync(found, path.join(bin, tool));
+    }
+    const r = run(fenceAfter(path.join(HOSTS[0].dir('design-review'), 'SKILL.md'), '## DESIGN SETUP'), w, bin);
+    expect(r.stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: no timeout, gtimeout or perl to bound the ${w.install}/design/dist/design launch check`);
+    expect(w.launches()).toBe(0);
+  });
+
+  test('claude: a binary that hangs times out after 10 seconds', async () => {
+    const w = world(HOSTS[0].root, 'sleep 60');
+    const script = fenceAfter(path.join(HOSTS[0].dir('design-review'), 'SKILL.md'), '## DESIGN SETUP');
+    const stdout = await new Promise<string>((resolve, reject) => {
+      const child = spawn('env', ['-i', `HOME=${w.home}`, 'PATH=/usr/bin:/bin', 'bash', '-c', script], { cwd: w.cwd, timeout: 30_000 });
+      let text = '';
+      child.stdout.on('data', d => { text += d; });
+      child.on('error', reject);
+      child.on('close', () => resolve(text));
+    });
+    expect(stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design timed out after 10s at launch`);
+  }, 30_000);
+
+  test('office-hours visual exploration uses the same probe', () => {
+    const w = world(HOSTS[0].root, 'kill -9 $$');
+    const r = run(fenceAfter(path.join(HOSTS[0].dir('office-hours'), 'SKILL.md'), '## Visual Design Exploration'), w);
+    expect(r.stdout.trim()).toStartWith('DESIGN_NOT_AVAILABLE: ');
+    expect(r.stdout).toContain('exited 137 (killed at launch');
+  });
+});
 
 describe('F3: the taste profile loads, and a failed slug lookup is not "no profile"', () => {
   for (const skill of ['design-shotgun', 'design-consultation']) {
