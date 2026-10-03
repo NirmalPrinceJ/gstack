@@ -253,3 +253,35 @@ describe('committed calibration configurations and corpora', () => {
     expect(byId.voice!.verdict([voice(4), voice(4), voice(3)])).toBe('fail');
   });
 });
+
+describe('landed schemas match the recorded calibration', () => {
+  const evalSource = fs.readFileSync(path.join(import.meta.dir, 'skill-llm-eval.test.ts'), 'utf8');
+  const judgeSource = fs.readFileSync(path.join(import.meta.dir, 'helpers', 'llm-judge.ts'), 'utf8');
+  const result = (id: string) => JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures', 'judge-calibration', id, 'runs', 'comparison-1.result.json'), 'utf8'));
+  const wiring: Array<[string, string, string]> = [
+    ['qa-workflow', 'buildQaWorkflowJudgePrompt(section)', 'JUDGE_SCORE_SCHEMA'],
+    ['qa-health-rubric', 'buildQaHealthRubricJudgePrompt(section)', 'JUDGE_SCORE_SCHEMA'],
+    ['qa-anti-refusal', 'buildQaAntiRefusalJudgePrompt(diffAwareSection, rulesSection)', 'QA_ANTI_REFUSAL_JUDGE_SCHEMA'],
+    ['cross-skill', 'buildCrossSkillConsistencyJudgePrompt(collected)', 'CROSS_SKILL_CONSISTENCY_JUDGE_SCHEMA'],
+    ['voice', 'buildVoiceDirectiveJudgePrompt(voiceSection)', 'VOICE_DIRECTIVE_JUDGE_SCHEMA'],
+  ];
+
+  test.each(wiring)('%s sends its schema only when its complete calibration landed', (id, call, schema) => {
+    const recorded = result(id);
+    expect(recorded.complete).toBe(true);
+    const sent = evalSource.includes(`${call}, undefined, { jsonSchema: ${schema} })`);
+    expect(evalSource.includes(`${call})`) || sent).toBe(true);
+    expect(sent).toBe(recorded.landing.lands);
+  });
+
+  test('armJudge sends ARM_JUDGE_SCHEMA because its calibration landed', () => {
+    expect(result('arm').landing.lands).toBe(true);
+    expect(judgeSource).toContain('buildArmJudgePrompt(task, diff), ARM_JUDGE_MODEL, { jsonSchema: ARM_JUDGE_SCHEMA })');
+  });
+
+  test('uncalibrated workflow configurations stay on today\'s request; only ship keeps its existing schema', () => {
+    expect(fs.existsSync(path.join(import.meta.dir, 'fixtures', 'judge-calibration', 'workflow-default', 'runs'))).toBe(false);
+    expect(evalSource.match(/schemaTransport: true/g)).toHaveLength(1);
+    expect(evalSource.match(/compactReasoning: true/g)).toHaveLength(1);
+  });
+});
