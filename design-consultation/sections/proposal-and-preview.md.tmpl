@@ -111,13 +111,17 @@ echo "DESIGN_DIR: $_DESIGN_DIR"
 Brief: Phase 3 aesthetic/colors/type/spacing/layout plus Phase 1 product context:
 
 ```bash
-$D variants --brief "<product name: [name]. Product type: [type]. Aesthetic: [direction]. Colors: primary [hex], secondary [hex], neutrals [range]. Typography: display [font], body [font]. Layout: [approach]. Show a realistic [page type] screen with [specific content for this product].>" --count 3 --output-dir "$_DESIGN_DIR/"
+_OUT=$($D variants --brief "<product name: [name]. Product type: [type]. Aesthetic: [direction]. Colors: primary [hex], secondary [hex], neutrals [range]. Typography: display [font], body [font]. Layout: [approach]. Show a realistic [page type] screen with [specific content for this product].>" --count 3 --output-dir "$_DESIGN_DIR/"); _RC=$?
+printf '%s\n' "$_OUT"; echo "EXIT: $_RC"
 ```
 
-Run quality check on each successful path returned by `variants`; never include failed variants:
+<!-- design:round-accounting -->
+**Round accounting:** names are never overwritten (a taken one is bumped), so use only the printed `saved` paths. Tell the user how many of `requested` paid images were saved and name each `failures` entry. Exit 2 means nothing was saved: report `failures` and stop here (offer Path B or skip); run no `$D check` or board.
+
+Run quality check on each saved path, starting with the first; never include failed variants:
 
 ```bash
-$D check --image "$_DESIGN_DIR/variant-A.png" --brief "<the original brief>"
+$D check --image "<first path from the printed saved list>" --brief "<the original brief>"
 ```
 
 Read JSON, not exit code: `pass: false` means regenerate addressing `issues`, then recheck. `pass: true` with an unavailable/skipped warning is missing automated coverage; disclose it and inspect visually.
@@ -128,7 +132,7 @@ Read each accepted PNG inline, then open the board with those paths before invit
 
 {{DESIGN_SHOTGUN_LOOP}}
 
-After final image confirmation, `$D extract` would write DESIGN.md in a Git repo: run it only in a fresh non-repository scratch directory. Bind `$D` and `APPROVED_IMAGE` to absolute paths:
+After final image confirmation, `$D extract` would write DESIGN.md in a Git repo: run it only in a fresh non-repository scratch directory. Bind `$D` and `APPROVED_IMAGE` (the confirmed letter's `board-images.json` entry) to absolute paths:
 
 ```bash
 _EXTRACT_DIR=$(mktemp -d /tmp/gstack-design-extract-XXXXXXXX) || exit 1
@@ -144,7 +148,7 @@ _EXTRACT_DIR=$(mktemp -d /tmp/gstack-design-extract-XXXXXXXX) || exit 1
 
 Compare extracted tokens with the approved image and verified fonts; show discrepancies at Q-final. Empty arrays, an "Unable to extract" mood or command failure → disclose fallback to Phase 3 values, never invent measured tokens.
 
-Late visual changes return to the feedback loop: regenerate, recheck, reconfirm, then extract again. Only `generate` supplies `sessionFile` for `$D iterate --session "<returned sessionFile>" --feedback "<feedback>" --output "$_DESIGN_DIR/refined.png"`; variants must regenerate.
+Late visual changes return to the feedback loop: regenerate, recheck, reconfirm, then extract again. Only `generate` supplies `sessionFile` for `$D iterate --session "<returned sessionFile>" --feedback "<feedback>" --output "$_DESIGN_DIR/refined.png"`; use its printed `outputPath`. Variants must regenerate.
 
 **Plan mode:** Carry the approved mockup paths/tokens into Phase 6's "## Proposed DESIGN.md" plan section. Its Q-final approval governs saving that content; defer the actual DESIGN.md to implementation.
 
