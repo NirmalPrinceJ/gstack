@@ -96,7 +96,6 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'skillmd-no-local-binary':  [ 'SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-bws.test.ts'],
   'skillmd-outside-git':      [ 'SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-bws.test.ts'],
 
-  'session-awareness':        [ 'SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-bws.test.ts'],
   'operational-learning':     ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'scripts/resolvers/preamble.ts', 'bin/gstack-learnings-log', 'test/skill-e2e-bws.test.ts'],
 
   // QA (+ test-server dependency). /qa drives Aside first (the resolver) and
@@ -1150,7 +1149,6 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   'skillmd-setup-discovery': 'gate',
   'skillmd-no-local-binary': 'gate',
   'skillmd-outside-git': 'gate',
-  'session-awareness': 'gate',
   'operational-learning': 'gate',
 
   // P4 first-run scaffold — periodic (onboarding, non-safety, model-touched marker)
@@ -1613,7 +1611,6 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'skillmd-setup-discovery': 'rule',
   'skillmd-no-local-binary': 'rule',
   'skillmd-outside-git': 'rule',
-  'session-awareness': 'rule',
   'operational-learning': 'rule',
   'qa-quick': 'rule',
   'qa-b6-static': 'rule',
