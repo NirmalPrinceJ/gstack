@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fixtureDocs } from './helpers/docsync-fixture';
@@ -114,8 +114,25 @@ test('Git guidance uses the existing working directory without authorizing globa
     expect(guidance).toContain(command);
     expect(docsCommandAllowed(command, fixture)).toBe(true);
   }
-  for (const command of [`git -C ${fixture.repo} status`, `git --git-dir ${fixture.repo}/.git status`,
-    `git --work-tree ${fixture.repo} status`, 'git -c core.pager=cat status', `cd ${fixture.repo} && git status`]) {
+  for (const command of [`git --git-dir ${fixture.repo}/.git status`, `git --work-tree ${fixture.repo} status`]) {
     expect(docsCommandAllowed(command, fixture)).toBe(false);
   }
+});
+
+describe('stored docsync observer commands', () => {
+  const stored = JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures/docsync-observer-commands.json'), 'utf8')) as
+    { known_good: string[]; known_bad: string[] };
+  const fill = (command: string) => command.replaceAll('{repo}', fixture.repo).replaceAll('{other}', path.dirname(fixture.repo));
+  test.each(stored.known_good)('harmless read form is accepted: %s', command => {
+    expect(docsCommandAllowed(fill(command), fixture)).toBe(true);
+  });
+  test.each(stored.known_bad)('known-bad form stays rejected: %s', command => {
+    expect(docsCommandAllowed(fill(command), fixture)).toBe(false);
+  });
+  test('harmless wrappers never extend to lifecycle commands', () => {
+    for (const command of lifecycleCommands()) {
+      for (const suffix of [' 2>/dev/null', ' || true']) expect(docsCommandAllowed(command + suffix, fixture)).toBe(false);
+      expect(docsCommandAllowed(`cd ${fixture.repo} && ${command}`, fixture)).toBe(false);
+    }
+  });
 });

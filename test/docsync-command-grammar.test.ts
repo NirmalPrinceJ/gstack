@@ -64,13 +64,13 @@ test.each([
   'git rev-parse HEAD^{tree}{,x}', 'git rev-parse HEAD^{tree', 'git rev-parse HEAD^{tree}}',
   'git rev-parse {HEAD}', 'git rev-parse HEAD$(pwd)', 'git rev-parse "HEAD$(pwd)"',
   'git rev-parse `pwd`', 'git rev-parse ${HEAD}', 'git rev-parse HEAD; git status',
-  'git rev-parse HEAD && git status', 'git rev-parse HEAD || true', 'git rev-parse HEAD | cat',
-  'git rev-parse HEAD > out.md', 'git rev-parse HEAD 2>/dev/null', 'git rev-parse HEAD < in.md',
+  'git rev-parse HEAD && git status', 'git rev-parse HEAD | cat',
+  'git rev-parse HEAD > out.md', 'git rev-parse HEAD 2>/tmp/leak', 'git rev-parse HEAD < in.md',
   'git rev-parse HEAD\ngit status', 'git rev-parse HEAD &', 'git rev-parse HEAD\\^{tree}',
   'git rev-parse "HEAD^{tree}', "git rev-parse 'HEAD^{tree}", 'git rev-parse HEAD*',
   'git status "unfinished', "git status 'unfinished", "git hash-object '-w'app.ts", 'git status\u0000',
   'git rev-parse HEAD?', 'git rev-parse HEAD[12]', 'git rev-parse ~', 'git rev-parse HEAD # comment',
-  'git -C /owned/repo rev-parse HEAD', 'git -c core.pager=cat show HEAD',
+  'git -C /owned/repo rev-parse HEAD', "git -c core.pager='sh -c id' show HEAD",
   'git --git-dir /owned/repo/.git status', 'git --work-tree /owned/repo status',
   'git remote get-url origin', 'git remote add origin /outside', 'git config --global user.name attacker',
   'git hash-object -w app.ts', 'git hash-object "-w" app.ts', 'git hash-object -wt blob app.ts',
@@ -81,6 +81,12 @@ test.each([
 ])('native docs validator retains the closed interface for %s', command => {
   expect(docsToolFailures(nativeResult(command, 'successful tool acknowledgment', 'docs-dispatch'), fixture, [], true))
     .toEqual(['command outside declared docs observation interface']);
+});
+
+test('harmless read wrappers do not fail a docs run', () => {
+  for (const command of ['git rev-parse HEAD || true', 'git rev-parse HEAD 2>/dev/null', 'git -c core.pager=cat show HEAD']) {
+    expect(docsToolFailures(nativeResult(command, 'successful tool acknowledgment', 'docs-dispatch'), fixture, [], true)).toEqual([]);
+  }
 });
 
 test('quoted revision search and reflog arguments remain literal single arguments', () => {

@@ -189,9 +189,48 @@ Private artifact filenames must end in .json, .md or .markdown; .txt and .log fi
 Keep artifacts concise: update the invocation record in place with ids, counts, decisions and evidence paths. Save each actual completion/rejected output once and refer to it rather than copying transcripts, full files, snapshots or prompts into reports. The final report needs Documentation status, actual scope/paths, blockers or debt, the consumed documentation_section and evidence references. Preserve all consumed evidence; omit repeated narration. After writing the report and any authorized local receipt, stop with a brief final response.`;
 }
 
+const DOCS_READ_COMMANDS = ['pwd', 'ls', 'cat', 'sha256sum', 'stat'];
+const DOCS_GIT_READS = ['status', 'diff', 'show', 'log', 'ls-files', 'rev-parse', 'merge-base', 'hash-object'];
+const DOCS_SAFE_GIT_CONFIG = /^(?:core\.pager=cat|core\.quotepath=(?:true|false|on|off)|color\.[a-z.]+=(?:true|false|never|always|auto))$/i;
+
+/**
+ * Remove wrappers that cannot change what a read-only command does: a leading
+ * `cd <fixture repo> &&`, `2>/dev/null`, a trailing `|| true`, and Git global
+ * options that only point at the fixture repo or switch off paging/colour.
+ * Returns null when a Git global option could change behaviour.
+ */
+function unwrapHarmlessRead(text: string, fixture: ReturnType<typeof fixtureDocs>): string | null {
+  const unquote = (value: string) => value.replace(/^(['"])(.*)\1$/, '$2');
+  const sameRepo = (value: string) => {
+    try { return fs.realpathSync(unquote(value)) === fs.realpathSync(fixture.repo); } catch { return false; }
+  };
+  let out = text.replace(/\s+\|\|\s+true$/, '').replace(/\s+2>\s*\/dev\/null(?=\s|$)/g, '').trim();
+  const cd = /^cd\s+('[^']*'|"[^"]*"|\S+)\s+&&\s+/.exec(out);
+  if (cd && sameRepo(cd[1]!)) out = out.slice(cd[0].length);
+  const globals = /^git((?:\s+(?:--no-pager|-C\s+(?:'[^']*'|"[^"]*"|\S+)|-c\s+(?:'[^']*'|"[^"]*"|\S+)))+)(?=\s)/.exec(out);
+  if (!globals) return out;
+  for (const option of globals[1]!.matchAll(/(--no-pager)|-C\s+('[^']*'|"[^"]*"|\S+)|-c\s+('[^']*'|"[^"]*"|\S+)/g)) {
+    if (option[2] !== undefined && !sameRepo(option[2])) return null;
+    if (option[3] !== undefined && !DOCS_SAFE_GIT_CONFIG.test(unquote(option[3]))) return null;
+  }
+  return 'git' + out.slice(globals[0].length);
+}
+
 export function docsCommandAllowed(command: string, fixture: ReturnType<typeof fixtureDocs>, scripts: string[] = []): boolean {
   const text = command.trim();
   if (docsPreambleCommands(fixture).some(block => block.trim() === text)) return true;
+  // Harmless wrappers are accepted on read-only commands only; lifecycle and
+  // script calls must stay literal so their failures are not suppressed.
+  const unwrapped = unwrapHarmlessRead(text, fixture);
+  if (unwrapped !== text) {
+    if (unwrapped === null || !literalDocsCommandAllowed(unwrapped, fixture, [])) return false;
+    const name = unwrapped.split(/\s+/)[0]!;
+    return DOCS_READ_COMMANDS.includes(name) || name === 'git';
+  }
+  return literalDocsCommandAllowed(text, fixture, scripts);
+}
+
+function literalDocsCommandAllowed(text: string, fixture: ReturnType<typeof fixtureDocs>, scripts: string[]): boolean {
   if (/[\x00-\x08\x0a-\x1f\x7f;&|<>`$\\()]/.test(text)) return false;
   const args: string[] = [];
   const literal = /(?:'([^']*)'|"([^"]*)"|([^\s'"]+))(?:[ \t]+|$)/y;
@@ -208,12 +247,12 @@ export function docsCommandAllowed(command: string, fixture: ReturnType<typeof f
       /[{}]/.test(arg.replace(/(?:\^|@)\{[^{}]*\}/g, ''))))) return false;
   if (args.some(arg => path.basename(arg) === 'actor-state.json') &&
       !((commandName === 'bun' || commandName === process.execPath) && scripts.includes(rest[0]))) return false;
-  if (['pwd', 'ls', 'cat', 'sha256sum', 'stat'].includes(commandName)) return true;
+  if (DOCS_READ_COMMANDS.includes(commandName)) return true;
   if (commandName === 'git') {
     if (rest.some(arg => /^(?:--output|--ext-diff|--textconv|-w)(?:=|$)/.test(arg))) return false;
     if (rest[0] === 'hash-object' && rest.some(arg => /^-[^-]*w/.test(arg))) return false;
     if (rest[0] === 'branch') return rest.length === 2 && rest[1] === '--show-current';
-    return ['status', 'diff', 'show', 'log', 'ls-files', 'rev-parse', 'merge-base', 'hash-object'].includes(rest[0]);
+    return DOCS_GIT_READS.includes(rest[0]);
   }
   if (commandName === 'bun' || commandName === process.execPath) {
     return scripts.includes(rest[0]);
