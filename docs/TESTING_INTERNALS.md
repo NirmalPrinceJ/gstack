@@ -689,9 +689,10 @@ shard processes, serial within each, packed by recorded per-file durations
 when `scripts/free-test-durations.json` exists — refresh occasionally with
 `bun run test:free --record-durations`; strict-output classification per
 shard: a shard without bun's terminal summary line FAILS — silent truncation
-cannot report green). The former trailing serial tree-mutating shard is
-gone: `TREE_MUTATING` is empty (gen-skill-docs has a main() guard and
-`--out-dir` renders every host, so tests render into mkdtemps — see
+cannot report green). `TREE_MUTATING` lists the files that still run in their
+own trailing serial shard (today only `test/bootstrap-retention.test.ts`, for
+host-wide procfs visibility); gen-skill-docs tests no longer need it (main()
+guard, and `--out-dir` renders every host into mkdtemps — see
 docs/TESTING_INTERNALS.md). Never type bare `bun test` for the suite: it
 walks the whole repo, loading paid eval files and missing the strict
 classifier.
@@ -760,7 +761,8 @@ the run can also die to idle-sleep. `gstack-detach` fixes both: a fresh session
   (stray `claude`/`codex` grandchildren included), a per-shard
   `GSTACK_EVAL_DIR=<evalDir>/shards/<slug>/` honored by the `EvalCollector`
   constructor, and an aggregate that separates failed vs timed-out vs
-  never-started shards — the detach timeouts (47340s gate / 67380s periodic;
+  never-started shards — the detach timeouts (the `--timeout` values on
+  package.json's `eval:bg:gate` / `eval:bg:periodic`;
   floor enforced against the live shard census by
   test/eval-detach-timeout-floor.test.ts)
   are sized against worst-case shard wall clock. `EVALS_JOBS` sets the shard
@@ -773,7 +775,10 @@ the run can also die to idle-sleep. `gstack-detach` fixes both: a fresh session
 - Then **poll the printed logfile** with a death-aware watcher: break on the
   guaranteed `### gstack-detach EXIT=<code> ###` sentinel (success AND failure are
   both marked, so silence is never mistaken for success). The detached run survives
-  even if your watcher gets reaped, so re-checking the log always works.
+  even if your watcher gets reaped, so re-checking the log always works. Keep
+  checking until the sentinel appears or the user tells you to stop; a long run is
+  expected, and a promise to check later is not a result. At each check, report
+  which tests passed, which are still running, and any failures so far.
 - Why the lock: a shared dev box with several Conductor worktrees will rate-limit
   the model API if two eval suites run at once (15-way concurrency each), which
   mass-times-out E2E tests. The lock makes the second run WAIT, not collide.

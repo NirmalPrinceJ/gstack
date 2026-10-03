@@ -166,7 +166,7 @@ export const CARVE_GUARDS: Record<string, CarveGuard> = {
     // wave's headline capability) grows the union to 1.195x. Deliberate:
     // the section is on-demand (loads only for Apple store targets), so
     // per-invocation cost for non-iOS ships is one manifest line.
-    maxSizeRatio: 1.404, // Shared advisory identity/dedup + critical-severity validation: 248,065 union bytes / 187,706 baseline = 1.3216 (2026-09-17). + test value bar in the lazy Step 7 section (value cards, weak paths, gate table, base control, machine checks; ~13.6KB): measured 1.396 (2026-09-29). + W1 guarded state-root resolution (`eval gstack-paths; : "${GSTACK_STATE_ROOT:?…}"`) in the Context Recovery preamble, the eureka log and each state-writing bash block; measured 1.401 (2026-09-30). + the shared QA review step's plan-check timing rule (plan checks and their revalidation run on --timeout-ms after smoke expiry); measured 1.4022 (2026-09-30).
+    maxSizeRatio: 1.405, // Shared advisory identity/dedup + critical-severity validation: 248,065 union bytes / 187,706 baseline = 1.3216 (2026-09-17). + test value bar in the lazy Step 7 section (value cards, weak paths, gate table, base control, machine checks; ~13.6KB): measured 1.396 (2026-09-29). + W1 guarded state-root resolution (`eval gstack-paths; : "${GSTACK_STATE_ROOT:?…}"`) in the Context Recovery preamble, the eureka log and each state-writing bash block; measured 1.401 (2026-09-30). + the shared QA review step's plan-check timing rule (plan checks and their revalidation run on --timeout-ms after smoke expiry); measured 1.4022 (2026-09-30). + the shared TEST_BOOTSTRAP owned-change undo rules (s03 H1-H3, M1) and the value-bar coverage wording (s03 M2/M3); measured 1.4044 (2026-10-02).
   },
   'plan-ceo-review': {
     skill: 'plan-ceo-review',
@@ -409,8 +409,9 @@ do not launch the downstream skill or open a browser.`,
     // v1.64+v1.65 merge sums both waves' preamble growth; measured 1.073.
     // + W1 guarded state-root resolution in the Context Recovery preamble, the
     // eureka log, the office-hours lookup and the taste-profile read; measured
-    // 1.0834 (2026-09-30).
-    maxSizeRatio: 1.085,
+    // 1.0834 (2026-09-30). + named design-direction defaults to avoid in the native
+    // subagent prompt (s02 H4a); measured 1.0911 (2026-10-02).
+    maxSizeRatio: 1.092,
   },
   cso: {
     skill: 'cso',
@@ -536,7 +537,7 @@ do not launch the downstream skill or open a browser.`,
     },
     behavioral: 'prompt',
     maxSkeletonBytes: 74_500, // + Aside browser contract for Step 7 canary ({{ASIDE_SETUP}}); measured 73_523
-    maxSizeRatio: 1.10, // + v1.81 Aside contract + gstack-browser fallback block; measured 1.077
+    maxSizeRatio: 1.108, // + v1.81 Aside contract + gstack-browser fallback block; measured 1.077. + both untrusted-content marker formats in the browser fallback (W7f) + the readiness gate's project test command and live eval-store paths (s06 H6/H7); measured 1.1076 (2026-10-02).
     minUnionBytes: 91_000, // Phase 4 wave 1; estimated union ~94.9KB
     mustContain: ['readiness', 'merge', 'canary', 'revert', 'staging'],
   },
@@ -649,7 +650,7 @@ do not launch the downstream skill or open a browser.`,
         '## Phase 7: Triage',
         '## Phase 8: Fix Loop',
         '8e.5. Regression Test',
-        'WTF-LIKELIHOOD',
+        '### 8f. Self-Regulation',
         '## Additional Rules (qa-specific)',
         '## Output Structure',
       ],
@@ -667,7 +668,7 @@ do not launch the downstream skill or open a browser.`,
     },
     behavioral: 'prompt',
     maxSkeletonBytes: 63_500, // + v2.0 {{ASIDE_SETUP}}/{{BROWSE_FALLBACK}} (replaces the browse setup block); measured 61_253
-    maxSizeRatio: 1.103, // + v1.81 Aside contract + gstack-browser fallback block (1.080 on v1.91.7.0) + the shared test value bar at 8a.5 ({{TEST_VALUE_BAR:qa}}); measured 1.094 + W1 guarded state-root resolution (`eval gstack-paths; : "${GSTACK_STATE_ROOT:?…}"`) in the Context Recovery preamble, the eureka log and each state-writing bash block; measured 1.101 (2026-09-30) + v1.91.12.0 merge of #2999 (await scope/method Reads, capture --after checkpoints, browser-only empty evidence list) with #3002; measured 1.1028 (2026-10-01).
+    maxSizeRatio: 1.104, // + v1.81 Aside contract + gstack-browser fallback block (1.080 on v1.91.7.0) + the shared test value bar at 8a.5 ({{TEST_VALUE_BAR:qa}}); measured 1.094 + W1 guarded state-root resolution (`eval gstack-paths; : "${GSTACK_STATE_ROOT:?…}"`) in the Context Recovery preamble, the eureka log and each state-writing bash block; measured 1.101 (2026-09-30) + v1.91.12.0 merge of #2999 (await scope/method Reads, capture --after checkpoints, browser-only empty evidence list) with #3002; measured 1.1028 (2026-10-01). + both untrusted-content marker formats in the browser fallback (W7f); measured 1.1035 (2026-10-02).
     minUnionBytes: 69_500, // measured union 70,385
     // 'aside repl' pins the Aside contract; '$B goto' pins the fallback block in the always-loaded skeleton.
     mustContain: ['bug', 'aside repl', '$B goto', 'fix', 'Health Score Rubric', 'regression'],

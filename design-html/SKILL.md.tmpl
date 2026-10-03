@@ -231,8 +231,9 @@ _ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 [ -n "$_PRETEXT_VENDOR" ] && echo "VENDOR: $_PRETEXT_VENDOR" || echo "VENDOR_MISSING"
 ```
 
-- If `VENDOR` found: read the file and inline it in a `<script>` tag. The HTML file
-  is fully self-contained with zero network dependencies.
+- If `VENDOR` found: inline the file in a `<script type="module">` and put the page's
+  Pretext code after it in that same script; the bundle ends in `export {...}` and sets
+  no global. The HTML file is fully self-contained with zero network dependencies.
 - If `VENDOR_MISSING`: use CDN import as fallback:
   `<script type="module">import { prepare, layout, prepareWithSegments, walkLineRanges, layoutNextLine, layoutWithLines } from 'https://esm.sh/@chenglou/pretext'</script>`
   Add a comment: `<!-- FALLBACK: vendor/pretext.js missing, using CDN -->`
@@ -306,17 +307,20 @@ echo "SERVER: http://localhost:$_PORT/finalized.html"
 echo "PID: $_SERVER_PID"
 ```
 
+Remember the printed `SERVER:` URL and `PID:` value; each bash block is a fresh
+shell, so later blocks restate them literally.
+
 If python3 is not available, fall back to:
 ```bash
 open <path-to-finalized.html>
 ```
 
-Tell the user: "Live preview running at http://localhost:$_PORT/finalized.html.
+Tell the user: "Live preview running at <SERVER URL>.
 After each edit, just refresh the browser (Cmd+R) to see changes."
 
 When the refinement loop ends (Step 4 exits), kill the server:
 ```bash
-kill $_SERVER_PID 2>/dev/null || true
+kill <PID> 2>/dev/null || true
 ```
 
 ---
@@ -377,7 +381,7 @@ LOOP:
   5. Apply feedback using targeted Edit tool changes on the HTML file
      (do NOT regenerate the entire file — surgical edits only)
 
-  6. Brief summary of what changed (2-3 lines max)
+  6. Briefly say what changed
 
   7. If verification screenshots are available, re-take them to confirm the fix
 

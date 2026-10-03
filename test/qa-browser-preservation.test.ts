@@ -78,6 +78,18 @@ describe('compact QA bootstrap preserves native detection', () => {
     expect(bootstrap).not.toContain('git checkout --');
     expect(bootstrap).not.toContain('delete silently');
   });
+
+  test('shared {{TEST_BOOTSTRAP}} copy undoes only owned changes, like the QA copy', () => {
+    for (const skillName of ['ship', 'design-review']) {
+      const shared = generateTestBootstrap({ ...ctx, skillName });
+      expect(shared).not.toContain('git checkout --');
+      expect(shared).not.toMatch(/delete silently/i);
+      expect(shared).not.toMatch(/revert all bootstrap changes/i);
+      expect(shared).toMatch(/undo only/i);
+      expect(shared).toMatch(/preserve the user's edits/i);
+      expect(shared).toMatch(/unrelated edits are already staged, stop/i);
+    }
+  });
 });
 
 async function runRecipe(marker: string, options: { flow?: boolean; hostname?: string; response?: string } = {}) {
@@ -217,7 +229,8 @@ describe('compact QA browser recipes retain native operations', () => {
     const classification = section('### 8e.', '### 8e.5.');
     for (const rule of ['passed 8c', 'native regression when available', 'disclose missing test coverage', "undo only this run's repair", 'revert its commit if already committed', 'retain the valid regression/evidence', '"deferred"', 'Never discard user changes']) expect(classification).toContain(rule);
     const regulation = section('### 8f.', '## Phase 9:');
-    for (const rule of ['Every 5 fixes (or after any revert)', 'WTF > 20%', 'STOP immediately', 'Ask whether to continue', 'Hard cap: 50 fixes']) expect(regulation).toContain(rule);
+    for (const rule of [/every 5 fixes/i, /after any revert/i, /STOP immediately/i, /ask whether to continue/i, /Hard cap: 50 fixes/]) expect(regulation).toMatch(rule);
+    for (const signal of [/STOP immediately/i, /revert/i, /unrelated/i]) expect(regulation).toMatch(signal);
     expect(source).toContain('When in doubt, stop and ask');
     const rules = source.slice(source.indexOf('## Additional Rules'));
     for (const rule of ['Outside an explicitly approved browser bootstrap', 'Only create tests through authorized codification in Phase 8a.5', 'Never modify CI configuration or weaken existing tests', 'use new native test files']) expect(rules).toContain(rule);

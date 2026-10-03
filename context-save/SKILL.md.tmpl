@@ -7,8 +7,6 @@ description: |
   so any future session can pick up without losing a beat.
   Use when asked to "save progress", "save state", "context save", or
   "save my work". Pair with /context-restore to resume later.
-  Formerly /checkpoint — renamed because Claude Code treats /checkpoint as a
-  native rewind alias in current environments, which was shadowing this skill.
   (gstack)
 allowed-tools:
   - Bash
@@ -48,7 +46,7 @@ If the user provides a title after the command (e.g., `/context-save auth refact
 use it as the title. Otherwise, infer a title from the current work.
 
 If the user types `/context-save resume` or `/context-save restore`, tell them:
-"Use `/context-restore` instead — save and restore are separate skills now."
+"Use `/context-restore` to resume — restoring is a separate skill."
 
 ---
 
@@ -184,8 +182,7 @@ modified files). Use relative paths from the repo root. Do not write `remote:` o
 `project_root:` yourself; the stamp step below adds them.
 
 Then stamp the project identity. Several projects can share one checkpoints
-directory (GitLab nested groups did before #3003), so `/context-restore` needs to
-know which project wrote each file. The helper adds `remote:` (canonical origin:
+directory, so `/context-restore` needs to know which project wrote each file. The helper adds `remote:` (canonical origin:
 lowercased host, no credentials, port or `.git`) and `project_root:` to the
 frontmatter:
 
@@ -281,5 +278,4 @@ If there are no saved contexts, tell the user: "No saved contexts yet. Run
 - **Infer, don't interrogate.** Use git state and conversation context to fill in
   the file. Only use AskUserQuestion if the title genuinely cannot be inferred.
 - **This is a gstack skill, not a Claude Code built-in.** When the user types
-  `/context-save`, invoke this skill via the Skill tool. The old `/checkpoint`
-  name collided with Claude Code's native `/rewind` alias — the rename fixed that.
+  `/context-save`, invoke this skill via the Skill tool.

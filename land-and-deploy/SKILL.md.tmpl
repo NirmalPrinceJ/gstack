@@ -495,7 +495,7 @@ Recheck read-only evidence; never redo a merge/deploy because a section was miss
 
 - Never force-push, bypass CI, replay a confirmed merge, or hide missing evidence.
 - Auto-detect facts; ask when unknown or when an explicit approval gate applies.
-- Poll at 30-second intervals with the stated deadlines and progress messages.
+- Poll at each step's stated interval and deadline (4-minute CI rounds in Step 3; 30 seconds for merge readback and deploy status), with its progress messages.
 - After merge failures, offer approved rollback when appropriate; never revert a rollback automatically.
 - Verify once; `/canary` provides extended monitoring. Rechecks require the user's choice.
 - Use `--delete-branch`; reconcile failed cleanup non-destructively with confirmation.

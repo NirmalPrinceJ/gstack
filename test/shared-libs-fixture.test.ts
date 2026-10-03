@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   createSharedInteractiveToolHandler, createSharedLibsFixture, fixtureGit, fixtureWrite, installSourceShims,
   installHostileGitConfig, isGuardedGitRequest, reviewLifecycleInstructions, standaloneInstructions, SHARED_LIBS_ROOT, readRequests, seedOpportunitySources, sharedReadOnlyViolations, shellQuote, snapshotFixture, type SharedLibsFixture,
-  SharedCaptureAccumulator, type SharedCaptureAttempt, isInternalClaudeGitRequest, SHARED_LIBS_OLDER_OPEN_PRS, incompleteFirstFileView,
+  SharedCaptureAccumulator, type SharedCaptureAttempt, isInternalClaudeGitRequest, SHARED_LIBS_OLDER_OPEN_PRS, prCoverageRequestViolations,
 } from './helpers/shared-libs-eval-fixture';
 import { EvalCollector, type EvalTestEntry } from './helpers/eval-store';
 import { collectorOutcomeCounts } from '../scripts/test-paid-shards';
@@ -1075,7 +1075,12 @@ describe('shared-code PR coverage world', () => {
 
   test('the maximum authorized open-metadata scan still leaves older open PRs unchecked', () => {
     const periodic = fs.readFileSync(path.join(import.meta.dir, 'skill-e2e-shared-libs-periodic.test.ts'), 'utf8');
-    expect(periodic).toContain('expect(openPages.length).toBeLessThanOrEqual(5);');
+    expect(periodic).toContain('prCoverageRequestViolations(');
+    const sixth = Array.from({ length: 6 }, (_, i) => `/repos/fixture/shared-libs/pulls?state=open&per_page=100&page=${i + 1}`);
+    expect(prCoverageRequestViolations([...sixth.slice(0, 5), '/repos/fixture/shared-libs/pulls/42/files?page=1',
+      '/repos/fixture/shared-libs/pulls/42/files?page=2'])).toEqual([]);
+    expect(prCoverageRequestViolations([...sixth, '/repos/fixture/shared-libs/pulls/42/files?page=1',
+      '/repos/fixture/shared-libs/pulls/42/files?page=2'])).toEqual(['6 open-PR metadata pages exceed the budget of 5']);
     const f = createSharedLibsFixture('pr-world-budget');
     cleanup.push(f.root);
     seedOpportunitySources(f);
@@ -1711,23 +1716,6 @@ describe('retained native runtime callback failures', () => {
   });
 });
 
-describe('incompleteFirstFileView (census 36641820398 shared-libs-pr-coverage)', () => {
-  const call = (command: string, output: string) => ({ tool: 'Bash', input: { command }, output });
-  const page1 = 'gh api --method GET "/repos/fixture/shared-libs/pulls/42/files?per_page=100&page=1" 2>&1 | jq -c \'if type=="array" then (length, .[] | {filename,status}) else . end\'';
-  test('a first page-1 view whose jq filter failed without printing files is incomplete', () => {
-    const failed = call(`echo "--- PR 42 metadata"; gh api --method GET /repos/fixture/shared-libs/pulls/42 | jq -c .number; echo "--- PR 42 files page 1"; ${page1}`,
-      'Exit code 5\n--- PR 42 metadata\n42\n--- PR 42 files page 1 [file-list unit 1]\njq: error (at <stdin>:1): Cannot index number with string "filename"');
-    expect(incompleteFirstFileView({ toolCalls: [failed, call(page1, '{"count":100,"files":[{"filename":"docs/coordination-0.md"}]}')] }, 42)).toBe(true);
-  });
-  test('head truncation still counts; a complete first view or a later-page error does not', () => {
-    expect(incompleteFirstFileView({ toolCalls: [call(`${page1} | head -c 4000`, '{"filename":"a"')] }, 42)).toBe(true);
-    expect(incompleteFirstFileView({ toolCalls: [call(page1, '{"count":100,"files":[{"filename":"docs/coordination-0.md"}]}')] }, 42)).toBe(false);
-    expect(incompleteFirstFileView({ toolCalls: [call(page1, 'jq: error (at <stdin>:1): x\n{"filename": "docs/a.md"}')] }, 42)).toBe(false);
-    expect(incompleteFirstFileView({ toolCalls: [call(page1.replace('&page=1', '&page=2'), 'jq: error (at <stdin>:1): x')] }, 42)).toBe(false);
-    expect(incompleteFirstFileView({ toolCalls: [call(page1.replace('/pulls/42/', '/pulls/7/'), 'jq: error (at <stdin>:1): x')] }, 42)).toBe(false);
-  });
-});
-
 describe('skip actor: deferred-reuse wording in a Skip option (PR lane run 36641824710)', () => {
   const question = (skipDescription: string) => ({ questions: [{
     question: '[ADVISORY] src/retry-worker.ts:2 — the worker now duplicates the tested `retrySeconds` helper from lib/retry-after.ts. How should this be handled? RECOMMENDATION: A (Fix).',
@@ -1750,3 +1738,23 @@ describe('skip actor: deferred-reuse wording in a Skip option (PR lane run 36641
     await expect(answer('Records an explicit Skip so a future review can reuse the helper once snapshot coverage holds.')).rejects.toThrow('No unambiguous no-change option');
   });
 });
+
+// Stored gh/curl endpoint lists for the PR coverage request budget.
+{
+  const stored = JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures/shared-libs/pr-coverage-endpoints.json'), 'utf8')) as
+    { known_good: Record<string, string[]>; known_bad: Record<string, string[]> };
+
+  describe('shared-libs PR coverage request budget', () => {
+    test.each(Object.entries(stored.known_good))('passes %s', (_name, endpoints) => {
+      expect(prCoverageRequestViolations(endpoints)).toEqual([]);
+    });
+    test.each(Object.entries(stored.known_bad))('fails %s', (_name, endpoints) => {
+      expect(prCoverageRequestViolations(endpoints).length).toBeGreaterThan(0);
+    });
+    test('file-list pages beyond the stated budget fail', () => {
+      const pages = Array.from({ length: 52 }, (_, i) => `/repos/fixture/shared-libs/pulls/${i < 2 ? 42 : 100 + i}/files?per_page=100&page=${i < 2 ? i + 1 : 1}`);
+      expect(prCoverageRequestViolations(pages)).toEqual(['52 file-list pages exceed the budget of 50 plus PR 7']);
+      expect(prCoverageRequestViolations(pages.slice(0, 51))).toEqual([]);
+    });
+  });
+}

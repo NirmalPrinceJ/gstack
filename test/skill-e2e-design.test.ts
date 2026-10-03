@@ -707,12 +707,16 @@ Review the site at ${serverUrl}. Use --quick mode. Skip any AskUserQuestion call
     const reportPath = path.join(qaDesignDir, 'design-audit.md');
     const reportExists = fs.existsSync(reportPath);
 
-    // Check if any design fix commits were made
-    const gitLog = spawnSync('git', ['log', '--oneline'], {
+    // Outcome: the report names a seeded defect, and the page changed (committed
+    // or not) relative to the initial fixture commit. The commit prefix is not required.
+    const report = reportExists ? fs.readFileSync(reportPath, 'utf-8') : '';
+    const namesSeededDefect = /4[78]px|line-height|border-radius|radius|padding|spacing|heading/i.test(report);
+    const initialCommit = spawnSync('git', ['rev-list', '--max-parents=0', 'HEAD'], {
       cwd: qaDesignDir, stdio: 'pipe', timeout: 30_000,
-    });
-    const commits = gitLog.stdout.toString().trim().split('\n');
-    const designFixCommits = commits.filter((c: string) => c.includes('style(design)'));
+    }).stdout.toString().trim();
+    const pageChanged = spawnSync('git', ['diff', '--name-only', initialCommit, '--', 'index.html', 'style.css'], {
+      cwd: qaDesignDir, stdio: 'pipe', timeout: 30_000,
+    }).stdout.toString().trim() !== '';
 
     // The agent must actually drive Aside: an `aside repl` Bash call, a printed sentinel
     // (from a tool_result, never the input), and no reach for the retired browse binary.
@@ -724,7 +728,8 @@ Review the site at ${serverUrl}. Use --quick mode. Skip any AskUserQuestion call
     const usedBrowseBin = bashCommands.some(c => /browse\/dist\/browse|\$B /.test(c));
 
     recordE2E(evalCollector, '/design-review fix', 'Design Review E2E', result, {
-      passed: ['success', 'error_max_turns'].includes(result.exitReason) && droveAside && sentinelPrinted && !usedBrowseBin,
+      passed: ['success', 'error_max_turns'].includes(result.exitReason) && droveAside && sentinelPrinted && !usedBrowseBin
+        && reportExists && namesSeededDefect && pageChanged,
     });
 
     // Accept error_max_turns — the fix loop is complex
@@ -732,15 +737,9 @@ Review the site at ${serverUrl}. Use --quick mode. Skip any AskUserQuestion call
     expect(droveAside).toBe(true);
     expect(sentinelPrinted).toBe(true);
     expect(usedBrowseBin).toBe(false);
-
-    // Report and commits are best-effort — log what happened
-    if (reportExists) {
-      const report = fs.readFileSync(reportPath, 'utf-8');
-      console.log(`Design audit report: ${report.length} chars`);
-    } else {
-      console.warn('No design-audit.md generated');
-    }
-    console.log(`Design fix commits: ${designFixCommits.length}`);
+    expect(reportExists, 'design-audit.md must be written').toBe(true);
+    expect(namesSeededDefect, 'the report names a seeded design defect').toBe(true);
+    expect(pageChanged, 'at least one design issue is fixed in index.html or style.css').toBe(true);
   }, CAPTURE_LONG_MS);
 });
 

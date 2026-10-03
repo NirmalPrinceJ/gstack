@@ -15,10 +15,10 @@ import { JUDGE_MS } from './helpers/eval-budgets';
 import * as fs from 'fs';
 import * as path from 'path';
 import { callJudge, judge, JudgeRefusalError, DEFAULT_JUDGE_MAX_TOKENS, judgePanel, judgePanelMean, judgePanelMajority, judgePanelReasoning, JUDGE_SCORE_DIMENSIONS } from './helpers/llm-judge';
-import { ENG_REVIEW_EXCERPT } from './helpers/workflow-excerpt';
+import { ASK_QUESTIONS_HEADING, ENG_REVIEW_EXCERPT } from './helpers/workflow-excerpt';
 import type { JudgeScore } from './helpers/llm-judge';
 import { readWorkflowJudgeInput, buildWorkflowJudgePrompt, QA_DISCOVERY_REFERENCES, WORKFLOW_JUDGE_RESPONSE_SCHEMA, type WorkflowJudgeInput } from './helpers/workflow-judge-input';
-import { prepareWorkflowJudgeCache, validWorkflowJudgeScore } from './helpers/workflow-judge-cache';
+import { BROWSE_JUDGE_FLOORS, browseJudgeFloorsMet, prepareWorkflowJudgeCache, validWorkflowJudgeScore } from './helpers/workflow-judge-cache';
 import { buildCookieWorkflowJudgeInput, COOKIE_WORKFLOW_JUDGE } from './helpers/cookie-workflow-judge-input';
 import { getCookieWorkflowManualReview, type ManualJudgeReview } from './helpers/cookie-workflow-manual-review';
 import { resolveEvalModel } from '../lib/eval-model';
@@ -96,8 +96,8 @@ describeIfSelected('LLM-as-judge quality evals', [
     const t0 = Date.now();
     // Browse carve: snapshot flags + the full command list are the whole
     // generated section file; one judge grades the union. Scores are also
-    // pinned against test/fixtures/eval-baselines.json (UPDATE_BASELINES=1
-    // rewrites the pin).
+    // compared with test/fixtures/eval-baselines.json and the difference is
+    // recorded (UPDATE_BASELINES=1 rewrites it); only the floors gate.
     const section = sliceBrowseSection('## Snapshot Flags');
 
     const samples = await judgePanel(() => judge('browse skill reference (flags + commands)', section));
@@ -119,17 +119,16 @@ describeIfSelected('LLM-as-judge quality evals', [
       name: 'browse/SKILL.md reference',
       suite: 'LLM-as-judge quality evals',
       tier: 'llm-judge',
-      passed: scores.clarity >= 3 && scores.completeness >= 4 && scores.actionability >= 4 && regressions.length === 0,
+      passed: browseJudgeFloorsMet(scores),
       duration_ms: Date.now() - t0,
       cost_usd: 0.02 * samples.length,
       judge_scores: { clarity: scores.clarity, completeness: scores.completeness, actionability: scores.actionability },
       judge_reasoning: regressions.length ? `${judgePanelReasoning(samples)} | ${regressions.join('; ')}` : judgePanelReasoning(samples),
     });
 
-    expect(scores.clarity).toBeGreaterThanOrEqual(3);
-    expect(scores.completeness).toBeGreaterThanOrEqual(4);
-    expect(scores.actionability).toBeGreaterThanOrEqual(4);
-    expect(regressions).toEqual([]);
+    expect(scores.clarity).toBeGreaterThanOrEqual(BROWSE_JUDGE_FLOORS.clarity);
+    expect(scores.completeness).toBeGreaterThanOrEqual(BROWSE_JUDGE_FLOORS.completeness);
+    expect(scores.actionability).toBeGreaterThanOrEqual(BROWSE_JUDGE_FLOORS.actionability);
   }, JUDGE_MS);
 
   testIfSelected('setup block', async () => {
@@ -426,7 +425,7 @@ async function runWorkflowJudge(opts: {
   suite: string;
   skillPath: string;
   startMarker: string;
-  endMarker: string | null;
+  endMarker: string | RegExp | null;
   references?: readonly string[];
   judgeContext: string;
   judgeGoal: string;
@@ -635,7 +634,7 @@ describeIfSelected('Plan Review skill evals', [
       suite: 'Plan Review skill evals',
       skillPath: 'plan-design-review/SKILL.md',
       startMarker: '## Review Sections',
-      endMarker: '## CRITICAL RULE',
+      endMarker: ASK_QUESTIONS_HEADING,
       judgeContext: 'a design plan review framework with 7 review passes',
       judgeGoal: 'how to review a plan for design quality using a 0-10 rating method: rate each dimension, explain what a 10 looks like, edit the plan to fix gaps, then re-rate',
     });

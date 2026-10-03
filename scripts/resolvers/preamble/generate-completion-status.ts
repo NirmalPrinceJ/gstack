@@ -48,13 +48,12 @@ Escalate after 3 failed attempts, uncertain security-sensitive changes, or scope
 
 ## Operational Self-Improvement
 
-Before completing, review the session for durable learnings and log each one —
-this step ALWAYS runs, it is not conditional on something feeling noteworthy
-(#2402: 43 of 44 learnings came from explicit /learn because "if you
-discovered" read as optional). A durable learning is a project quirk, command
-fix, pitfall, or pattern that would save 5+ minutes in a future session. If
-the review genuinely surfaces none, state "No durable learnings this session"
-in your completion summary — an explicit empty result, not a skipped step.
+Before completing, review the session for durable learnings and log each one.
+The review runs every time, not only when something felt noteworthy. A durable
+learning is a project quirk, command fix, pitfall, or pattern that would save
+5+ minutes in a future session. If the review genuinely surfaces none, state
+"No durable learnings this session" in your completion summary — an explicit
+empty result, not a skipped step.
 
 \`\`\`bash
 ${ctx.paths.binDir}/gstack-learnings-log '{"skill":"SKILL_NAME","type":"operational","key":"SHORT_KEY","insight":"DESCRIPTION","confidence":N,"source":"observed"}'
@@ -70,7 +69,7 @@ preamble's skill-start output echoed. It also drains the artifacts-sync queue
 (the former skill-end sync step — do not run gstack-brain-sync separately).
 
 **PLAN MODE EXCEPTION — ALWAYS RUN:** This writes telemetry to
-\`~/.gstack/analytics/\`, matching preamble analytics writes.
+\`$GSTACK_STATE_ROOT/analytics/\`, matching preamble analytics writes.
 
 \`\`\`bash
 ${ctx.paths.binDir}/gstack-skill-end --skill "${ctx.skillName}" --outcome OUTCOME \\

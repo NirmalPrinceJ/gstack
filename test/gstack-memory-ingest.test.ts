@@ -791,7 +791,22 @@ function isolateGitRemote(repo: string, url: string): void {
   expect(git("remote", "get-url", "origin")).toBe(url);
 }
 
+/**
+ * These cases exercise transcript ingest after the user consented, so the
+ * isolated state root gets `transcript_ingest_mode: recent` unless the case
+ * set the key itself. The no-consent paths live in
+ * gstack-gbrain-sync-transcript-mode.test.ts.
+ */
+function seedTranscriptConsent(gstackHome: string | undefined): void {
+  if (!gstackHome) return;
+  mkdirSync(gstackHome, { recursive: true });
+  const config = join(gstackHome, "config.yaml");
+  const current = existsSync(config) ? readFileSync(config, "utf-8") : "";
+  if (!/^transcript_ingest_mode:/m.test(current)) writeFileSync(config, `${current}transcript_ingest_mode: recent\n`);
+}
+
 function runScript(args: string[], env: Record<string, string> = {}): { stdout: string; stderr: string; exitCode: number } {
+  seedTranscriptConsent(env.GSTACK_HOME);
   const result = spawnSync("bun", [SCRIPT, ...args], {
     encoding: "utf-8",
     timeout: 30000,

@@ -71,11 +71,13 @@ function pathCaptureAdapter(capture: (...args: any[]) => Promise<any>) {
 }
 
 describe('bounded shared-code revalidation prompt', () => {
+  // The harness prompt's wording is not a contract: the paid shared-libs E2Es
+  // measure whether it works. These checks keep its machine-shaped parts:
+  // exact receipt commands, interpolated paths and budgets, branch selection,
+  // prefix/suffix identity, ordering and the absence of a supplied token.
   test('the actor scope replaces the captured R59 exploratory stage instead of adding another prerequisite', () => {
     const prompt = reviewPrompt(f, instructions, input, { actorCommand: 'cat /fixture/stage-output.json' });
-    expect(prompt).toContain('replaces the entire Step 4.7 QA and Step 4.8 native adversarial stages');
-    expect(prompt).toContain("Step 4's early QA selection/method-loading prerequisites");
-    expect(prompt).toContain("Step 5.8's QA report requirement");
+    expect(prompt).toContain('cat /fixture/stage-output.json');
     const excluded = prompt.slice(prompt.indexOf('Do not perform QA scope/method asset loads'), prompt.indexOf('Existing tests'));
     for (const packet of stageScope.outside_component) {
       expect(packet.result.tool_use_id).toBe(packet.call.id);
@@ -85,26 +87,15 @@ describe('bounded shared-code revalidation prompt', () => {
     }
     expect(stageScope.post_fix_verification.call.input.command).toContain('bun test test/retry-after.test.ts');
     expect(stageScope.post_fix_verification.result.content).toContain('worker===lib true route===lib true');
-    expect(prompt).toContain('Existing tests and caller/import checks needed to verify your source fixes still run');
-    expect(prompt).toContain('do not restart exploratory QA or require QA artifacts');
-    for (const retained of ['core/checklist', 'source/identity/snapshot checks', 'Fix-First decisions', 'approved source edits',
-      're-review with a new REVIEW_START', 'zero-edit convergence', 'final persistence', 'Missing, failed, stale or wrong-state results require noncompletion',
-      'no actual native coverage credit', 'Separate genuine QA/native evaluations remain required']) expect(prompt).toContain(retained);
     for (const other of [reviewPrompt(f, instructions, input), reviewRevalidationPrompt(f, instructions, input),
       reviewRevalidationPrompt(f, instructions, input, { input: '/fixture/resumed.json', checkCommand: 'check-prerequisites' })]) {
       expect(other).not.toContain('Do not perform QA scope/method asset loads');
     }
   });
 
-  test('edit-capable replay declares fresh actor invocations instead of refreshing settled input', () => {
+  test('edit-capable replay declares its actor instead of the fixed revalidation coverage', () => {
     const prompt = reviewPrompt(f, instructions, input, { actorCommand: 'cat /fixture/stage-output.json' });
-    expect(prompt).toContain('explicitly declared SYNTHETIC prerequisite actor');
-    for (const rule of ['each review pass', 'NEW synthetic result', 'exact current state and tool-use ID',
-      'All prior receipts are preserved', 'Source-changing cycles invalidate earlier results',
-      'invoke the actor again on the new zero-edit pass', "Never refresh an old receipt's hashes",
-      'Missing, failed, stale or wrong-state results require noncompletion', 'cannot complete core/checklist review',
-      'only a current settled:true actor result from the final pass supplies the replaced Step 4.7 QA and Step 4.8 native adversarial prerequisites',
-      'a reporting label, not a missing stage', 'no actual native coverage credit']) expect(prompt).toContain(rule);
+    expect(prompt).toContain('cat /fixture/stage-output.json');
     expect(prompt).not.toContain('Required reviewer coverage for this scoped replay');
     expect(prompt).not.toContain('Do not edit target source');
   });
@@ -113,19 +104,15 @@ describe('bounded shared-code revalidation prompt', () => {
     const resumed = { input: '/isolated/synthetic-prerequisites.json', checkCommand: 'fixture-prerequisite-check' };
     const original = reviewRevalidationPrompt(f, instructions, input);
     const prompt = reviewRevalidationPrompt(f, instructions, input, resumed);
-    expect(original).toContain('Required reviewer coverage for this scoped replay is the core/checklist review plus the supplied completed maintainability result.');
+    expect(original).toContain('Required reviewer coverage for this scoped replay');
     expect(prompt).not.toContain('Required reviewer coverage for this scoped replay');
-    expect(prompt).toContain('SYNTHETIC settled Step 4.7 QA and Step 4.8 native adversarial');
-    for (const requirement of ['not evidence that this model executed those stages', 'never actual native coverage credit',
-      'Missing, failed, blocked, malformed or stale prerequisites require noncompletion', 'unchanged COMPLETED and CONVERGED rules',
-      'Any source, branch, base, index or configuration change invalidates', 'do not regenerate them',
-      'A finding that requires edits blocks this bounded replay', resumed.input, resumed.checkCommand,
-      "replace Step 4's early QA selection and method-loading prerequisites", 'read no QA scope or method assets']) expect(prompt).toContain(requirement);
-    expect(original).not.toContain('read no QA scope or method assets');
+    expect(prompt).toContain(resumed.input);
+    expect(prompt).toContain(resumed.checkCommand);
     expect(prompt.slice(prompt.indexOf('Revalidation fixture execution contract:')))
       .toBe(original.slice(original.indexOf('Revalidation fixture execution contract:')));
+    // The review completion rule names both prerequisite stages by step number.
     const production = fs.readFileSync(path.join(SHARED_LIBS_ROOT, 'review/SKILL.md.tmpl'), 'utf8');
-    expect(production).toContain('Step 4.8 adversarial pass finish, and every required Step 4.7 probe passes.');
+    expect(production.split('\n').some(line => /Step 4\.8\b/.test(line) && /Step 4\.7\b/.test(line))).toBe(true);
   });
 
   test('adds execution guidance after the complete shared prompt without supplying an answer or token', () => {
@@ -135,64 +122,32 @@ describe('bounded shared-code revalidation prompt', () => {
     const contract = prompt.slice(base.length);
     expect(contract).toContain(`${SHARED_INTERACTIVE_MAX_TURNS} assistant turns`);
     expect(contract).toContain(path.join(f.state, 'projects/fixture-shared-libs/.review-starts/<REVIEW_START>.json'));
-    expect(contract).toContain('token actually returned by --start');
-    expect(contract).toContain('separate, successful Read tool call or a single cat command');
-    expect(contract).toContain('Verify its repo, branch, working tree and start time');
-    expect(contract).toContain('Do not combine the record read with --start, the diff or other diagnostic commands');
-    expect(contract).toContain('if the read fails, retry it before proceeding');
-    expect(contract).toContain('Do not read the diff until step 2 verifies the start record');
+    expect(contract.indexOf('Read that token\'s record')).toBeGreaterThan(-1);
     expect(contract.indexOf('Read that token\'s record')).toBeLessThan(contract.indexOf('Then read the diff in a subsequent call'));
     expect(contract).not.toMatch(/[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}/);
-    expect(prompt).toContain(`${SHARED_LIBS_ROOT}/review/sections/shared-code-reuse.md (Step 5.0 requires it for the supplied prior Skip)`);
+    expect(prompt).toContain(`${SHARED_LIBS_ROOT}/review/sections/shared-code-reuse.md`);
     expect(prompt.indexOf('Your first response holds')).toBeLessThan(prompt.indexOf("gstack-review-log' --start review"));
-    expect(prompt).toContain('Keep the final review summary to at most twelve lines');
-    expect(base).not.toContain('Keep the final review summary');
-    expect(contract).toContain('Batch independent required source reads');
-    expect(contract).toContain('Preserve every required evidence check and dependency');
-    expect(contract).toContain('complete, untruncated read-back');
-    expect(contract).toContain('same tool invocation');
-    expect(contract).toContain('then return the final review summary');
-    expect(contract).toContain('Failed persistence or verification remains a failure');
-    expect(contract).toContain("Late source changes still require the workflow's normal re-review");
     expect(contract).not.toContain('choose Skip');
   });
 
-  test('declares isolated receipt commands, direct reads and a separate supplied-finding disposition', () => {
+  test('declares isolated receipt commands', () => {
     const prompt = reviewRevalidationPrompt(f, instructions, input);
     const commands = [...prompt.matchAll(/```bash\n([\s\S]*?)\n```/g)].map(match => match[1]);
     expect(commands).toHaveLength(3);
     expect(commands[0]).toBe(`'${SHARED_LIBS_ROOT}/bin/gstack-review-log' --start review`);
     expect(commands[1]).toBe(`'${SHARED_LIBS_ROOT}/bin/gstack-review-log' --check-shared-libs REVIEW_START <<'GSTACK_REVALIDATION_FINDING'\nCURRENT_FINDING_JSON\nGSTACK_REVALIDATION_FINDING`);
     expect(commands[2]).toBe(`'${SHARED_LIBS_ROOT}/bin/gstack-review-log' 'FINAL_REVIEW_JSON' --finish REVIEW_START && '${SHARED_LIBS_ROOT}/bin/gstack-review-read'`);
-    for (const requirement of ['sole command', 'only the token', 'only one JSON value', 'literal path operands',
-      'even when its body appeared in the diff', 'No path-variable loops', 'before the checker',
-      'metadata in earlier calls', 'No preliminary commands', 'materially revised proposal is a separate finding',
-      'unsupported or unfinished supplied finding stays blocked', 'without its actual explicit decision']) {
-      expect(prompt).toContain(requirement);
-    }
   });
 
-  test('step 5 branches on the checker result: true suppresses without a new decision, false requires a fresh one', () => {
+  test('step 5 branches on the checker result, reusable:true before reusable:false', () => {
     const prompt = reviewRevalidationPrompt(f, instructions, input);
     const step5 = prompt.slice(prompt.indexOf('5. Act on the checker result'), prompt.indexOf('6. Complete final evidence'));
-    expect(step5).toContain('reusable:true');
-    expect(step5).toContain('the prior Skip carries forward');
-    expect(step5).toContain('Ask no new decision question');
-    expect(step5).toContain("exclude this advisory from the current pass's findings");
-    expect(step5).toContain('Do not re-persist it as a current finding');
-    expect(step5).toContain('reusable:false');
-    expect(step5).toContain('Perform a fresh authored-source review and make an actual new decision');
-    expect(step5).toContain('materially revised proposal is a separate finding');
-    expect(step5).toContain('without its actual explicit decision');
-    expect(step5).toContain('unsupported or unfinished supplied finding stays blocked');
-    expect(step5).toContain('reusable:true whose independent authored/current-source verification does not hold');
-    expect(step5).toContain('regardless of the checker result');
-    expect(step5).toContain('never force a new Skip on invalid evidence');
+    expect(step5.indexOf('reusable:true')).toBeGreaterThan(-1);
     expect(step5.indexOf('reusable:true')).toBeLessThan(step5.indexOf('reusable:false'));
     expect(prompt).not.toContain("Record the supplied finding's disposition under its own");
   });
 
-  test('the shared review prompt maps exact trusted asset roots and documented interfaces to avoid discovery', () => {
+  test('the shared review prompt maps exact trusted asset roots and documented interfaces', () => {
     const prompt = reviewPrompt(f, instructions, input);
     expect(prompt).toContain(`${SHARED_LIBS_ROOT}/review/checklist.md`);
     expect(prompt).toContain(`${SHARED_LIBS_ROOT}/review/sections/`);
@@ -202,21 +157,13 @@ describe('bounded shared-code revalidation prompt', () => {
     expect(prompt).toContain(f.bin);
     for (const iface of ['gstack-review-log --start review', '--check-shared-libs REVIEW_START',
       '--finish REVIEW_START', 'gstack-review-read']) expect(prompt).toContain(iface);
-    for (const forbidden of ['do not rediscover it', 'enumerate the bin/lib/review/qa roots',
-      'probe --help', 'read the fixture request logs']) expect(prompt).toContain(forbidden);
-    expect(prompt).toContain('batch independent reads');
-    expect(prompt).toContain('keep receipt-ordered commands separate');
-    expect(prompt).toContain('capture the start token before reading the diff');
-    expect(prompt).toContain('run --start, the checker and any declared stage-actor invocation each as its own sole command');
-    expect(prompt).toContain('The only combined receipt call is the final persistence');
-    expect(prompt).toContain('Still inspect the target repository source');
   });
 
-  test('common guidance states the finish+read-back receipt contract directly, not by a dangling step 6 reference', () => {
+  test('common guidance states the finish+read-back receipt directly, not by a dangling step 6 reference', () => {
     const lifecycle = reviewPrompt(f, instructions, input, { actorCommand: 'bun /fx/stage-actor.ts run' });
     const revalidation = reviewRevalidationPrompt(f, instructions, input);
     for (const prompt of [lifecycle, revalidation]) {
-      expect(prompt).toContain('The only combined receipt call is the final persistence');
+      expect(prompt).toContain('--finish REVIEW_START');
       expect(prompt).not.toContain('exactly as step 6 shows');
     }
     const commands = [...revalidation.matchAll(/```bash\n([\s\S]*?)\n```/g)].map(match => match[1]);

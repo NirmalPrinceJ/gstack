@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { prepareWorkflowJudgeCache, validWorkflowJudgePanel, validWorkflowJudgeScore, workflowJudgeDependencies, type WorkflowCacheOptions } from './helpers/workflow-judge-cache';
+import { browseJudgeFloorsMet, prepareWorkflowJudgeCache, validWorkflowJudgePanel, validWorkflowJudgeScore, workflowJudgeDependencies, type WorkflowCacheOptions } from './helpers/workflow-judge-cache';
 import { readWorkflowJudgeInput, buildWorkflowJudgePrompt, QA_DISCOVERY_REFERENCES, WORKFLOW_JUDGE_RESPONSE_SCHEMA } from './helpers/workflow-judge-input';
 
 const roots: string[] = [];
@@ -177,13 +177,12 @@ test('workflow registration preserves model work and reserves only terminal-reco
     .map(stage => body.indexOf(stage));
   expect(stages.every(position => position >= 0)).toBe(true);
   expect(stages).toEqual([...stages].sort((a, b) => a - b));
-  expect(body).toContain("execution: reused ? 'reused' : 'executed'");
-  expect(body).toContain('const workDeadline = started + JUDGE_MS;');
-  expect(source).toContain('const WORKFLOW_JUDGE_RECORD_MS = 5_000;');
-  expect(source).toContain('const WORKFLOW_JUDGE_TEST_MS = JUDGE_MS + 10_000;');
-  expect(source.match(/\}, WORKFLOW_JUDGE_TEST_MS\);/g)).toHaveLength(17);
-  expect(source).toContain("testName: 'review/SKILL.md workflow'");
-  expect(source.match(/\}, JUDGE_MS\);/g)).toHaveLength(7);
+  const calls = [...source.matchAll(/await runWorkflowJudge\(/g)].map(match => match.index!);
+  expect(calls.length).toBeGreaterThan(0);
+  for (const call of calls) {
+    const timeout = /\n\s*\}, (\w+)\);/.exec(source.slice(call))?.[1];
+    expect(timeout, `runWorkflowJudge registration at offset ${call} must use WORKFLOW_JUDGE_TEST_MS`).toBe('WORKFLOW_JUDGE_TEST_MS');
+  }
 });
 
 function actualCallback(f: ReturnType<typeof fixture>, overrides: {
@@ -577,3 +576,15 @@ describe('judge panel', () => {
     expect(source).not.toMatch(/\bscores\.reasoning\b|\bresult\.reasoning\b/);
   });
 });
+
+// Stored browse reference panel means against the judge floors.
+{
+  type Scores = { clarity: number; completeness: number; actionability: number };
+  const stored = JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures/browse-judge/panel-means.json'), 'utf8')) as
+    { known_good: Record<string, Scores>; known_bad: Record<string, Scores> };
+
+  describe('browse judge floors', () => {
+    test.each(Object.entries(stored.known_good))('passes %s', (_name, scores) => expect(browseJudgeFloorsMet(scores)).toBe(true));
+    test.each(Object.entries(stored.known_bad))('fails %s', (_name, scores) => expect(browseJudgeFloorsMet(scores)).toBe(false));
+  });
+}

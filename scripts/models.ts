@@ -34,14 +34,30 @@ export type Model = (typeof ALL_MODEL_NAMES)[number];
 /**
  * Resolve a model argument from CLI input to a known Model family.
  *
+ * Input is trimmed and lowercased, and one trailing `[...]` context marker
+ * (for example `claude-sonnet-5[1m]`) is stripped before matching.
+ *
  * Precedence rules:
  * 1. Exact match against ALL_MODEL_NAMES → return as-is. This is the ONLY
  *    path that selects `gpt-5.6-sol` — Sol is intentionally exact-only.
+ *    It is also how to force a model-pinned profile: `--model opus-4-7`,
+ *    `--model sonnet-5`, and so on.
  * 2. Family heuristics for common variants:
  *    - `gpt-5.4-mini`, `gpt-5.4-turbo`, `gpt-5.4-*` → `gpt-5.4`
  *    - `gpt-*` (anything else GPT, including other 5.6 variants) → `gpt`
  *    - `o3`, `o4`, `o4-mini`, `o1`, `o1-mini`, `o1-pro` → `o-series`
- *    - `claude-*` (sonnet, opus, haiku, any version) → `claude`
+ *    - Model-pinned Claude families (Opus 4.7, Opus 4.8, Sonnet 5) use an
+ *      allowlist: the bare ID (`claude-<family>-<major>`), the bare ID plus
+ *      an 8-digit date snapshot (`-YYYYMMDD`), and the bare ID plus `-latest`
+ *      keep the pinned profile. Any other suffix, including a point release
+ *      with or without a date (`claude-opus-4-7-1`, `claude-sonnet-5-5`,
+ *      `claude-sonnet-5-5-20261001`), falls to `claude`: a newer model should
+ *      not read nudges written for an older one.
+ *    - Fable is the exception: any `claude-fable-5-*` ID keeps `fable-5`,
+ *      because `claude-fable-5-1` is CLAUDE_FRONTIER_EVAL_MODEL
+ *      (lib/eval-model.ts) and moving it would shift every eval baseline.
+ *      The exception ends when CLAUDE_FRONTIER_EVAL_MODEL changes.
+ *    - Any other `claude-*` (including `claude-opus-5-5`) → `claude`
  *    - `gemini-*` (2.5-pro, flash, etc.) → `gemini`
  * 3. Unknown input → returns null (caller decides: error, or fall back).
  *
@@ -50,7 +66,7 @@ export type Model = (typeof ALL_MODEL_NAMES)[number];
  * normalizes CLI input to a family name.
  */
 export function resolveModel(input: string): Model | null {
-  const s = input.trim();
+  const s = input.trim().toLowerCase().replace(/\[[^\]]*\]$/, '').trim();
   if (!s) return null;
 
   // Exact match first
@@ -67,10 +83,9 @@ export function resolveModel(input: string): Model | null {
   if (/^gpt-5\.4(-|$)/.test(s)) return 'gpt-5.4';
   if (/^gpt(-|$)/.test(s)) return 'gpt';
   if (/^o[0-9]+(-|$)/.test(s)) return 'o-series';
-  if (/^claude-opus-4-7(-|$)/.test(s)) return 'opus-4-7';
+  const pinned = /^claude-(opus-4-7|opus-4-8|sonnet-5)(-\d{8}|-latest)?$/.exec(s);
+  if (pinned) return pinned[1] as Model;
   if (/^claude-fable-5(-|$)/.test(s)) return 'fable-5';
-  if (/^claude-opus-4-8(-|$)/.test(s)) return 'opus-4-8';
-  if (/^claude-sonnet-5(-|$)/.test(s)) return 'sonnet-5';
   if (/^claude(-|$)/.test(s)) return 'claude';
   if (/^gemini(-|$)/.test(s)) return 'gemini';
 

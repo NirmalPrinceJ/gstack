@@ -28,6 +28,8 @@ import {
   CODEX_REVIEW_E2E_SECTIONS,
 } from './helpers/skill-fixture';
 import { E2E_TOUCHFILES, GLOBAL_TOUCHFILES, selectTests } from './helpers/touchfiles';
+import { readShippedSkillRouting } from './helpers/shipped-skill-routing';
+import { hasNarrationLeak } from './helpers/skill-body-narration';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 
@@ -449,10 +451,12 @@ test('routing catalog contains installed project names without a request-to-skil
     writeFileSync: (file: string, content: string) => writes.set(file, content),
   };
   const compiled = new Bun.Transpiler({ loader: 'ts' }).transformSync(source.slice(start, end) + '\ninstallSkills(fixtureRoot);');
-  new Function('ROOT', 'fs', 'path', 'extractSkillHead', 'fixtureRoot', compiled)(
-    ROOT, mockFs, path, (file: string) => installed.get(file), fixtureRoot,
+  new Function('ROOT', 'fs', 'path', 'extractSkillHead', 'readShippedSkillRouting', 'fixtureRoot', compiled)(
+    ROOT, mockFs, path, (file: string) => installed.get(file), readShippedSkillRouting, fixtureRoot,
   );
   const instructions = writes.get(path.join(fixtureRoot, 'CLAUDE.md'))!;
+  expect(instructions).toContain(readShippedSkillRouting().instruction);
+  expect(instructions).not.toContain('→ invoke');
   expect(instructions).toContain('installed gstack skills: gstack, qa, review.');
   expect(instructions).toContain("built-in skills are outside this project's workflow");
   expect(instructions).toContain('matching the request to the skill descriptions');
@@ -464,3 +468,42 @@ test('routing catalog contains installed project names without a request-to-skil
     .toBe(installed.get(path.join(ROOT, 'review/SKILL.md')));
   expect(writes.size).toBe(4);
 });
+
+test('routing fixtures read the ## Skill routing section gstack ships', () => {
+  const routing = readShippedSkillRouting();
+  expect(routing.instruction).toStartWith('## Skill routing\n\n');
+  expect(routing.instruction).toContain('Skill tool');
+  expect(routing.rules.some(rule => rule.includes('/context-save'))).toBe(true);
+  expect(routing.rules.some(rule => rule.includes('/context-restore'))).toBe(true);
+  expect(routing.section).not.toContain('If B:');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shipped-routing-drift-'));
+  try {
+    fs.mkdirSync(path.join(root, 'bin'));
+    fs.writeFileSync(path.join(root, 'bin', 'gstack-skill-start'), '#!/bin/bash\necho no routing here\n');
+    expect(() => readShippedSkillRouting(root)).toThrow('routing-injection heredoc not found');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+// Stored synthesized SKILL.md bodies for the skillify narration grader.
+{
+  const DIR = path.join(import.meta.dir, 'fixtures', 'skillify-narration');
+  const read = (name: string) => fs.readFileSync(path.join(DIR, name), 'utf8');
+  const KNOWN_BAD = fs.readdirSync(DIR).filter(name => name.startsWith('known-bad-')).sort();
+
+  describe('skillify narration grader', () => {
+    test('accepts a clean body that says "let me know" in a trigger', () => {
+      expect(hasNarrationLeak(read('known-good.md'))).toBe(false);
+    });
+    test('stored known-bad fixtures exist', () => {
+      expect(KNOWN_BAD.length).toBeGreaterThanOrEqual(4);
+    });
+    test.each(KNOWN_BAD)('still rejects %s', (name) => {
+      expect(hasNarrationLeak(read(name))).toBe(true);
+    });
+    test('the previous grader rejected every known-bad fixture and also the known-good one', () => {
+      const previous = (body: string) => /^I /m.test(body) || /Let me /i.test(body) || /^I'll /m.test(body);
+      for (const name of KNOWN_BAD) expect(previous(read(name))).toBe(true);
+      expect(previous(read('known-good.md'))).toBe(true);
+    });
+  });
+}

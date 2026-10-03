@@ -63,7 +63,7 @@ triggers:
 - **Standard:** + medium severity (default)
 - **Exhaustive:** + low/cosmetic severity
 
-`--quick` also selects Quick exploration; `--exhaustive` changes only the fix tier.
+`--quick` sets both the Quick fix tier and Quick exploration; `--exhaustive` changes only the fix tier.
 Regression mode preserves the selected fix tier.
 If both `--quick` and `--regression` are supplied, ask which exploration mode to use
 before setup or probes. Keep the selected fix tier; this choice concerns exploration only.
@@ -126,8 +126,8 @@ Prefer the richer of recent project test plans and plans in conversation over gi
 ## Phases 1-6: QA Baseline
 
 Follow the shared section's ordered preparation, then run its probe loop.
-Inside that loop, browser runs apply qa-patterns.md's numbered Phases 1-6 as techniques
-and functional runs apply system-functional.md; neither is a separate workflow.
+Inside that loop, browser runs apply qa-patterns.md's numbered Phases 1-6 as techniques,
+and functional runs apply system-functional.md's contract map; neither is a separate workflow.
 
 {{SECTION:exploratory}}
 
@@ -235,23 +235,14 @@ Record the test created before repair in 8a.5 and its re-test result from 8c:
 file, command, attribution, tested boundary, value card and red/green evidence, or why it is deferred.
 This step records results; it does not create another test.
 Healthy-contract commits use `test(qa): regression test for {contract}`.
-**WTF-likelihood exclusion:** test-only commits do not count toward the heuristic.
+**Self-regulation exclusion:** test-only commits do not count toward the stop rule in 8f.
 
 ### 8f. Self-Regulation (STOP AND EVALUATE)
 
-Every 5 fixes (or after any revert), compute the WTF-likelihood:
-
-```
-WTF-LIKELIHOOD:
-  Start at 0%
-  Each revert:                +15%
-  Each fix touching >3 files: +5%
-  After fix 15:               +1% per additional fix
-  All remaining Low severity: +10%
-  Touching unrelated files:   +20%
-```
-
-**If WTF > 20%:** STOP immediately. Show the user what you've done so far. Ask whether to continue.
+Every 5 fixes, and after any revert, check whether the loop is doing more harm than
+good. **STOP immediately** after two reverts or one edit to a file unrelated to the
+finding. Also stop when fixes keep spanning many files or only Low issues remain.
+Show the user what you've done so far and ask whether to continue.
 
 **Hard cap: 50 fixes.** After 50 fixes, stop regardless of remaining issues.
 

@@ -230,7 +230,7 @@ mkdir -p "$GSTACK_STATE_ROOT"/projects/$SLUG
 ```
 
 Write a JSONL entry: `{"skill":"canary","timestamp":"<ISO>","status":"<HEALTHY/DEGRADED/BROKEN>","url":"<url>","duration_min":<N>,"alerts":<N>}`
-Append it to `~/.gstack/projects/$SLUG/canary-history.jsonl`; never overwrite history.
+Append it to `$GSTACK_STATE_ROOT/projects/$SLUG/canary-history.jsonl` (the directory this block created); never overwrite history.
 
 ### Phase 7: Baseline Update
 
@@ -245,7 +245,7 @@ If the user chooses A, copy the latest screenshots to the baselines directory an
 
 ## Important Rules
 
-- **Speed matters.** Start monitoring within 30 seconds of invocation. Don't over-analyze before monitoring.
+- **Speed matters.** The first minutes after a deploy are the point: reach the first monitoring round as soon as the page list is settled.
 - **Alert on changes, not absolutes.** Compare against baseline, not industry standards.
 - **Screenshots are evidence.** Every alert includes a screenshot path. No exceptions.
 - **Transient tolerance.** Only alert on patterns that persist across 2+ consecutive checks.

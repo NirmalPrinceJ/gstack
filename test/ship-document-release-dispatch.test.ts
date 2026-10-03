@@ -161,8 +161,10 @@ describe('pre-publication documentation lifecycle', () => {
       'Ship-owned documentation mode', 'standalone branch gate']) expect(skill).toContain(text);
     const body = read('document-release/sections/release-body.md.tmpl');
     for (const text of ['never `git add -A`', 'Never regenerate a CHANGELOG entry',
-      'body-original.md', 'UNTRUSTED TRACKER CONTENT', 'gstack-redact --from-file',
-      'NEVER BUMP VERSION WITHOUT ASKING']) expect(body).toContain(text);
+      'body-original.md', 'UNTRUSTED TRACKER CONTENT', 'gstack-redact --from-file']) expect(body).toContain(text);
+    const versionStep = body.slice(body.indexOf('## Step 8'), body.indexOf('\n## ', body.indexOf('## Step 8') + 1));
+    expect(versionStep).toMatch(/ask[^\n]*before[^\n]*VERSION/i);
+    expect(body).toMatch(/does not rewrite, replace, or regenerate CHANGELOG/i);
   });
 });
 

@@ -19,7 +19,7 @@ import {
 } from './helpers/touchfiles';
 
 import { paidTestClosure, isCovered } from './helpers/touchfile-closure';
-import { readWorkflowExcerpt } from './helpers/workflow-excerpt';
+import { ASK_QUESTIONS_HEADING, readWorkflowExcerpt } from './helpers/workflow-excerpt';
 import { sharedLibsPlanExcerpt } from './helpers/shared-libs-plan-excerpt';
 
 const ROOT = path.resolve(import.meta.dir, '..');
@@ -216,7 +216,7 @@ describe('selectTests', () => {
     ['ship/sections/test-coverage.md', 'ship/SKILL.md workflow',
       'ship/SKILL.md', '# Ship:', '## Important Rules', '### REGRESSION RULE (mandatory)'],
     ['plan-design-review/sections/review-sections.md', 'plan-design-review/SKILL.md passes',
-      'plan-design-review/SKILL.md', '## Review Sections', '## CRITICAL RULE',
+      'plan-design-review/SKILL.md', '## Review Sections', ASK_QUESTIONS_HEADING,
       '## Review Sections (7 passes, after scope is agreed)'],
   ])('expanded judge content remains selected by its section alone: %s', (file, judge, skill, start, end, marker) => {
     const body = fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/^<!--[^\n]*-->\n/gm, '').trim();
@@ -278,9 +278,7 @@ describe('selectTests', () => {
     const result = selectTests(['plan-ceo-review/SKILL.md'], E2E_TOUCHFILES);
     expect(result.selected).toContain('plan-ceo-review');
     expect(result.selected).toContain('plan-ceo-review-selective');
-    expect(result.selected).toContain('plan-ceo-review-benefits');
     expect(result.selected).toContain('plan-ceo-review-expansion-energy');
-    expect(result.selected).toContain('codex-offered-ceo-review');
     expect(result.selected).toContain('plan-ceo-review-format-mode');
     expect(result.selected).toContain('plan-ceo-review-format-approach');
     // v1.10.2.0 plan-mode handshake entries also depend on plan-ceo-review/**
@@ -308,8 +306,8 @@ describe('selectTests', () => {
     // v2 plan Phase B carve: the section-loading E2E depends on plan-ceo-review/**.
     expect(result.selected).toContain('plan-ceo-section-loading');
     expect(result.selected).toContain('outside-plan-disabled-no-fallback');
-    expect(result.selected.length).toBe(21);
-    expect(result.skipped.length).toBe(Object.keys(E2E_TOUCHFILES).length - 21);
+    expect(result.selected.length).toBe(19);
+    expect(result.skipped.length).toBe(Object.keys(E2E_TOUCHFILES).length - 19);
   });
 
   test('global touchfile triggers ALL tests', () => {
@@ -340,7 +338,7 @@ describe('selectTests', () => {
     expect(result.reason).toBe('diff');
     // Should include tests that depend on gen-skill-docs.ts
     expect(result.selected).toContain('skillmd-setup-discovery');
-    expect(result.selected).toContain('session-awareness');
+    expect(result.selected).toContain('skillmd-outside-git');
     expect(result.selected).toContain('journey-ideation');
     // Should NOT include tests that don't depend on it
     expect(result.selected).not.toContain('retro');
@@ -389,8 +387,8 @@ describe('selectTests', () => {
     const result = selectTests(['SKILL.md.tmpl'], E2E_TOUCHFILES);
     // Should select the 7 tests that depend on root SKILL.md
     expect(result.selected).toContain('skillmd-setup-discovery');
-    expect(result.selected).toContain('session-awareness');
-    expect(result.selected).toContain('session-awareness');
+    expect(result.selected).toContain('skillmd-no-local-binary');
+    expect(result.selected).toContain('skillmd-outside-git');
     // Also selects journey routing tests (SKILL.md.tmpl in their touchfiles)
     expect(result.selected).toContain('journey-ideation');
     // Should NOT select unrelated non-routing tests

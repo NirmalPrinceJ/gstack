@@ -362,7 +362,7 @@ Apply these at each page. Each finding gets an impact rating (high/medium/polish
 - Only \`transform\` and \`opacity\` animated (not layout properties like width, height, top, left)
 - One authored motion moment per page: not the same entrance on every section, not a hover effect on everything. Ease-out from an already-visible default; content never hides behind animation timing
 
-**8. Content & Microcopy** (8 items)
+**8. Content & Microcopy** (11 items)
 - Empty states designed with warmth (message + action + illustration/icon)
 - Error messages specific: what happened + why + what to do next
 - Button labels specific ("Save API Key" not "Continue" or "Submit")
@@ -676,7 +676,7 @@ ${outsideVoiceInvocation(ctx, { timeoutMs: 300000, reasoningEffort: 'medium', pu
 ${outsideVoiceProvenance(ctx, 'design-sketch')}
 
 2. **${outsideVoiceFor(ctx).nativeLabel} subagent** (via Agent tool, \`run_in_background: false\` — subagents default to background since ${CC_BACKGROUND_DEFAULT_SINCE}):
-"For this product approach, what design direction would you recommend? What aesthetic, typography, and interaction patterns fit? What would make this approach feel inevitable to the user? Be specific — font names, hex colors, spacing values."
+"For this product approach, what design direction would you recommend? What aesthetic, typography, and interaction patterns fit? What would make this approach feel inevitable to the user? Be specific — font names, hex colors, spacing values. Do not fall back on these defaults: a cream ground with a high-contrast serif and terracotta accent; near-black with one neon accent and glowing edges; italic accent words inside headlines; numbered 01 / 02 / 03 section labels; tiny tracked monospace labels; pill-shaped buttons. If your first idea is one of these, name it and choose again."
 
 Present ${outsideVoiceFor(ctx).label} output under \`${outsideVoiceFor(ctx).label.toUpperCase()} SAYS (design sketch):\` and subagent output under \`${outsideVoiceFor(ctx).nativeLabel.toUpperCase()} SUBAGENT (design direction):\`.
 Error handling: all non-blocking. On failure, skip and continue.`;
@@ -770,6 +770,8 @@ Propose a surprising indie-studio direction beyond conventional enterprise UI.
 - Propose an aesthetic direction, typography stack (specific font names), color palette (hex values)
 - 2 deliberate departures from category norms
 - What emotional reaction should the user have in the first 3 seconds?
+
+Do not fall back on these defaults: a cream ground with a high-contrast serif and terracotta accent; near-black with one neon accent and glowing edges; broadsheet hairlines with an italic display serif and tiny tracked mono labels; italic accent words inside headlines; numbered 01 / 02 / 03 section labels; pill-shaped buttons; ${catalogEntries(['ai-color-palette', 'feature-grid-3col', 'centered-everything', 'decorative-blobs', 'nested-cards', 'kicker-above-heading', 'icon-tile-stack', 'dark-glow']).map(e => e.name.toLowerCase()).join(', ')}. If your first idea is one of these, name it and choose again.
 
 Be bold and specific.`;
   } else {
@@ -1148,7 +1150,7 @@ Commands:
 
 \`generate\` returns \`sessionFile\`; \`iterate\` requires that existing session. \`variants\` returns \`paths\` but creates no session: regenerate with an updated brief instead.` : ''}
 
-**CRITICAL PATH RULE:** Design artifacts belong in \`$GSTACK_STATE_ROOT/projects/$SLUG/designs/\`.
+**Path rule:** Design artifacts belong in \`$GSTACK_STATE_ROOT/projects/$SLUG/designs/\`.
 Use \`bin/gstack-paths\` (docs/state-root.md). Keep it even if temporary; never substitute
 .context/, docs/designs/ or another directory.
 These are user files, not application source.`;
@@ -1204,11 +1206,15 @@ create and serve the comparison board:
 $D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
 \`\`\`
 
-This opens the board in the user's default browser and blocks until feedback is
-received. Read stdout for the structured JSON result. No polling needed.
+This publishes the board to the design daemon, opens it in the user's default
+browser, and exits; it does not wait for feedback. Read captured stderr for the
+\`BOARD_URL: http://127.0.0.1:N/boards/<id>/\` line, then wait with AskUserQuestion:
+"Review <BOARD_URL>, click Submit or Regenerate, then tell me (or paste your
+preferences here)." After the answer, read \`feedback.json\` or
+\`feedback-pending.json\` next to the board HTML.
 
-If \`$D serve\` is not available or fails, fall back to AskUserQuestion:
-"I've opened the design board. Which variant do you prefer? Any feedback?"
+If the command exits nonzero or prints no \`BOARD_URL\`, show each variant inline
+with Read and fall back to AskUserQuestion: "Which variant do you prefer? Any feedback?"
 
 **Step 5: Handle feedback**
 
@@ -1220,7 +1226,7 @@ If the JSON contains \`"regenerated": true\`:
    (\`BOARD_URL: http://127.0.0.1:N/boards/<id>/\` — the daemon path) or fall
    back to the legacy port (\`SERVE_STARTED: port=N\` — only emitted under
    \`--no-daemon\`, hits \`/api/reload\` root). Daemon path:
-   \`curl -X POST "\${BOARD_URL}api/reload" -H 'Content-Type: application/json' -d '{"html":"$_DESIGN_DIR/design-board.html"}'\`
+   \`jq -nc --arg html "$_DESIGN_DIR/design-board.html" '{html: $html}' | curl -sS -X POST "\${BOARD_URL}api/reload" -H 'Content-Type: application/json' --data-binary @-\`
 5. Board auto-refreshes in the same tab
 
 If \`"regenerated": false\`: proceed with the approved variant.
@@ -1404,7 +1410,7 @@ fonts [top-3], colors [top-3], layouts [top-3], aesthetics [top-3]. Bias
 generation toward these unless the user explicitly requests a different direction.
 Also avoid their strong rejections: [top-3 rejected per dimension]."
 
-**Legacy fallback:** Glob \`~/.gstack/projects/$SLUG/designs/**/approved.json\`; Read the five newest. Use explicit feedback only, never infer fonts/colors from variant letters. No usable files: continue without a taste profile.
+**Legacy fallback:** Glob \`$GSTACK_STATE_ROOT/projects/$SLUG/designs/**/approved.json\` (resolve the root with gstack-paths); Read the five newest. Use explicit feedback only, never infer fonts/colors from variant letters. No usable files: continue without a taste profile.
 
 **Conflict handling:** If the current user request contradicts a strong persistent
 signal (e.g., "make it playful" when taste profile strongly prefers minimal), flag

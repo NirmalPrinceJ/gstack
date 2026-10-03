@@ -15,7 +15,7 @@ import {
   installSourceShims, readRequests, reviewLifecycleInstructions, reviewPrompt, reviewRevalidationPrompt,
   reviewRecords, runSharedCapture, runSharedInteractive, seedLifecycleFirstPass, seedOpportunitySources,
   seedReviewSources, seedSkippedAdvisory, snapshotFixture, specialistFixture,
-  sharedReadOnlyViolations, standaloneInstructions, toolCommandTrace, type SharedLibsFixture,
+  sharedReadOnlyViolations, loadedInstructions, standaloneInstructions, toolCommandTrace, type SharedLibsFixture,
   SharedCaptureAccumulator, type SharedCaptureAttempt, SHARED_LIBS_ROOT,
 } from './helpers/shared-libs-eval-fixture';
 import {
@@ -108,7 +108,7 @@ describeE2E('Shared-code safety and review lifecycle (gate)', () => {
       const instructions = standaloneInstructions(f);
       const before = snapshotFixture(f.root);
       await recordCapture(attempt, 'audit', 'shared-libs-read-only', () => runSharedCapture(f, 'shared-libs-read-only',
-        `Run /deslop-shared-libs for this repository using ${instructions}. Include relevant uncommitted source in your audit. Return the skill's report in conversation.`, attempt), result => {
+        `Run /deslop-shared-libs for this repository. Include relevant uncommitted source in your audit. Return the skill's report in conversation.${loadedInstructions(instructions)}`, attempt), result => {
         assertReadOnly(f, before, result);
         expect(result.output).toMatch(/uncommitted|overlay|raw/i);
         expect(result.output).toContain(f.tip.slice(0, 7));
@@ -131,7 +131,7 @@ describeE2E('Shared-code safety and review lifecycle (gate)', () => {
       const instructions = standaloneInstructions(f);
       const before = snapshotFixture(f.root);
       await recordCapture(attempt, 'audit', 'shared-libs-unsupported-git', () => runSharedCapture(f, 'shared-libs-unsupported-git',
-        `Run /deslop-shared-libs for this repository using ${instructions}. Return the review report.`, attempt), result => {
+        `Run /deslop-shared-libs for this repository. Return the review report.${loadedInstructions(instructions)}`, attempt), result => {
         assertReadOnly(f, before, result);
         expect(result.output).toMatch(/unavailable|unsupported|cannot|could not|coverage|limited/i);
         const calls = readRequests(f).filter(row => row.tool === 'git' && !isInternalClaudeGitRequest(row, toolCommandTrace(result)));

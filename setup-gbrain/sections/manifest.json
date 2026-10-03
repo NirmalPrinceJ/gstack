@@ -19,14 +19,14 @@
     {
       "id": "transcript-gate",
       "file": "transcript-gate.md",
-      "title": "Step 7.5: transcript & memory ingest gate (probe, thresholds, ingest AskUserQuestion)",
+      "title": "Step 7.5: transcript ingest consent (has-check, probe, recent/all/off AskUserQuestion)",
       "trigger": "running the Step 7.5 transcript & memory ingest gate on Paths 1, 2a, 2b, or 3 (Path 4 skips this section entirely — see the skeleton's skip note)"
     },
     {
       "id": "claude-md-persist",
       "file": "claude-md-persist.md",
-      "title": "Step 8: persist the GBrain Configuration + Search Guidance blocks in CLAUDE.md",
-      "trigger": "persisting the Step 8 `## GBrain Configuration` block to CLAUDE.md (and the Search Guidance block after Step 9 passes)"
+      "title": "Step 8: persist the GBrain Configuration block in CLAUDE.md",
+      "trigger": "persisting the Step 8 `## GBrain Configuration` block to CLAUDE.md"
     }
   ]
 }

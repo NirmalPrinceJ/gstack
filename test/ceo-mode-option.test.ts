@@ -827,6 +827,22 @@ const mutations:Record<string,(x:any)=>void>={
  'wrong actual choice':x=>{const c=decision(x);c.answers[c.questions[0].question]=c.questions[0].options[1].label},
 };
 for(const [name,mutate] of Object.entries(mutations))test(name,()=>{const x=clone();mutate(x);expect(check(x)).toBe(false)});
+// Wording is free: reworded labels, a different question title, no "PLAN.md lists" phrase and
+// rationale outside the old keyword list still prove HOLD when the outcome is the same.
+const relabel=(x:any,keep:string,defer:string)=>{const c=decision(x);const q=c.questions[0];q.options[0].label=keep;q.options[1].label=defer;c.answers[q.question]=keep;x.tools.find((t:any)=>t.kind==='use'&&t.toolUseId===c.toolUseId).input.questions=structuredClone(c.questions)};
+const rewordings:Record<string,(x:any)=>void>={
+ 'reworded option labels':x=>relabel(x,'A) Retain the update endpoint (recommended)','B) Move update to a later TODO'),
+ 'reworded question title':x=>editQuestion(x,q=>q.question=q.question.replace(/^D\d+ — [^\n]*/,'D4: Should the update endpoint stay in this review?')),
+ 'no plan-lists phrase':x=>editQuestion(x,q=>q.question=q.question.replace('PLAN.md lists','The plan has').replace('the plan already states','the plan names')),
+ 'rationale outside the old keyword list':x=>editQuestion(x,q=>q.question=q.question.replace(/ELI10:[\s\S]*?Stakes if/,'ELI10: Renaming a saved view in place is part of the written approach, and dropping it would make every correction a two-step chore that members notice right away.\nStakes if').replace(/Stakes if[\s\S]*?Recommendation:/,'Stakes if we pick wrong: deferring leaves members unable to correct a saved view; keeping it costs one more endpoint in this review.\nRecommendation:')),
+};
+for(const [name,change] of Object.entries(rewordings))test(`still HOLD with ${name}`,()=>{const x=clone();change(x);expect(check(x)).toBe(true)});
+const newBad:Record<string,(x:any)=>void>={
+ 'both options keep':x=>relabel(x,'Keep update in scope (recommended)','Keep update and add sharing'),
+ 'kept item outside the plan':x=>relabel(x,'Keep sharing links (recommended)','Defer sharing links to TODOS.md'),
+ 'answer selects defer after relabel':x=>{relabel(x,'Keep update in scope (recommended)','Defer update to TODOS.md');const c=decision(x);c.answers[c.questions[0].question]=c.questions[0].options[1].label},
+};
+for(const [name,mutate] of Object.entries(newBad))test(`not HOLD with ${name}`,()=>{const x=clone();mutate(x);expect(check(x)).toBe(false)});
 test('later quoted withdrawal is not current withdrawal',()=>{const x=clone();x.transcript.assistantMessages.push({sessionId:decision(x).sessionId,timestamp:new Date().toISOString(),text:'Example: "I withdraw this decision."'});expect(check(x)).toBe(true)});
 {
   const briefs = require('./fixtures/ceo-hold-note-briefs-36597762183.json');

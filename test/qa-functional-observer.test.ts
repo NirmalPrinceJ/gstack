@@ -55,6 +55,8 @@ describe('QA command-observation boundary', () => {
 
   test('admits native fixture commands and rejects unobserved shell effects', () => {
     for (const command of ['date -u +%Y-%m-%dT%H:%M:%SZ', 'bun run probe -- apply credit 7junk', 'bun run probe -- apply UPPER 7', 'bun run probe -- apply 9bad 7', 'bun run probe -- apply', 'bun run probe -- apply credit', 'bun run probe -- apply credit 7 extra', 'bun run probe -- partial', 'bun test test/regression.test.ts', 'git status --short']) expect(qaCommandAllowed(command)).toBe(true);
+    for (const command of ['bun bin/gstack-qa-evidence', 'bun /abs/runtime/bin/gstack-qa-deadline', 'bun bin/gstack-qa-evidence --help']) expect(qaCommandAllowed(command), command).toBe(true);
+    for (const command of ['bun bin/gstack-qa-evidence capture', 'bun bin/gstack-qa-deadline start x 1', 'bun bin/gstack-qa-evidence; touch bad']) expect(qaCommandAllowed(command), command).toBe(false);
     for (const command of ['date', 'date -u', 'date -u +%s', ' date -u +%Y-%m-%dT%H:%M:%SZ', 'date -u +%Y-%m-%dT%H:%M:%SZ ', 'date -u +%Y-%m-%dT%H:%M:%SZ --set tomorrow', 'python3 mutate-with-mmap.py', 'echo ok; git commit -am fix', 'bun test > result.txt', 'curl https://example.com', 'bun -e "42"', 'git stash', 'git reset --hard', 'bun run probe -- partial && true', 'bun run probe -- apply $(touch bad) 7', 'bun run probe -- apply * 7', 'bun run probe -- apply credit 7; touch bad']) expect(qaCommandAllowed(command)).toBe(false);
   });
   test('malformed event buffers cannot become empty successful observations', () => {

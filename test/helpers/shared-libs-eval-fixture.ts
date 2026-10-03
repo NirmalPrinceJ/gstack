@@ -793,6 +793,11 @@ export function standaloneInstructions(f: SharedLibsFixture, codex = false): str
   return file;
 }
 
+/** The skill's instructions as a loaded skill delivers them: in context before any tool call. */
+export function loadedInstructions(file: string): string {
+  return `\n\nThe /deslop-shared-libs instructions (already loaded):\n<skill-instructions>\n${fs.readFileSync(file, 'utf8')}\n</skill-instructions>`;
+}
+
 export function reviewLifecycleInstructions(f: SharedLibsFixture): string {
   const root = SHARED_LIBS_ROOT;
   const core = extractSkillSections(path.join(root, 'review'), [
@@ -1031,19 +1036,22 @@ export function toolCommandTrace(result: { toolCalls: Array<{ tool: string; inpu
   return result.toolCalls.filter(call => call.tool === 'Bash').map(call => String(call.input?.command || ''));
 }
 
-/** Whether the first read of a PR's file-list page 1 left no usable file set:
- * truncated by `head -c`, or a failed filter (e.g. a jq error) that printed no
- * file entries. One recovery read of page 1 is then legitimate, still charged
- * to the page budget. */
-export function incompleteFirstFileView(result: { toolCalls: Array<{ tool: string; input: any; output?: string }> }, pr: number): boolean {
-  const page1 = new RegExp(String.raw`\b(?:gh\s+api|curl)\b[^;\n]*\/pulls\/${pr}\/files(?![^;\n]*[?&]page=(?!1\b)\d)`);
-  const first = result.toolCalls.find(call => call.tool === 'Bash' && page1.test(String(call.input?.command || '')));
-  if (!first) return false;
-  const command = String(first.input?.command || '');
-  if (new RegExp(String.raw`\b(?:gh\s+api|curl)\b[^;\n]*\/pulls\/${pr}\/files[^;\n]*\|\s*head\s+-c\s*\d+`).test(command)) return true;
-  const output = String(first.output ?? '');
-  const view = output.slice(Math.max(0, output.search(new RegExp(String.raw`\/pulls\/${pr}\/files|files page 1`))));
-  return /^jq: error\b/m.test(view) && !/"filename"\s*:/.test(view);
+/**
+ * PR-coverage request check against the skill's stated older-open-PR budget
+ * (five metadata pages, fifty file-list pages, plus recent PR 7's one page)
+ * and the coverage outcome: PR 42's file list was read from page 1 through
+ * page 2. How often a page was re-read within budget is not graded.
+ */
+export function prCoverageRequestViolations(endpoints: string[]): string[] {
+  const violations: string[] = [];
+  const coordination = endpoints.filter(endpoint => /\/pulls\/42\/files/.test(endpoint));
+  if (!coordination.some(endpoint => !/[?&]page=/.test(endpoint) || /[?&]page=1(?:&|$)/.test(endpoint))) violations.push('PR 42 first file page not read');
+  if (!coordination.some(endpoint => /[?&]page=2(?:&|$)/.test(endpoint))) violations.push('PR 42 second file page not read');
+  const openPages = endpoints.filter(endpoint => /\/pulls\?/.test(endpoint) && /state=open/.test(endpoint)).length;
+  if (openPages > 5) violations.push(`${openPages} open-PR metadata pages exceed the budget of 5`);
+  const filePages = endpoints.filter(endpoint => /\/pulls\/\d+\/files/.test(endpoint)).length;
+  if (filePages > 51) violations.push(`${filePages} file-list pages exceed the budget of 50 plus PR 7`);
+  return violations;
 }
 
 /** A raw-byte change hidden by Git normalization, reproducing a real snapshot blind spot. */

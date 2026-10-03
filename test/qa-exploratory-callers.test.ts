@@ -649,13 +649,9 @@ describe('generated actual parent paths', () => {
       expect(positions).toEqual([...positions].sort((a, b) => a - b));
       const load = skillName === 'review' ? generateQAReviewPreflight(ctx) : parent.slice(positions[0], positions[1]);
       if (skillName === 'review') {
-        const charter = parent.slice(positions[0], positions[1]).replace(/\s+/g, ' ');
-        expect(charter).toContain("Reuse Step 4's surfaces and completed Reads");
-        expect(charter).toContain('Finish missing methods before charters');
-        expect(charter).toContain('complete the shared isolation/permission preflight before setup');
         const readiness = parent.slice(positions[1], positions[2]).replace(/\s+/g, ' ');
-        expect(readiness).toContain('Read QA\'s `sections/browser-setup.md` and follow its report-only rules');
-        expect(readiness).toContain('Never install, import cookies or bootstrap tests');
+        expect(readiness).toMatch(/Read QA's `sections\/browser-setup\.md` and follow its report-only rules/i);
+        expect(readiness).toMatch(/never install, import cookies or bootstrap tests/i);
         expect(load).not.toContain('sections/browser-setup.md');
       }
       expect(load).toContain('{{QA_RESOURCE:exploratory}}');
@@ -664,50 +660,26 @@ describe('generated actual parent paths', () => {
       const resource = generateQAResource(ctx, ['exploratory']);
       expect(resource).toContain(`installed /${skillName} SKILL.md's directory`);
       expect(resource).toContain('`../qa/sections/exploratory.md`');
-      const shared = generateQAExploratory({ ...ctx, skillName: 'qa' });
-      const preparation = ['1. Read `sections/scope.md`', 'in full and select the surfaces',
-        'Read `sections/system-functional.md` in full.', 'Read `sections/qa-patterns.md` in full.',
-        'Write a **charter**', '1. First demonstrate success'].map(marker => shared.indexOf(marker));
-      expect(preparation.every(position => position >= 0)).toBe(true);
-      expect(preparation).toEqual([...preparation].sort((a, b) => a - b));
-      expect(load).toContain('Templates cannot replace them');
       const flat = parent.replace(/\s+/g, ' ');
-      expect(flat).toContain('Only the parent runs report-only discovery');
-      expect(flat).toContain('Follow the shared Probe loop for smoke checks and replays until the smoke limit');
-      expect(flat).toContain('Then run required plan checks and revalidation, even after smoke expires');
-      expect(flat).toContain('using the same procedure but no smoke guard; never reset the clock');
-      expect(flat).toContain("Use finite command timeouts, capped at the caller\'s remaining time if it has a deadline");
-      expect(flat).toContain('When the caller\'s deadline expires, mark unfinished checks not-run');
-      for (const contract of ['First demonstrate success: output AND durable effects',
-        'Wait for successful checkpoint publication before dispatch',
-        'Replay the exact failing command/request from the same initial fixture state']) {
-        expect(shared).toContain(contract);
-      }
-      expect(flat).toContain('Read agent/user updates and await results without batching them with reporting/logging');
-      expect(flat).toContain('Re-review changed or uncertain coverage and repeat step 3 for affected checks');
-      expect(flat).toContain('Report clean/completed only when all required checks pass on current inputs');
-      expect(flat).toContain('List failed, blocked, inconclusive and not-run checks');
+      expect(flat).toMatch(/repeat step 3 for affected checks/i);
     }
   });
 
   test('authored shared loop preserves complete safe observations and re-enters checkpoints after input changes', () => {
     const text = generateQAExploratory({ skillName: 'qa', tmplPath: 'qa/SKILL.md.tmpl', host: 'claude', paths: HOST_PATHS.claude }).replace(/\s+/g, ' ');
-    for (const contract of ["last completed probe's full outer command", 'Preserve every safe program-JSON key/value', 'identity hash unchanged', 'Q supplies observed; never transcribe it', 'write the report, not a checkpoint', 'return to step 2 for each affected revalidation', 'Pass requires all required current-input contracts to pass with no required remainder']) {
-      expect(text).toContain(contract);
-    }
-    expect(text).toContain("observationCommand: last completed probe's full outer command, including guard");
-    expect(text).toContain('observed: its exact decoded child JSON (no wrapper/extra keys)');
-    expect(text).toContain('or its full non-JSON text');
+    expect(text).toMatch(/observationCommand: last completed probe's full outer command/i);
+    expect(text).toMatch(/observed: its exact decoded child JSON/i);
+    expect(text).toMatch(/identity hash unchanged/i);
     expect(text).not.toContain('nest unchanged child JSON');
   });
   test('the shared smoke has explicit limits without waiving required plan checks', () => {
     const body = fs.readFileSync(path.join(import.meta.dir, '../qa/sections/exploratory.md'), 'utf8').replace(/\s+/g, ' ');
-    expect(body).toContain('Stop after 5 minutes or 12 probes, whichever comes first');
+    expect(body).toMatch(/stop after 5 minutes or 12 probes/i);
     expect(body).toContain('G enforces the deadline');
-    expect(body).toContain('Never reset D/bypass G');
-    expect(body).toContain('Explicit plan checks and revalidation remain required beyond this smoke budget');
+    expect(body).toMatch(/never reset D\/bypass G/i);
+    expect(body).toMatch(/plan checks and revalidation remain required beyond this smoke budget/i);
     expect(body).toContain('leaves /review incomplete');
-    expect(body).toContain('/ship blocked unless the user explicitly accepts that named risk');
+    expect(body).toMatch(/\/ship blocked unless the user explicitly accepts that named risk/i);
   });
 
   test('excerpt extraction fails loudly instead of producing an empty passing fixture', () => {
@@ -1152,16 +1124,15 @@ describe('real caller-specific native fixture and capture boundary', () => {
     try {
       fixture.config = path.join(fixture.root, 'callback-config');
       await runQaCaller(fixture, 'free-receipt-interface', async options => {
-        expect(options.prompt).toContain('status is the overall supplied phase gate, not whether some probes passed');
-        expect(options.prompt).toContain('Pass requires no remaining required contracts or gates');
-        expect(options.prompt).toContain('Optional unavailable providers and later stages outside this excerpt are not required remainder');
-        expect(options.prompt).toContain('exact id values from the captured child JSON (probe-...)');
-        expect(options.prompt).toContain("never the helper's three-digit capture IDs or QA_EVIDENCE.id");
-        expect(options.prompt).toContain('Capture IDs select stored observations for checkpoint/materialize');
+        expect(options.prompt).toMatch(/overall supplied phase gate/i);
+        expect(options.prompt).toMatch(/no remaining required contracts or gates/i);
+        expect(options.prompt).toMatch(/not required remainder/i);
+        expect(options.prompt).toContain('(probe-...)');
+        expect(options.prompt).toMatch(/never the helper's three-digit capture IDs/i);
         expect(options.prompt).not.toMatch(/bun scripts\/probe\.ts \d|exploration-[0-9]{3}|snapshot.*must|plan:nine|adverse/i);
         const readme = fs.readFileSync(path.join(fixture.cwd, 'README.md'), 'utf8');
-        expect(readme).toContain('Every diagnostic receipt field is synthetic, nonsecret evidence');
-        expect(readme).toContain('snapshot identifies the owned source and fixture inputs');
+        expect(readme).toMatch(/synthetic, nonsecret/i);
+        expect(readme).toMatch(/snapshot identifies the owned source/i);
         expect(readme).not.toMatch(/checkpoint|exploration-NNN|hypothesis|nextCommand/);
         return { exitReason: 'success', transcript: [] } as unknown as SkillTestResult;
       });
@@ -1361,20 +1332,18 @@ describe('real caller-specific native fixture and capture boundary', () => {
         expect(options.timeout).toBe(300_000);
         expect(options.completionReserveMs).toBe(75_000);
         expect(options.appendSystemPrompt).toContain(`at most ${options.maxTurns} assistant turns`);
-        expect(options.appendSystemPrompt).toContain('independent source Reads and read-only discovery together as separate native tool calls');
-        expect(options.appendSystemPrompt).toContain('After required clock and approval prerequisites settle');
-        expect(options.appendSystemPrompt).toContain('The completion reserve is for required verification, affected-input revalidation and artifacts, not an earlier deadline');
-        expect(options.appendSystemPrompt).toContain("Use each native probe's snapshot to distinguish current from superseded evidence");
-        expect(options.appendSystemPrompt).toContain('Never group diagnostic probes, checkpoint publication with its next probe');
-        expect(options.appendSystemPrompt).toContain('the turn limit does not authorize skipping work or reporting incomplete work as passed');
+        for (const rule of [/separate native tool calls/i, /approval prerequisites settle/i,
+          /completion reserve is for required verification/i, /superseded evidence/i,
+          /never group diagnostic probes/i, /turn limit does not authorize skipping work/i]) {
+          expect(options.appendSystemPrompt).toMatch(rule);
+        }
         expect(options.appendSystemPrompt).not.toMatch(/bun scripts\/probe\.ts \d|invalid input|highest.risk/i);
-        expect(options.prompt).toContain('Keep normal parent decision gates.');
-        expect(options.prompt).toContain("use the section clock's Hard deadline UTC, never its Runner entry UTC, reserve-start time or a clock-read time");
-        expect(options.prompt).toContain('Before the completion report and each completed:true review record, read HANDOFF.md');
-        expect(options.prompt).toContain('a later handoff read cannot validate an earlier completion');
-        expect(options.prompt).toContain('If you defer an optional idea or stop exploration, do not publish a checkpoint for it');
-        expect(options.prompt).toContain('An unused checkpoint requires an actual authenticated expired-capture result; nearing the deadline or choosing to stop is not enough');
-        expect(options.prompt).toContain('Write the phase report to reports/review.md.');
+        expect(options.prompt).toMatch(/keep normal parent decision gates/i);
+        expect(options.prompt).toMatch(/Hard deadline UTC, never its Runner entry UTC/i);
+        expect(options.prompt).toMatch(/completed:true review record, read HANDOFF\.md/i);
+        expect(options.prompt).toMatch(/do not publish a checkpoint for it/i);
+        expect(options.prompt).toMatch(/authenticated expired-capture result/i);
+        expect(options.prompt).toContain('reports/review.md');
         return sentinel;
       });
       expect(calls).toBe(1);

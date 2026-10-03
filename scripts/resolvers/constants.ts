@@ -170,8 +170,8 @@ Branch on the echoed \`CODEX_MODE\`:
 }
 
 /**
- * Canonical foreground-dispatch guidance (#497 → #2440 → third recurrence at
- * /ship Step 18). Claude Code v2.1.198 made Agent-tool subagents run in the
+ * Canonical foreground-dispatch guidance (#497 → #2440 → a third recurrence at
+ * a /ship documentation dispatch). Claude Code v2.1.198 made Agent-tool subagents run in the
  * BACKGROUND by default; a synchronous dispatch site must pass the flag
  * explicitly or the parent waits on output that never arrives. Rendered via
  * {{FOREGROUND_DISPATCH_NOTE}} in section templates; resolver sites may
@@ -181,4 +181,4 @@ Branch on the echoed \`CODEX_MODE\`:
 export const CC_BACKGROUND_DEFAULT_SINCE = 'Claude Code v2.1.198';
 
 export const FOREGROUND_DISPATCH_NOTE =
-  `**Foreground required:** pass \`run_in_background: false\` on the Agent call — subagents run in the BACKGROUND by default since ${CC_BACKGROUND_DEFAULT_SINCE}. (Merely omitting the flag no longer produces a foreground run; it must be explicitly false.) The dispatch happens ONLY via the Agent tool: invoking the target as a Skill, or executing its workflow inline in your own context, is WRONG even though the skill may appear in your available-skills list — inline execution forfeits the fresh-context isolation this dispatch exists for, and the explicit flag already makes the Agent call block. (Where a step defines an inline FALLBACK, it applies only after a dispatched subagent has failed.)`;
+  `**Foreground required:** pass \`run_in_background: false\` on the Agent call — subagents run in the background by default since ${CC_BACKGROUND_DEFAULT_SINCE}, so omitting the flag gives a background run. Dispatch through the Agent tool only: invoking the target as a Skill, or executing its workflow inline in your own context, forfeits the fresh-context isolation this dispatch exists for, even though the skill may appear in your available-skills list; the explicit flag already makes the Agent call block. (Where a step defines an inline fallback, it applies only after a dispatched subagent has failed.)`;

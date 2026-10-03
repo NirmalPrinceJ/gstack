@@ -118,7 +118,7 @@ Squash/rebase merge readback guard:
 git fetch "https://github.com/$REPO.git" "$BASE_BRANCH"
 git diff --quiet "$MERGE_SHA" FETCH_HEAD || git log --oneline --decorate -1 "$MERGE_SHA" FETCH_HEAD
 ```
-- If the worktree is clean and only needs to stop looking diverged after a squash merge, prefer a named local branch at the merge commit, for example `git switch -c "codex/post-merge-pr-$PR_NUMBER" "$MERGE_SHA"`. Avoid detached HEAD in Codex Desktop worktrees because git action workers often expect `git symbolic-ref --short HEAD` to return a branch. Do not force-push or reset a user's branch unless they explicitly ask.
+- If the worktree is clean and only needs to stop looking diverged after a squash merge, prefer a named local branch at the merge commit over a detached HEAD, for example `git switch -c "post-merge/pr-$PR_NUMBER" "$MERGE_SHA"` (use the host's branch prefix where it has one, such as `codex/` in Codex Desktop, whose git action workers expect `git symbolic-ref --short HEAD` to return a branch). Do not force-push or reset a user's branch unless they explicitly ask.
 
 Worktree cleanup — non-destructive, candidate-based:
 ```bash

@@ -7,14 +7,12 @@ import { generatePlanVerificationExec } from '../scripts/resolvers/plan-gates';
 import { HOST_PATHS } from '../scripts/resolvers/types';
 
 function assertPreparation(text: string) {
-  expect(text).toContain('Complete these Reads in order before writing charters or probing');
-  expect(text).toMatch(/Await their results before the first probe, never in the same response\.|Await each successful Read result before continuing\./);
-  expect(text).toContain('Do not repeat a Read already completed in this invocation');
-  const stages = ['1. Read `sections/scope.md`', 'in full and select the surfaces',
-    '2. Read the selected surface methods below in full', '**Functional surfaces:**',
-    'Read `sections/system-functional.md` in full.', '**Browser surfaces only:**',
-    'Read `sections/qa-patterns.md` in full.', '## 1. Charter and preflight',
-    'Write a **charter**', 'Start once before baseline:', '1. First demonstrate success'];
+  expect(text).toMatch(/reads in order before writing charters or probing/i);
+  expect(text).toMatch(/Await their results before the first probe, never in the same response\.|Await each successful Read result before continuing\./i);
+  expect(text).toMatch(/do not repeat a Read already completed/i);
+  const stages = ['Read `sections/scope.md`', '**Functional surfaces:**', 'Read `sections/system-functional.md`',
+    '**Browser surfaces only:**', 'Read `sections/qa-patterns.md`', '## 1. Charter and preflight',
+    'bun G start D SECONDS', '1. First demonstrate success'];
   const positions = stages.map(stage => text.indexOf(stage));
   expect(positions.every(position => position >= 0)).toBe(true);
   expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -24,36 +22,35 @@ function assertPreparation(text: string) {
 }
 
 function assertBoundsAndLayout(text: string) {
-  for (const contract of [
-    'Browser Quick: SECONDS=30', 'Browser Full/Regression: SECONDS=900',
-    'Functional Full, Quick and Regression have no default total timer',
-    "Set SECONDS to the shorter mode/caller limit",
-    "an unlimited mode uses the caller\'s bound",
-    'Without a total time limit, do not start D',
-    'announce finite command timeouts',
-    "EARLIER_UTC = caller\'s absolute deadline, if set",
-    'Clocks/checkpoints use REPORT_DIR; mixed standalone runs use REPORT_DIR/browser and REPORT_DIR/functional, with one final report at REPORT_DIR. Caller paths win.',
-    'in the probe directory, beside its deadline if bounded',
-  ]) expect(text).toContain(contract);
-  expect(text.indexOf('Caller paths win.')).toBeLessThan(text.indexOf('Start once before baseline:'));
+  for (const contract of ['Browser Quick: SECONDS=30', 'Browser Full/Regression: SECONDS=900']) expect(text).toContain(contract);
+  for (const rule of [
+    /functional full, quick and regression have no default total timer/i,
+    /shorter mode\/caller limit/i,
+    /without a total time limit, do not start D/i,
+    /finite command timeouts/i,
+    /mixed standalone runs use REPORT_DIR\/browser and REPORT_DIR\/functional/i,
+    /one final report at REPORT_DIR/i,
+    /caller paths win/i,
+  ]) expect(text).toMatch(rule);
+  expect(text.search(/caller paths win/i)).toBeLessThan(text.indexOf('bun G start D SECONDS'));
 }
 
 function assertPlanExecution(text: string, shared = generateQAExploratory({ host: 'claude', skillName: 'qa', tmplPath: '', paths: HOST_PATHS.claude })) {
   const step = text.slice(text.indexOf('**3. Run smoke and plan checks.**'), text.indexOf('**4. Check freshness before reporting.**')).replace(/\s+/g, ' ');
-  for (const contract of [
-    'Follow the shared Probe loop for smoke checks and replays until the smoke limit',
-    'Then run required plan checks and revalidation, even after smoke expires',
-    'using the same procedure but no smoke guard; never reset the clock',
-    "Use finite command timeouts, capped at the caller\'s remaining time if it has a deadline",
-    'When the caller\'s deadline expires, mark unfinished checks not-run',
-    'Await clock/guard results before acting',
-  ]) expect(step).toContain(contract);
+  for (const rule of [
+    /shared Probe loop for smoke checks and replays until the smoke limit/i,
+    /required plan checks and revalidation, even after smoke expires/i,
+    /same procedure but no smoke guard; never reset the clock/i,
+    /capped at the caller's remaining time/i,
+    /deadline expires, mark unfinished checks not-run/i,
+    /await clock\/guard results before acting/i,
+  ]) expect(step).toMatch(rule);
   expect(step.indexOf('Follow the shared Probe loop')).toBeLessThan(step.indexOf('Then run required plan checks'));
   expect(step.indexOf('Then run required plan checks')).toBeLessThan(step.indexOf('same procedure'));
-  for (const contract of ['First demonstrate success: output AND durable effects',
-    'Wait for successful checkpoint publication before dispatch',
-    'Replay the exact failing command/request from the same initial fixture state']) {
-    expect(shared).toContain(contract);
+  for (const rule of [/demonstrate success: output and durable effects/i,
+    /wait for successful checkpoint publication before dispatch/i,
+    /replay the exact failing command\/request from the same initial fixture state/i]) {
+    expect(shared).toMatch(rule);
   }
 }
 
@@ -67,8 +64,7 @@ describe('QA probe entry and checkpoint gates', () => {
     expect(old).toContain('Read `sections/system-functional.md`');
     const current = generateQAExploratory({ host: 'claude', skillName: 'qa-only', tmplPath: '', paths: HOST_PATHS.claude });
     for (const clause of ['## 0. Preparation gate', 'Await each successful Read result before continuing',
-      'description, section index or remembered method is not a completed instruction Read',
-      'If either required Read is missing, complete it now before Charter and preflight']) {
+      'complete it now before Charter and preflight']) {
       expect(old).not.toContain(clause);
       expect(current).toContain(clause);
     }
@@ -88,13 +84,13 @@ describe('QA probe entry and checkpoint gates', () => {
         const ctx = { host: host.name, skillName, tmplPath: '', paths: HOST_PATHS[host.name] };
         const preflight = generateQAReviewPreflight(ctx).replace(/\s+/g, ' ');
         const body = generateQAReview(ctx).replace(/\s+/g, ' ');
-        expect(preflight).toContain('Resolve QA\'s `sections/...` and `templates/...` paths from that installed QA SKILL.md directory, not the caller or product directory');
+        expect(preflight).toMatch(/`sections\/\.\.\.` and `templates\/\.\.\.` paths from that installed QA SKILL\.md directory, not the caller or product directory/i);
         expect(body).toContain('Read QA\'s `sections/browser-setup.md`');
         expect(body).toContain('Read QA\'s `templates/functional-report-template.md`');
         if (skillName === 'review') {
           expect(body).toContain('Read QA\'s `templates/qa-report-template.md`');
-          expect(body).toContain('Reuse Step 4\'s surfaces and completed Reads');
-          expect(body).toContain('Finish missing methods before charters; do not repeat completed Reads');
+          expect(body).toContain('Step 4\'s surfaces');
+          expect(body).toMatch(/do not repeat completed Reads/i);
         }
       }
     }
@@ -110,19 +106,14 @@ describe('QA probe entry and checkpoint gates', () => {
         const positions = stages.map(stage => text.indexOf(stage));
         expect(positions.every(position => position >= 0)).toBe(true);
         expect(positions).toEqual([...positions].sort((a, b) => a - b));
-        expect(text).toContain('No drafts/placeholders');
-        expect(text).toContain('corrections cannot repair published notes');
+        expect(text).toMatch(/corrections cannot repair published notes/i);
         if (skillName === 'qa-only') {
-          expect(text).toContain('never invent a substitute path, identity or state');
-          expect(text).toContain('For actual secrets/private payloads, withhold those values');
-          expect(text).toContain('and replay limits in the report');
-          expect(text).toContain('stop the affected probe chain');
-          expect(text).toContain('An absolute state path is not itself a secret');
+          expect(text).toMatch(/never invent a substitute path, identity or state/i);
+          expect(text).toMatch(/secrets\/private payloads, withhold those values/i);
+          expect(text).toMatch(/stop the affected probe chain/i);
         } else {
-          expect(text).toContain('No drafts/placeholders or invented safe-path redactions');
-          expect(text).toContain('Withhold unsafe values, disclose limits and stop that chain');
+          expect(text).toMatch(/withhold unsafe values, disclose limits and stop that chain/i);
         }
-        if (skillName === 'qa-only') expect(text).toContain('If capture is incomplete, report that limit instead of reconstructing it');
       }
     }
   });
@@ -132,13 +123,7 @@ describe('QA probe entry and checkpoint gates', () => {
       const text = generateQAExploratory({ host: 'claude', skillName, tmplPath: '', paths: HOST_PATHS.claude });
       for (const contract of [
         'Reuse resolved REPORT_DIR',
-        'charters as Markdown in the report',
-        "Set SECONDS to the shorter mode/caller limit",
-        'Without a total time limit, do not start D',
-        'Browser Quick: SECONDS=30',
-        'Browser Full/Regression: SECONDS=900',
         'exactly four top-level fields:', 'observationCommand:', 'observed:', 'hypothesis:', 'nextCommand:',
-        'observed: its exact decoded child JSON (no wrapper/extra keys), or its full non-JSON text',
         'QA_DEADLINE receipts are not observations',
       ]) expect(text).toContain(contract);
       assertBoundsAndLayout(text);
@@ -159,17 +144,15 @@ describe('QA probe entry and checkpoint gates', () => {
         const write = text.indexOf('**Publish before probing.**');
         expect(decision).toBeGreaterThan(-1);
         expect(decision).toBeLessThan(write);
-        expect(text.slice(decision, write)).toContain('write the report, not a checkpoint');
-        expect(text.slice(decision, write)).toContain('If expired or no safe next probe remains');
+        expect(text.slice(decision, write)).toMatch(/write the report, not a checkpoint/i);
+        expect(text.slice(decision, write)).toMatch(/if expired/i);
         expect(text.slice(decision, write)).not.toContain('If done or blocked');
         if (skillName === 'qa-only') {
-          expect(text).toContain('Check fields before publication');
-          expect(text).toContain('retain the entire result unchanged, including owned fixture paths, IDs, hashes');
+          expect(text).toMatch(/retain the entire result unchanged/i);
         } else {
-          expect(text).toContain('Preserve every safe program-JSON key/value');
-          expect(text).toContain('Preserve every safe program-JSON key/value and identity hash unchanged');
+          expect(text).toMatch(/preserve every safe program-JSON key\/value and identity hash unchanged/i);
         }
-        expect(text).toContain('Q supplies observed; never transcribe it');
+        expect(text).toMatch(/Q supplies observed; never transcribe it/i);
       }
     }
   });
@@ -182,20 +165,16 @@ describe('QA probe entry and checkpoint gates', () => {
       expect(text).toContain('/gstack-qa-deadline');
       expect(text).toContain('bun G start D SECONDS [EARLIER_UTC]');
       expect(text).toContain('Bounded browsers: `bun G run D -- COMMAND ARGS`');
-      expect(text).toContain('Never reset D/bypass G');
-      expect(text).toContain('invalid/missing D stops probes');
-      expect(steps[0]).toContain('demonstrate success: output AND durable effects');
-      expect(steps[0]).toContain('Guard if bounded; await completion');
-      expect(steps[1]).toContain('If bounded, run `bun G status D`');
+      expect(text).toMatch(/never reset D\/bypass G/i);
+      expect(text).toMatch(/invalid\/missing D stops probes/i);
+      expect(steps[0]).toMatch(/demonstrate success: output and durable effects/i);
+      expect(steps[1]).toContain('`bun G status D`');
       expect(steps[1].indexOf('If expired')).toBeLessThan(steps[1].indexOf('**Publish before probing.**'));
-      expect(steps[1]).toContain('STOP exploration; write the report, not a checkpoint');
-      expect(steps[2]).toContain('Run that exact probe; G enforces the deadline when bounded');
+      expect(steps[1]).toMatch(/\bstop exploration\b[^.]*write the report/i);
       expect(steps[2]).toContain('G enforces the deadline');
-      expect(steps[2]).toContain('Report refusals as not-run');
+      expect(steps[2]).toMatch(/refusals as not-run/i);
       expect(steps[3]).toContain('via steps 2–3');
-      expect(steps[3]).toContain('then minimize via those gates');
-      expect(steps[3]).toContain('Expiry leaves confirmation/minimization incomplete');
-      expect(steps[4]).toContain('return to step 2 for each affected revalidation');
+      expect(steps[4]).toContain('return to step 2');
     }
   });
 
@@ -204,25 +183,25 @@ describe('QA probe entry and checkpoint gates', () => {
       for (const skillName of ['review', 'ship']) {
         const ctx = { host: host.name, skillName, tmplPath: '', paths: HOST_PATHS[host.name] };
         const text = (skillName === 'review' ? generateQAReviewPreflight(ctx) : '') + generateQAReview(ctx);
-        expect(text).toContain('> **STOP.** Before any probe, including plan checks, complete the ordered scope/method Reads below');
+        const gate = text.search(/before any probe, including plan checks, complete the ordered scope\/method Reads/i);
+        expect(gate).toBeGreaterThan(-1);
         expect(text).toContain('{{QA_RESOURCE:exploratory}}');
         expect(text).not.toContain('{{QA_RESOURCE:scope}}');
         expect(text).not.toContain('Read `sections/system-functional.md`');
         const shared = generateQAExploratory({ ...ctx, skillName: 'qa' });
         assertPreparation(shared);
-        expect(text).toContain('Before any probe, including plan checks');
         assertPlanExecution(text);
         const required = text.indexOf(skillName === 'review'
           ? '**2. Check readiness and list required checks.**' : '**2. List required checks');
         expect(required).toBeGreaterThan(-1);
-        expect(text.indexOf('> **STOP.**')).toBeLessThan(required);
+        expect(gate).toBeLessThan(required);
         if (skillName === 'review') {
           const isolation = text.indexOf('**1. Set the charter and isolation.**');
           const setup = text.indexOf("Read QA's `sections/browser-setup.md`");
-          expect(isolation).toBeGreaterThan(text.indexOf('> **STOP.**'));
+          expect(isolation).toBeGreaterThan(gate);
           expect(setup).toBeGreaterThan(required);
-          expect(text.slice(isolation, required).replace(/\s+/g, ' ')).toContain('complete the shared isolation/permission preflight before setup');
-          expect(text).toContain('Step 4 is read-only: defer charters, setup and probes to Step 4.7');
+          expect(text.slice(isolation, required).replace(/\s+/g, ' ')).toMatch(/isolation\/permission preflight before setup/i);
+          expect(text).toMatch(/Step 4 is read-only: defer charters, setup and probes to Step 4\.7/i);
         } else {
           const setup = text.indexOf("For browsers, Read QA's `sections/browser-setup.md`");
           expect(setup).toBeGreaterThan(required);
@@ -239,8 +218,9 @@ describe('QA probe entry and checkpoint gates', () => {
     for (const changed of [
       method + '\n' + text.replace(method, ''),
       text.replace(method, method + '\n' + method),
-      'Write a **charter**\n' + text,
+      '## 1. Charter and preflight\n' + text,
       text.replace('Do not repeat a Read already completed in this invocation', 'Repeat all Reads'),
+      text.replace('Read `sections/qa-patterns.md` in full.', '').replace('## 1. Charter and preflight', '## 1. Charter and preflight\nRead `sections/qa-patterns.md` in full.'),
       // ci-36641820398-1-gate-census-7 ship-exploratory-small-cli dispatched its first probe with the resource Reads.
       text.replace(' Await their results before the first probe, never in the same response.', ''),
     ]) expect(() => assertPreparation(changed)).toThrow();
@@ -303,8 +283,8 @@ describe('QA probe entry and checkpoint gates', () => {
 
   test('plan execution waits for the actual shared method reads, not just collection', () => {
     const text = generatePlanVerificationExec({ host: 'claude', skillName: 'ship', tmplPath: '', paths: HOST_PATHS.claude });
-    expect(text).toContain('Do not invoke an entire QA skill or start probes here');
+    expect(text).toMatch(/do not invoke an entire QA skill or start probes here/i);
     expect(text).toContain('Before the first plan command, complete Step 9.2.1');
-    expect(text).toContain('method Reads and the shared probe loop');
+    expect(text).toMatch(/method Reads and the shared probe loop/i);
   });
 });

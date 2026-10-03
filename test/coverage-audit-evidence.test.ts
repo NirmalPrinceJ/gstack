@@ -470,6 +470,25 @@ Guard clauses tested: 0 / 4
   });
 });
 
+describe('coverage audit closing summary', () => {
+  const stored = require('./fixtures/coverage-audit-summary.json') as { known_good: Record<string, string>; known_bad: Record<string, string> };
+  test.each(Object.entries(stored.known_good))('summary passes %s', (_name, output) => {
+    const s = synthetic(); s.result.output = output;
+    expect(verdict(s)).toEqual({ sourceRead: true, testsRead: true, diagram: true, passed: true, failures: [] });
+  });
+  test.each(Object.entries(stored.known_bad))('summary fails %s', (_name, output) => {
+    const s = synthetic(); s.result.output = output;
+    expect(verdict(s).passed).toBe(false);
+  });
+  test('a correct summary cannot replace native file delivery or a completed capture', () => {
+    const output = stored.known_good['unfamiliar-diagram-with-summary']!;
+    const unread = synthetic(); unread.result.output = output; block(unread, 2).content = 'not the file';
+    expect(verdict(unread)).toMatchObject({ sourceRead: false, passed: false });
+    const timedOut = synthetic(); timedOut.result.output = output; timedOut.result.exitReason = 'timeout';
+    expect(verdict(timedOut).passed).toBe(false);
+  });
+});
+
 describe('coverage-audit-af', () => {
 const fixture = fixture_coverage_audit_af;
 const actual = (index: number) => structuredClone(fixture.rows[index]!);
@@ -1106,5 +1125,25 @@ describe('coverage-audit-sed-context', () => {
   test('a failed result or a discarded-stderr read gets no credit; a labeled neighbor keeps its own', () => {
     expect(reads(undefined, undefined, true)).toEqual(neither);
     expect(reads(capture.command.replace('cat -n src/billing.ts', 'cat -n src/billing.ts 2>/dev/null'))).toEqual({ sourceRead: false, testsRead: true });
+  });
+});
+
+describe('coverage audit native evidence: pathspec git displays', () => {
+  const run = (command: string) => {
+    const s = synthetic();
+    const numberedLines = (text: string) => text.replace(/\n$/, '').split('\n').map((line, i) => `${String(i + 1).padStart(6)}\t${line}`).join('\n');
+    Object.assign(block(s, 1), { name: 'Bash', input: { command } });
+    block(s, 2).content = `${numberedLines(s.files.source.content)}\n======\n${numberedLines(s.files.tests.content)}\n======\n src/billing.ts | 2 ++\n`;
+    s.result.transcript.splice(3);
+    return verdict(s);
+  };
+  test('a ;-list of cat -n reads followed by git diff with a -- pathspec credits both reads (CI 37094035231 shape)', () => {
+    expect(run('cat -n src/billing.ts; echo ======; cat -n test/billing.test.ts; echo ======; git diff main --stat; echo; git diff main -- src/billing.ts test/billing.test.ts'))
+      .toMatchObject({ sourceRead: true, testsRead: true });
+  });
+  test('the pathspec form still cannot write or run helpers', () => {
+    for (const tail of ['git diff main -- src/billing.ts > out.txt', 'git diff main --output=x -- src/billing.ts', 'git diff main --ext-diff -- src/billing.ts']) {
+      expect(run(`cat -n src/billing.ts; echo ======; cat -n test/billing.test.ts; ${tail}`), tail).toMatchObject({ sourceRead: false, testsRead: false });
+    }
   });
 });

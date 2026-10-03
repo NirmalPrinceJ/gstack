@@ -87,7 +87,16 @@ function setupFixture(home: string): { gstackHome: string; counts: Record<string
   };
 }
 
+function seedTranscriptConsent(gstackHome: string | undefined): void {
+  if (!gstackHome) return;
+  mkdirSync(gstackHome, { recursive: true });
+  const config = join(gstackHome, "config.yaml");
+  const current = existsSync(config) ? readFileSync(config, "utf-8") : "";
+  if (!/^transcript_ingest_mode:/m.test(current)) writeFileSync(config, `${current}transcript_ingest_mode: recent\n`);
+}
+
 function runBun(script: string, args: string[], env: Record<string, string>): { stdout: string; stderr: string; exitCode: number } {
+  seedTranscriptConsent(env.GSTACK_HOME);
   const r = spawnSync("bun", [script, ...args], {
     encoding: "utf-8",
     timeout: 60000,

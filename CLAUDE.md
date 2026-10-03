@@ -69,7 +69,9 @@ then run the full free suite once on the final integrated code. During repairs,
 focused checks replace a full-suite run before every commit.
 
 `bun run test` routes through `scripts/test-free-shards.ts`, whose strict
-per-shard classification fails a shard that lacks bun's summary line. Never type
+per-shard classification fails a shard that lacks bun's summary line.
+`TREE_MUTATING` lists the files that still run in their own trailing serial
+shard (today only `test/bootstrap-retention.test.ts`). Never type
 bare `bun test` for the suite: it walks the whole repo, loading paid eval files
 and missing the strict classifier. `bun run test:pr` runs the selected short
 live behaviors and quality judges and reports deferred broad coverage. Full free
@@ -81,7 +83,18 @@ Shard packing, judge reuse and engine skips:
 
 New or changed tests follow the [test value bar](docs/test-value-bar.md): each one
 protects behavior a real regression would break, and contract tests (SKILL.md
-goldens, prompt bytes) stay. The bar's source is `scripts/resolvers/test-value.ts`.
+goldens, and prompt bytes that are a contract as defined below) stay. The bar's
+source is `scripts/resolvers/test-value.ts`.
+
+In this repo, prompt bytes are a contract only when software reads them (a
+parser, hook, grader or another skill consumes the exact text) or a recorded
+eval shows the wording matters. Tests on skill templates and generated SKILL.md
+pin structure, step order, routing tables, machine-read markers and
+safety-critical lines; check safety lines case-insensitively, on meaning rather
+than capitals. Leave behavior to E2E cases and judges. Don't pin emphasis,
+capitalization, issue numbers, or a sentence a behavioral check already covers,
+and when a rewrite changes a pinned sentence, replace the pin with a structural
+or meaning-level check instead of pinning the new sentence.
 Projects tune `/ship`'s coverage gate with optional CLAUDE.md `## Test Coverage`
 keys, all absent by default: `Minimum:`, `Target:`, `Generation cap:` (default 5),
 `Base control:` (`auto` or `off`), `Base control budget:` (seconds, default 90) and
@@ -137,7 +150,8 @@ options go into `lib/aside-render.ts` (which handles the fallback), never into
 a skill's own bash.
 
 **Size budgets:** generated SKILL.md files warn above 160KB (~40K tokens);
-`test/catalog-budget.test.ts` caps the always-loaded skill catalog; and
+`test/catalog-budget.test.ts` caps the always-loaded skill catalog at
+`CATALOG_BUDGET_TOKEN_EQUIVALENTS` (1,194 today; each new skill ratchets it); and
 `test/context-budget-ratchet.test.ts` pins per-skill token ceilings against
 `test/fixtures/context-budget.json` (for legitimate growth or a landed
 reduction, re-run `bun test/helpers/capture-context-budget.ts` and commit the
@@ -182,8 +196,9 @@ Rules:
 ## Writing style (V1)
 
 Default output from every tier-≥2 skill follows the Writing Style section in
-`scripts/resolvers/preamble.ts`: jargon glossed on first use (curated list in
-`scripts/jargon-list.json`, baked at gen-skill-docs time), questions framed in
+`scripts/resolvers/preamble/generate-writing-style.ts`: jargon glossed on first
+use (curated list in `scripts/jargon-list.json`, which the skill Reads at runtime
+on the first jargon term), questions framed in
 outcome terms ("what breaks for your users if...") not implementation terms,
 short sentences, decisions close with user impact. Power users who want the
 tighter V0 prose set `gstack-config set explain_level terse` (binary switch,
@@ -432,19 +447,6 @@ regenerated SKILL.md shifts prompt context.
 
 "Pre-existing" without receipts is a lazy claim. Prove it or don't say it.
 
-## Long-running tasks: don't give up
-
-When running evals, E2E tests, or any long-running background task, **poll until
-completion**. Use `sleep 180 && echo "ready"` + `TaskOutput` in a loop every 3
-minutes. Never switch to blocking mode and give up when the poll times out. Never
-say "I'll be notified when it completes" and stop checking — keep the loop going
-until the task finishes or the user tells you to stop.
-
-The full E2E suite can take 30-45 minutes. That's 10-15 polling cycles. Do all of
-them. Report progress at each check (which tests passed, which are running, any
-failures so far). The user wants to see the run complete, not a promise that
-you'll check later.
-
 ## Running evals as an agent: always detach (SIGTERM-proof)
 
 When **you (an agent/harness)** launch a long eval/benchmark run, run it through
@@ -453,8 +455,10 @@ SIGTERM kills that mid-flight. Use the `eval:bg*` scripts (machine-wide
 `gstack-evals` lock, per-tier watchdog, run-scoped log under
 `~/.gstack-dev/eval-runs/`), export `ANTHROPIC_API_KEY` first (never pass keys
 in argv), then poll the printed log until the `### gstack-detach EXIT=<code> ###`
-sentinel. Humans running evals in their own terminal don't need this. Sharded
-runner, timeouts and knobs:
+sentinel; keep checking until it appears or the user tells you to stop, and
+report progress at each check. Detach timeouts are the `--timeout` values on
+package.json's `eval:bg:gate` / `eval:bg:periodic`. Humans running evals in their own terminal don't
+need this. Sharded runner, timeouts and knobs:
 [docs/TESTING_INTERNALS.md](docs/TESTING_INTERNALS.md#running-evals-as-an-agent-detach).
 
 ## E2E test fixtures: extract, don't copy

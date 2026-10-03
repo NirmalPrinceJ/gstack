@@ -33,7 +33,7 @@ gbrain:
       render_as: "## Existing DESIGN.md (if any)"
     - id: prior-design-decisions
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/*-design-*.md"
+      glob: "{gstack_state_root}/projects/{repo_slug}/*-design-*.md"
       sort: mtime_desc
       limit: 3
       render_as: "## Prior design decisions for this project"

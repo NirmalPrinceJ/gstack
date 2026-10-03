@@ -12,8 +12,8 @@ export const PR_PROFILE_CASE_IDS = [
   'qa-functional-cli-fix', 'qa-functional-webhook-fix',
   'review-exploratory-small-cli', 'ship-exploratory-small-cli', 'ship-exploratory-unavailable',
   'ship-exploratory-plan-checks', 'ship-exploratory-late-input',
-  'plan-ceo-review-benefits', 'plan-eng-coverage-audit', 'plan-review-report',
-  'auq-format-gate', 'plan-design-review-no-ui-scope', 'office-hours-spec-review',
+  'plan-eng-coverage-audit', 'plan-review-report',
+  'auq-format-gate', 'plan-design-review-no-ui-scope',
   'tpa-present', 'tpa-absent-linux',
   'ship-local-workflow', 'ship-coverage-audit', 'docsync-spawned',
   'ship-docsync-completion', 'ship-docsync-current', 'ship-docsync-failure', 'ship-docsync-store',
@@ -26,10 +26,12 @@ export const PR_PROFILE_CASE_IDS = [
   'gstack-upgrade-happy-path',
   'investigate-owned-completion', 'investigate-owned-abort', 'investigate-owned-ending-error',
   'ship-coverage-value', 'review-test-value', 'test-audit-report-only',
+  'office-hours-auto-mode',
 ] as const;
 
 /** Audited ownership: unknown/direct-describe files remain broad coverage. */
 export const PR_PROFILE_FILES: Record<string, readonly string[]> = {
+  'test/skill-e2e-office-hours-auto-mode.test.ts': ['office-hours-auto-mode'],
   'test/skill-e2e-investigate-owned-completion.test.ts': ['investigate-owned-completion'],
   'test/skill-e2e-investigate-owned-termination.test.ts': ['investigate-owned-abort', 'investigate-owned-ending-error'],
   'test/skill-e2e-hermetic-canary.test.ts': ['hermetic-canary', 'hermetic-sentinel'],
@@ -41,7 +43,7 @@ export const PR_PROFILE_FILES: Record<string, readonly string[]> = {
   'test/skill-e2e-review.test.ts': ['review-sql-injection'],
   'test/skill-e2e-coverage-audit.test.ts': ['review-coverage-audit', 'plan-eng-coverage-audit'],
   'test/skill-e2e-test-value.test.ts': ['ship-coverage-value', 'review-test-value', 'test-audit-report-only'],
-  'test/skill-e2e-plan.test.ts': ['plan-ceo-review-benefits', 'plan-review-report', 'office-hours-spec-review'],
+  'test/skill-e2e-plan.test.ts': ['plan-review-report'],
   'test/skill-e2e-ask-user-question-format-compliance.test.ts': ['auq-format-gate'],
   'test/skill-e2e-design.test.ts': ['plan-design-review-no-ui-scope'],
   'test/skill-e2e-third-party-actions.test.ts': ['tpa-present', 'tpa-absent-linux'],

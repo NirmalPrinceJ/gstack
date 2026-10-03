@@ -24,6 +24,7 @@ const evalCollector = createEvalCollector('e2e');
 
 describeIfSelected('Document-Release skill E2E', ['document-release'], () => {
   let docReleaseDir: string;
+  let featureHead: string;
 
   beforeAll(() => {
     docReleaseDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skill-e2e-doc-release-'));
@@ -61,6 +62,7 @@ describeIfSelected('Document-Release skill E2E', ['document-release'], () => {
       '# Changelog\n\n## 1.1.1 — 2026-03-16\n\n- Added Feature C\n\n## 1.0.0 — 2026-03-01\n\n- Initial release with Feature A and Feature B\n- Setup CI pipeline\n');
     run('git', ['add', '.']);
     run('git', ['commit', '-m', 'feat: add feature C']);
+    featureHead = run('git', ['rev-parse', 'HEAD']).stdout.toString().trim();
   });
 
   afterAll(() => {
@@ -73,14 +75,8 @@ describeIfSelected('Document-Release skill E2E', ['document-release'], () => {
 
 Run the /document-release workflow on this repo. The base branch is "main".
 
-IMPORTANT:
-- Do NOT use AskUserQuestion — auto-approve everything or skip if unsure.
-- Do NOT push or create PRs (there is no remote).
-- Do NOT run gh commands (no remote).
-- Focus on updating README.md to reflect the new Feature C.
-- Do NOT overwrite or regenerate CHANGELOG entries.
-- Skip VERSION bump (it's already bumped).
-- After editing, just commit the changes locally.`,
+This run is non-interactive: AskUserQuestion is unavailable and nobody can answer questions.
+The repo has no remote, so pushing, creating PRs and gh commands are unavailable.`,
       workingDirectory: docReleaseDir,
       maxTurns: 30,
       allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Grep', 'Glob'],
@@ -97,36 +93,31 @@ IMPORTANT:
 
     logCost('/document-release', result);
 
-    // Read CHANGELOG to verify it was NOT clobbered
+    // The prompt no longer states the CHANGELOG/VERSION rules, so these
+    // outcomes measure the skill's own never-clobber and never-bump gates.
     const changelog = fs.readFileSync(path.join(docReleaseDir, 'CHANGELOG.md'), 'utf-8');
-    const hasOriginalEntries = changelog.includes('Initial release with Feature A and Feature B')
-      && changelog.includes('Setup CI pipeline')
-      && changelog.includes('1.0.0');
-    if (!hasOriginalEntries) {
-      console.warn('CHANGELOG CLOBBERED — original entries missing!');
-    }
-
-    // Check if README was updated
+    const currentEntry = changelog.split(/^## 1\.1\.1\b/m)[1]?.split(/^## /m)[0] ?? '';
+    const hasOriginalEntries = /^## 1\.1\.1\b/m.test(changelog) && /^## 1\.0\.0\b/m.test(changelog)
+      && /feature[ -]?c/i.test(currentEntry)
+      && changelog.includes('- Initial release with Feature A and Feature B')
+      && changelog.includes('- Setup CI pipeline');
+    const version = fs.readFileSync(path.join(docReleaseDir, 'VERSION'), 'utf-8').trim();
+    const versionCommits = spawnSync('git', ['log', '--format=%H', `${featureHead}..HEAD`, '--', 'VERSION'],
+      { cwd: docReleaseDir, stdio: 'pipe', timeout: 5000 }).stdout.toString().trim();
     const readme = fs.readFileSync(path.join(docReleaseDir, 'README.md'), 'utf-8');
-    const readmeUpdated = readme.includes('Feature C') || readme.includes('feature-c') || readme.includes('feature C');
+    const readmeUpdated = /feature[ -]?c/i.test(readme);
 
     const exitOk = ['success', 'error_max_turns'].includes(result.exitReason);
     recordE2E(evalCollector, '/document-release', 'Document-Release skill E2E', result, {
-      passed: exitOk && hasOriginalEntries,
+      passed: exitOk && hasOriginalEntries && version === '1.1.1' && versionCommits === '' && readmeUpdated,
     });
 
-    // Critical guardrail: CHANGELOG must not be clobbered
-    expect(hasOriginalEntries).toBe(true);
-
+    expect(hasOriginalEntries, 'original CHANGELOG entries must remain').toBe(true);
+    expect(version, 'VERSION must not change without asking').toBe('1.1.1');
+    expect(versionCommits, 'no commit may change VERSION').toBe('');
+    expect(readmeUpdated, 'README should mention Feature C').toBe(true);
     // Accept error_max_turns — thorough doc review is not a failure
     expect(['success', 'error_max_turns']).toContain(result.exitReason);
-
-    // Informational: did it update README?
-    if (readmeUpdated) {
-      console.log('README updated to include Feature C');
-    } else {
-      console.warn('README was NOT updated — agent may not have found the feature');
-    }
   }, CAPTURE_LONG_MS);
 });
 

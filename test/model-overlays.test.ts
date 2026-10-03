@@ -9,7 +9,8 @@ import * as path from 'path';
 import type { TemplateContext } from '../scripts/resolvers/types';
 import { HOST_PATHS } from '../scripts/resolvers/types';
 import { generateModelOverlay } from '../scripts/resolvers/model-overlay';
-import { resolveModel } from '../scripts/models';
+import { resolveModel, type Model } from '../scripts/models';
+import { CLAUDE_FRONTIER_EVAL_MODEL } from '../lib/eval-model';
 import { readOverlay } from '../scripts/resolvers/model-overlay';
 import { generateCompletenessSection } from '../scripts/resolvers/preamble/generate-completeness-section';
 import { generateSetupCommand } from '../scripts/resolvers/utility';
@@ -367,4 +368,48 @@ describe('Sonnet 5 overlay — family nudges', () => {
     expect(out).not.toContain('Instructions are read literally');
   });
 });
+});
+
+describe('model-routing-claude', () => {
+  test.each([
+    ['claude-opus-4-7', 'opus-4-7'],
+    ['claude-opus-4-7-20260416', 'opus-4-7'],
+    ['claude-opus-4-7-latest', 'opus-4-7'],
+    ['claude-opus-4-7-1', 'claude'],
+    ['claude-opus-4-7-1-20260601', 'claude'],
+    ['claude-opus-4-8', 'opus-4-8'],
+    ['claude-opus-4-8-20260701', 'opus-4-8'],
+    ['claude-opus-4-8-latest', 'opus-4-8'],
+    ['claude-opus-4-8-1', 'claude'],
+    ['claude-sonnet-5', 'sonnet-5'],
+    ['claude-sonnet-5-20260115', 'sonnet-5'],
+    ['claude-sonnet-5-latest', 'sonnet-5'],
+    ['claude-sonnet-5-5', 'claude'],
+    ['claude-sonnet-5-5-20261001', 'claude'],
+    ['claude-sonnet-5-10', 'claude'],
+    ['claude-sonnet-5-latest-20260101', 'claude'],
+    ['claude-opus-5-5', 'claude'],
+    ['claude-fable-5', 'fable-5'],
+    ['claude-fable-5-1', 'fable-5'],
+  ] as Array<[string, Model]>)('%s routes to %s', (input, expected) => {
+    expect(resolveModel(input)).toBe(expected);
+  });
+
+  test('input is lowercased and one trailing [...] marker is stripped', () => {
+    expect(resolveModel('CLAUDE-SONNET-5')).toBe('sonnet-5');
+    expect(resolveModel('claude-sonnet-5[1m]')).toBe('sonnet-5');
+    expect(resolveModel('claude-opus-5-5[1m]')).toBe('claude');
+  });
+
+  test('family names force the pinned profile', () => {
+    expect(resolveModel('opus-4-7')).toBe('opus-4-7');
+    expect(resolveModel('opus-4-8')).toBe('opus-4-8');
+    expect(resolveModel('sonnet-5')).toBe('sonnet-5');
+  });
+
+  test('Fable prefix exception holds only while the frontier eval model is a Fable 5 point release', () => {
+    if (resolveModel('claude-fable-5-99') === 'fable-5') {
+      expect(CLAUDE_FRONTIER_EVAL_MODEL.startsWith('claude-fable-5-')).toBe(true);
+    }
+  });
 });

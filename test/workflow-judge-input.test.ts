@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { readWorkflowJudgeInput, buildWorkflowJudgePrompt, QA_DISCOVERY_REFERENCES, WORKFLOW_JUDGE_RESPONSE_SCHEMA, WORKFLOW_JUDGE_REASONING_WORD_LIMIT } from './helpers/workflow-judge-input';
-import { ENG_REVIEW_EXCERPT } from './helpers/workflow-excerpt';
+import { ASK_QUESTIONS_HEADING, ENG_REVIEW_EXCERPT } from './helpers/workflow-excerpt';
 
 const ROOT = resolve(import.meta.dir, '..');
 const scratchRoots: string[] = [];
@@ -363,14 +363,14 @@ describe('workflow judge file bundle', () => {
 
   test('generated plan-design passes retain their full section without duplicating Pass 1', () => {
     const input = readWorkflowJudgeInput({
-      root: ROOT, skillPath: 'plan-design-review/SKILL.md', startMarker: '## Review Sections', endMarker: '## CRITICAL RULE',
+      root: ROOT, skillPath: 'plan-design-review/SKILL.md', startMarker: '## Review Sections', endMarker: ASK_QUESTIONS_HEADING,
     });
     expect(input.files.filter(file => file.kind === 'entrypoint')).toHaveLength(0);
     expect(input.files.map(file => file.path)).toEqual(sectionPaths('plan-design-review'));
     const section = input.files.find(file => file.path === 'plan-design-review/sections/review-sections.md');
     expect(section?.content).toBe(readFileSync(join(ROOT, 'plan-design-review/sections/review-sections.md'), 'utf8'));
     expect(section?.content).toStartWith('<!-- AUTO-GENERATED');
-    expect(section?.content).toContain('## CRITICAL RULE');
+    expect(section?.content).toMatch(ASK_QUESTIONS_HEADING);
     expect(section?.content).toContain('## Formatting Rules');
     expect(occurrences(input.text, '### Pass 1: Information Architecture')).toBe(1);
   });

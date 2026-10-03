@@ -181,7 +181,7 @@ mock.module(${JSON.stringify(path.join(ROOT, 'test/helpers/e2e-gate.ts'))}, () =
 mock.module(${JSON.stringify(path.join(ROOT, 'test/helpers/plan-review-decisions.ts'))}, () => ({
   evaluatePlanReviewDecisions: async input => {
     facts.evaluators++; save();
-    expect(input.kind).toBe('scope'); expect(input.floor).toBe(4);
+    expect(input.kind).toBe('scope'); expect(input.floor).toBe(2);
     expect(input.ceiling).toBeUndefined(); expect(input.targets).toEqual(CEO_SCOPE_CANDIDATES);
     expect(input.deadlineAt - Date.now()).toBeGreaterThan(1_490_000);
     expect(input.deadlineAt - Date.now()).toBeLessThanOrEqual(1_500_000);

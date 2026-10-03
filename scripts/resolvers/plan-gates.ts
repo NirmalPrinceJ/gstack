@@ -179,11 +179,9 @@ ${approvals}1. Read the plan file with the Read tool (after your most recent wri
    short-circuit when no plan file exists.
 
 Failing this gate and calling ExitPlanMode anyway is a contract violation —
-the user will see a plan whose review report is missing or stale, and will
-(correctly) reject it. Self-deception failure mode to watch for: feeling
-"done" after writing review prose into the plan body. The body prose is not
-the report. The report is a separate, structured, table-bearing section that
-must be the file's terminal heading.`;
+the user sees a plan whose review report is missing or stale. Review prose in
+the plan body is not the report: the report is a separate, structured,
+table-bearing section that must be the file's terminal heading.`;
 }
 
 // ─── Plan File Discovery (shared helper) ──────────────────────────────
@@ -368,7 +366,7 @@ The parent evaluates the completion checklist in priority order, including after
 
 2. **Any UNVERIFIABLE items** (silent gaps — the diff cannot prove them either way). Only fires after NOT DONE is resolved or absent.
 
-   **Per-item confirmation is mandatory.** Do NOT use a single AskUserQuestion to blanket-confirm all UNVERIFIABLE items. Blanket confirmation is the failure mode that surfaced in VAS-449 (user clicks A without opening any file). Instead:
+   **Per-item confirmation is mandatory.** Do NOT use a single AskUserQuestion to blanket-confirm all UNVERIFIABLE items: a blanket confirmation lets the user click through without opening any file. Instead:
 
    - Loop through UNVERIFIABLE items one at a time.
    - For each item, use AskUserQuestion with the item's *specific* manual check (e.g., "Confirm: does \`~/Development/domain-hq/docs/dashboard.md\` exist?", not "Have you checked all items?").
@@ -382,7 +380,7 @@ The parent evaluates the completion checklist in priority order, including after
    - Any N: STOP and report that item as NOT DONE. Resume only after its required work is verified; no second deferral choice.
    - All Y or D: Continue. Embed \`## Plan Completion — Manual Verifications\` section in PR body listing each Y'd item with the user's free-text evidence and each D'd item with "intentionally dropped".
 
-   **Cap.** If there are more than 5 UNVERIFIABLE items, present them as a numbered list first and ask whether the user wants to (1) confirm each individually, (2) stop and reduce scope, or (3) explicitly accept blanket-confirmation with the warning that this is the VAS-449 failure shape. Default and recommended option is (1).
+   **Cap.** If there are more than 5 UNVERIFIABLE items, present them as a numbered list first and ask whether the user wants to (1) confirm each individually, (2) stop and reduce scope, or (3) explicitly accept blanket-confirmation with the warning that it lets unchecked items pass as verified. Default and recommended option is (1).
 
 3. **Only PARTIAL items (no NOT DONE, no UNVERIFIABLE):** Continue with a note in the PR body. Not blocking.
 

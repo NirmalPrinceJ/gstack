@@ -174,8 +174,8 @@ Counts map one-to-one to the classifications above and sum to total_items. No pl
 minutes, stop any live child and confirm it stopped before an inline audit with the same
 extraction/classification logic; never race a late result. If that also fails,
 AskUserQuestion: A) Skip audit and ship, recording the reason in the PR body and
-Step 20 metrics; B) Stop and fix the audit (recommended/default). Silent fail-open
-is the failure shape that VAS-449 surfaced.
+Step 20 metrics; B) Stop and fix the audit (recommended/default). Never fail open
+silently: a skipped audit would let unverified plan items ship as done.
 
 ---
 
@@ -198,7 +198,7 @@ The parent evaluates the completion checklist in priority order, including after
 
 2. **Any UNVERIFIABLE items** (silent gaps — the diff cannot prove them either way). Only fires after NOT DONE is resolved or absent.
 
-   **Per-item confirmation is mandatory.** Do NOT use a single AskUserQuestion to blanket-confirm all UNVERIFIABLE items. Blanket confirmation is the failure mode that surfaced in VAS-449 (user clicks A without opening any file). Instead:
+   **Per-item confirmation is mandatory.** Do NOT use a single AskUserQuestion to blanket-confirm all UNVERIFIABLE items: a blanket confirmation lets the user click through without opening any file. Instead:
 
    - Loop through UNVERIFIABLE items one at a time.
    - For each item, use AskUserQuestion with the item's *specific* manual check (e.g., "Confirm: does `~/Development/domain-hq/docs/dashboard.md` exist?", not "Have you checked all items?").
@@ -212,7 +212,7 @@ The parent evaluates the completion checklist in priority order, including after
    - Any N: STOP and report that item as NOT DONE. Resume only after its required work is verified; no second deferral choice.
    - All Y or D: Continue. Embed `## Plan Completion — Manual Verifications` section in PR body listing each Y'd item with the user's free-text evidence and each D'd item with "intentionally dropped".
 
-   **Cap.** If there are more than 5 UNVERIFIABLE items, present them as a numbered list first and ask whether the user wants to (1) confirm each individually, (2) stop and reduce scope, or (3) explicitly accept blanket-confirmation with the warning that this is the VAS-449 failure shape. Default and recommended option is (1).
+   **Cap.** If there are more than 5 UNVERIFIABLE items, present them as a numbered list first and ask whether the user wants to (1) confirm each individually, (2) stop and reduce scope, or (3) explicitly accept blanket-confirmation with the warning that it lets unchecked items pass as verified. Default and recommended option is (1).
 
 3. **Only PARTIAL items (no NOT DONE, no UNVERIFIABLE):** Continue with a note in the PR body. Not blocking.
 
