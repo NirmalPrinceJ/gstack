@@ -24,9 +24,13 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(home, { recursive: true, force: true }));
 
+function gitIsolation() {
+  return { GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: path.join(home, ".gitconfig") };
+}
+
 function run() {
   const r = spawnSync("bash", [MIGRATION], {
-    env: { PATH: `${bin}:${process.env.PATH}`, HOME: home, GSTACK_HOME: gstackHome },
+    env: { PATH: `${bin}:${process.env.PATH}`, HOME: home, GSTACK_HOME: gstackHome, ...gitIsolation() },
     encoding: "utf-8",
     cwd: home,
     timeout: 30_000,
@@ -56,5 +60,61 @@ describe("v1.91.17.0 migration: memory reconcile pending (A1)", () => {
   test("is a no-op without an ingest state", () => {
     expect(run().code).toBe(0);
     expect(fs.existsSync(path.join(gstackHome, ".transcript-ingest-state.json"))).toBe(false);
+  });
+});
+
+describe("v1.91.17.0 migration: artifacts remote repair (A8, #1437)", () => {
+  const NEW = "https://github.com/acme/gstack-artifacts-dev";
+  const OLD = "https://github.com/acme/gstack-brain-dev";
+  function gh(views: string[]) {
+    fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh
+echo "$@" >> "${home}/gh-calls.log"
+case "$1 $2" in
+  "auth status") exit 0 ;;
+  "repo view") for r in ${views.join(" ")}; do [ "$3" = "$r" ] && exit 0; done; exit 1 ;;
+esac
+exit 1
+`, { mode: 0o755 });
+  }
+  const remote = () => fs.readFileSync(path.join(home, ".gstack-artifacts-remote.txt"), "utf-8").trim();
+  const ghCalls = () => (fs.existsSync(path.join(home, "gh-calls.log")) ? fs.readFileSync(path.join(home, "gh-calls.log"), "utf-8") : "");
+
+  test("restores the old URL (file and state-root origin) when only the old repo exists", () => {
+    fs.writeFileSync(path.join(home, ".gstack-artifacts-remote.txt"), NEW + "\n");
+    fs.mkdirSync(gstackHome, { recursive: true });
+    for (const a of [["init", "-q", gstackHome], ["-C", gstackHome, "remote", "add", "origin", NEW]]) {
+      expect(spawnSync("git", a, { timeout: 10_000, env: { ...process.env, ...gitIsolation() } }).status).toBe(0);
+    }
+    gh(["acme/gstack-brain-dev"]);
+    const r = run();
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain(`artifacts remote: restored ${OLD}`);
+    expect(remote()).toBe(OLD);
+    expect(spawnSync("git", ["-C", gstackHome, "remote", "get-url", "origin"], { encoding: "utf-8", timeout: 10_000, env: { ...process.env, ...gitIsolation() } }).stdout.trim()).toBe(OLD);
+    expect(run().stdout).not.toContain("restored");
+  });
+
+  test("leaves a remote alone when the renamed repo exists", () => {
+    fs.writeFileSync(path.join(home, ".gstack-artifacts-remote.txt"), NEW + "\n");
+    gh(["acme/gstack-artifacts-dev", "acme/gstack-brain-dev"]);
+    expect(run().code).toBe(0);
+    expect(remote()).toBe(NEW);
+  });
+
+  test("without a signed-in gh, says so and changes nothing", () => {
+    fs.writeFileSync(path.join(home, ".gstack-artifacts-remote.txt"), NEW + "\n");
+    fs.writeFileSync(path.join(bin, "gh"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+    const r = run();
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("could not confirm acme/gstack-artifacts-dev exists");
+    expect(remote()).toBe(NEW);
+  });
+
+  test("never calls gh when the remote does not name a gstack-artifacts repo", () => {
+    fs.writeFileSync(path.join(home, ".gstack-artifacts-remote.txt"), OLD + "\n");
+    gh([]);
+    expect(run().code).toBe(0);
+    expect(ghCalls()).toBe("");
+    expect(remote()).toBe(OLD);
   });
 });

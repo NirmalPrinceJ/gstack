@@ -490,6 +490,27 @@ gstack-gbrain-install          # upgrade gbrain
 
 ---
 
+## `artifacts remote: restored <url> because <owner>/gstack-artifacts-<user> does not exist and <owner>/gstack-brain-<user> does`
+
+**Problem.** Printed once during upgrade. Artifact pushes had been failing
+because `~/.gstack-artifacts-remote.txt` named a repository that was never
+created.
+
+**Cause.** The v1.27.0.0 upgrade passed a bare repo name to
+`gh repo rename`, which always fails, then rewrote the remote to the new name
+anyway. This upgrade points the remote (and `~/.gstack`'s `origin`) back at
+the repository that exists.
+
+**Fix.** Nothing is required; pushes work again. To finish the rename:
+```bash
+gh repo rename gstack-artifacts-<user> --repo <owner>/gstack-brain-<user> --yes
+GSTACK_MIGRATE_ASSUME_YES=1 bash ~/.claude/skills/gstack/gstack-upgrade/migrations/v1.27.0.0.sh
+```
+If it instead says it `could not confirm ... exists (gh is not installed or not
+signed in)`, run `gh auth login` and check the repository name on GitHub.
+
+---
+
 ## Nothing is syncing but I expect it to
 
 **Not an error, but a common gotcha.** Check in order:
