@@ -482,11 +482,18 @@ if (process.env.LIMIT_STAGE_WRITES === '1') {
       expect(readFileSync(join(home, "imports"), "utf8").trim().split("\n")).toHaveLength(2);
     });
 
-    it("keeps the no-scan import stamping contract unchanged", () => {
+    // A1 changes the old no-scan contract on purpose: without --scan-secrets
+    // the stamp used to describe the file as it was AFTER the import (its
+    // newer self), so the appended record was never imported.
+    it("does not stamp an append during an unscanned import, and the next run imports it (A1)", () => {
       const path = source();
       env.APPEND_DURING_IMPORT = path;
       env.APPEND_RECORD = appendRecord();
       expect(run().status).toBe(0);
+      expect(sessions()[path]).toBeUndefined();
+      delete env.APPEND_DURING_IMPORT;
+      expect(run().status).toBe(0);
+      expect(imported()[0].body).toContain("late ordinary update");
       expect(sessions()[path]).toMatchObject({ sha256: createHash("sha256").update(readFileSync(path)).digest("hex") });
     });
   });
@@ -958,7 +965,7 @@ describe("gstack-memory-ingest CLI", () => {
 // ── State file behavior ────────────────────────────────────────────────────
 
 describe("gstack-memory-ingest state file", () => {
-  it("--incremental on empty home creates state file with schema_version: 1", () => {
+  it("--incremental on empty home creates state file with schema_version: 2", () => {
     const home = makeTestHome();
     const gstackHome = join(home, ".gstack");
     mkdirSync(gstackHome, { recursive: true });
@@ -967,7 +974,7 @@ describe("gstack-memory-ingest state file", () => {
     const statePath = join(gstackHome, ".transcript-ingest-state.json");
     expect(existsSync(statePath)).toBe(true);
     const state = JSON.parse(readFileSync(statePath, "utf-8"));
-    expect(state.schema_version).toBe(1);
+    expect(state.schema_version).toBe(2);
     expect(state.last_writer).toBe("gstack-memory-ingest");
     rmSync(home, { recursive: true, force: true });
   });
@@ -984,7 +991,7 @@ describe("gstack-memory-ingest state file", () => {
     expect(existsSync(statePath + ".bak")).toBe(true);
 
     const fresh = JSON.parse(readFileSync(statePath, "utf-8"));
-    expect(fresh.schema_version).toBe(1);
+    expect(fresh.schema_version).toBe(2);
     rmSync(home, { recursive: true, force: true });
   });
 

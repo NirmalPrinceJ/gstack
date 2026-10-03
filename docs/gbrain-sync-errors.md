@@ -255,6 +255,125 @@ and state recorded under the old name maps to the new one. Run
 
 ---
 
+## `[memory-ingest] FAILED <path>: <error> (left un-stamped; retried next run)`
+
+**Problem.** gbrain refused one staged page during `/sync-gbrain`'s memory
+stage (for example invalid frontmatter or an oversize page).
+
+**Cause.** `gbrain import` named the page as a per-file failure (in its
+`--json` `failures` list or a `Skipped <path>:` line). Before this release,
+such pages were marked ingested and never retried.
+
+**Fix.** Nothing is lost: the page is not marked ingested and is retried on
+every run. If the same page keeps failing, read the error, fix the source
+file it came from, then run `/sync-gbrain`.
+
+---
+
+## `[memory-ingest] re-queued <slug>: not found in gbrain source <id> after import (retried next run)`
+
+**Problem.** gbrain said a page was imported (or unchanged), but the landing
+check could not find it in the source it was imported into, or found
+different content.
+
+**Cause.** Usually a managed import that was accepted but is still
+publishing (`Pending:` in gbrain's output), or a page gbrain skipped without
+naming it.
+
+**Fix.** Nothing to do; the next `/sync-gbrain` imports it again. If it
+repeats on every run, upgrade gbrain (`gstack-gbrain-install`).
+
+---
+
+## `[memory-ingest] ERR: gbrain reported N failure(s) it did not attribute to a staged page ... Refusing to advance state.`
+
+**Problem.** The memory stage failed and marked nothing ingested.
+
+**Cause.** gbrain counted failures it did not name (it stops printing them
+after five of the same kind), so gstack cannot tell which pages landed.
+
+**Fix.** Re-run `/sync-gbrain`. After three refused runs the batch is split
+in halves automatically to find the page gbrain cannot import; that page is
+quarantined (next entry) and the rest import.
+
+---
+
+## `[memory-ingest] quarantined <slug> (<source path>): gbrain refuses every batch that contains it (...)`
+
+**Problem.** One page kept making gbrain refuse the whole batch.
+
+**Cause.** After three refused batches, gstack imported the batch in halves
+until it isolated the page. Every other page was imported.
+
+**Fix.** The page is retried automatically when its source file changes.
+To retry now, fix or remove the source file named in the message, then run
+`/sync-gbrain`.
+
+---
+
+## `[memory-ingest] reconcile: checked N, present M, re-queued K, not yet checked L (run again to continue)`
+
+**Problem.** Not an error. This is the one-time catch-up after upgrading:
+gstack re-checks transcripts it had marked ingested and re-queues the ones
+missing from the brain, so transcripts lost by older versions import again.
+
+**Cause.** Older versions could mark a page ingested that gbrain had
+skipped. The upgrade records that a reconcile is pending; each ingest run
+then checks a bounded batch (200 entries) until done.
+
+**Fix.** Nothing to do; each `/sync-gbrain` continues where the last one
+stopped. To run it now or check progress:
+```bash
+gstack-memory-ingest --reconcile --dry-run   # report only
+gstack-memory-ingest --reconcile             # re-check the next 200 (--limit N)
+```
+"not yet checked" counts pages whose lookup failed (gbrain busy or
+unreachable); they are never treated as missing. "unrecoverable" counts pages
+missing from the brain whose transcript file no longer exists. The state file
+is backed up to `~/.gstack/.transcript-ingest-state.json.pre-reconcile.bak`
+before each pass.
+
+---
+
+## `[memory-ingest] reconcile: not run (...)`
+
+**Problem.** A reconcile pass was requested but could not run.
+
+**Cause.** gbrain is not installed or lacks `import`, or the brain is a
+remote-HTTP brain (its pages are staged for the brain admin's pull, so there
+is nothing to check locally).
+
+**Fix.** For a missing gbrain, run `/setup-gbrain`, then
+`gstack-memory-ingest --reconcile`. For a remote-HTTP brain, nothing to do.
+
+---
+
+## `[memory-ingest] ERR: another memory ingest (pid <N>) is writing <state file>; not run.`
+
+**Problem.** The memory stage did nothing this run.
+
+**Cause.** Another ingest, reconcile or `--request-reconcile` holds the
+state lock (`~/.gstack/.transcript-ingest-state.json.lock`). A lock left by a
+process that no longer exists is taken over automatically.
+
+**Fix.** Wait for the other run to finish, then run `/sync-gbrain` again.
+
+---
+
+## `[memory-ingest] ERR: could not save ingest state <path>: <error>.`
+
+**Problem.** The memory stage failed after importing.
+
+**Cause.** The state file could not be written (disk full, permissions, or a
+directory in its place). The run fails instead of pretending it recorded
+progress; pages it imported are re-checked next run, which is cheap because
+gbrain skips unchanged content.
+
+**Fix.** Free disk space or fix permissions on `~/.gstack/`, then run
+`/sync-gbrain`.
+
+---
+
 ## Nothing is syncing but I expect it to
 
 **Not an error, but a common gotcha.** Check in order:

@@ -164,7 +164,7 @@ describe("V1 memory ingest pipeline E2E", () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it("--incremental writes a state file with schema_version: 1 + last_writer", () => {
+  it("--incremental writes a state file with schema_version: 2 + last_writer", () => {
     const home = makeFixtureHome();
     const { gstackHome } = setupFixture(home);
     const env = fakeGbrainEnv(home, gstackHome);
@@ -174,7 +174,7 @@ describe("V1 memory ingest pipeline E2E", () => {
     const statePath = join(gstackHome, ".transcript-ingest-state.json");
     expect(existsSync(statePath)).toBe(true);
     const state = JSON.parse(readFileSync(statePath, "utf-8"));
-    expect(state.schema_version).toBe(1);
+    expect(state.schema_version).toBe(2);
     expect(state.last_writer).toBe("gstack-memory-ingest");
     expect(typeof state.last_full_walk).toBe("string");
 
