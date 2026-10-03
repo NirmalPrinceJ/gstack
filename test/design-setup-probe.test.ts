@@ -61,7 +61,7 @@ describe('B4: DESIGN_READY requires a binary that starts', () => {
       expect(w.launches()).toBe(1);
       fs.writeFileSync(path.join(w.install, 'design/dist/design'), `#!/bin/sh\necho launched >> "${w.home}/launches"\nexit 3\n`);
       fs.utimesSync(path.join(w.install, 'design/dist/design'), new Date(), new Date(Date.now() + 5_000));
-      expect(run(setup(), w).stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design exited 3 at launch`);
+      expect(run(setup(), w).stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design exited 3`);
     });
 
     test(`${host.name}: a binary killed at launch is not ready and names the fix`, () => {
@@ -86,7 +86,7 @@ describe('B4: DESIGN_READY requires a binary that starts', () => {
       if (found) fs.symlinkSync(found, path.join(bin, tool));
     }
     const r = run(fenceAfter(path.join(HOSTS[0].dir('design-review'), 'SKILL.md'), '## DESIGN SETUP'), w, bin);
-    expect(r.stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: no timeout, gtimeout or perl to bound the ${w.install}/design/dist/design launch check`);
+    expect(r.stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: no timeout/gtimeout/perl to bound ${w.install}/design/dist/design`);
     expect(w.launches()).toBe(0);
   });
 
@@ -100,7 +100,7 @@ describe('B4: DESIGN_READY requires a binary that starts', () => {
       child.on('error', reject);
       child.on('close', () => resolve(text));
     });
-    expect(stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design timed out after 10s at launch`);
+    expect(stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design timed out after 10s`);
   }, 30_000);
 
   test('office-hours visual exploration uses the same probe', () => {
