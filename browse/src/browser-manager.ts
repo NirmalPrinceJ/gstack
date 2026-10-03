@@ -22,7 +22,7 @@ import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type D
 import { emitActivity } from './activity';
 import { validateNavigationUrl, blockedNavigationReason } from './url-validation';
 import { TabSession, type RefEntry } from './tab-session';
-import { resolveChromiumProfile, cleanSingletonLocks } from './config';
+import { resolveChromiumProfile, cleanSingletonLocks, resolveConfig } from './config';
 import { launchWithXProtectHeal } from './xprotect-heal';
 import { readPidStartTime, shouldSpawnXvfb, pickFreeDisplay, spawnXvfb, xvfbInstallHint, type XvfbHandle } from './xvfb';
 import { withCdpSession } from './cdp-bridge';
@@ -318,6 +318,8 @@ export class BrowserManager {
   // ─── Tab Ownership (multi-agent isolation) ──────────────
   // Maps tabId → clientId. Unowned tabs (not in this map) are root-only for writes.
   private tabOwnership: Map<number, string> = new Map();
+  /** Headless launch with BROWSE_EXTENSIONS_DIR: a persistent context (#2281). */
+  private extensionContext = false;
   /** Pending and recorded navigation-guard verdicts per page (D2). */
   private navigationGuards = new WeakMap<Page, { pending: Set<Promise<void>>; blocked: string | null }>();
 
@@ -530,11 +532,22 @@ export class BrowserManager {
     this.closing = false;
     // ─── Extension Support ────────────────────────────────────
     // BROWSE_EXTENSIONS_DIR points to an unpacked Chrome extension directory.
-    // Extensions only work in headed mode, so we use an off-screen window.
+    // Extensions only run in a persistent context (launch() + newContext()
+    // isolates them), so that path uses launchPersistentContext with Chrome's
+    // new headless mode: no window, unlike the old off-screen window that
+    // macOS still showed (#2281, #432).
     const extensionsDir = process.env.BROWSE_EXTENSIONS_DIR;
-    const { STEALTH_LAUNCH_ARGS, buildGStackLaunchArgs } = await import('./stealth');
+    const { STEALTH_LAUNCH_ARGS, buildGStackLaunchArgs, STEALTH_IGNORE_DEFAULT_ARGS } = await import('./stealth');
     const launchArgs: string[] = [...STEALTH_LAUNCH_ARGS, ...buildGStackLaunchArgs()];
-    let useHeadless = true;
+    // #2771/#1968: honor GSTACK_CHROMIUM_PATH headless too (NixOS, macOS 13).
+    // That bundle belongs to the user, so the XProtect heal never touches it,
+    // and a launch failure names it.
+    const executablePath = process.env.GSTACK_CHROMIUM_PATH || undefined;
+    const nameCustomChromium = (err: unknown): never => {
+      if (!executablePath) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Chromium at GSTACK_CHROMIUM_PATH=${executablePath} failed to launch: ${message}\nFix: point GSTACK_CHROMIUM_PATH at a working Chromium or Chrome binary, or unset it to use Playwright's bundled Chromium.`, { cause: err });
+    };
 
     // Docker/CI/root: Chromium sandbox requires unprivileged user namespaces which
     // are typically disabled in containers and are never available for the root
@@ -554,24 +567,59 @@ export class BrowserManager {
           `--load-extension=${extensionsDir}`,
         );
       }
-      launchArgs.push('--window-position=-9999,-9999', '--window-size=1,1');
-      useHeadless = false; // extensions require headed mode; off-screen window simulates headless
+      launchArgs.push('--headless=new');
       console.log(`[browse] Extensions loaded from: ${extensionsDir}`);
     }
 
-    // #2709: headless-only — the extensions path above forces headed mode,
-    // and headed/GBrowser sessions must keep the GPU.
-    if (useHeadless) {
-      launchArgs.push(...headlessGpuArgs(process.platform, process.env));
+    // #2709: headless-only GPU flags; headed/GBrowser sessions keep the GPU.
+    launchArgs.push(...headlessGpuArgs(process.platform, process.env));
+
+    const contextOptions: BrowserContextOptions = {
+      viewport: { width: this.currentViewport.width, height: this.currentViewport.height },
+      deviceScaleFactor: this.deviceScaleFactor,
+    };
+    if (this.customUserAgent) {
+      contextOptions.userAgent = this.customUserAgent;
+    }
+
+    if (extensionsDir) {
+      const profileDir = require('path').join(resolveConfig().stateDir, 'chromium-extensions-profile');
+      require('fs').mkdirSync(profileDir, { recursive: true, mode: 0o700 });
+      cleanSingletonLocks(profileDir);
+      this.context = await launchWithXProtectHeal(() => chromium.launchPersistentContext(profileDir, {
+        headless: false, // --headless=new in launchArgs: windowless, extensions run
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false,
+        chromiumSandbox: shouldEnableChromiumSandbox(),
+        args: launchArgs,
+        ignoreDefaultArgs: STEALTH_IGNORE_DEFAULT_ARGS,
+        ...contextOptions,
+        ...(executablePath ? { executablePath } : {}),
+        ...(this.proxyConfig ? { proxy: this.proxyConfig } : {}),
+      }), { usesCustomExecutable: Boolean(executablePath) }).catch(nameCustomChromium);
+      this.extensionContext = true;
+      this.browser = this.context.browser();
+      this.browser?.on('disconnected', () => {
+        void handleChromiumDisconnect(this.browser);
+      });
+      for (const page of this.context.pages()) await page.close().catch(() => {});
+      if (Object.keys(this.extraHeaders).length > 0) {
+        await this.context.setExtraHTTPHeaders(this.extraHeaders);
+      }
+      const { applyStealth } = await import('./stealth');
+      await applyStealth(this.context);
+      await this.newTab();
+      return;
     }
 
     // XProtect self-heal wrapper (P0 #2554): a macOS definition update can
     // start SIGKILLing the pinned Chromium at spawn. On the classified
     // signature, clear quarantine on the Playwright cache + force-reinstall
-    // once, then retry this launch once. This headless path always uses the
-    // Playwright cache (no executablePath), so the heal is never scoped out.
+    // once, then retry this launch once. A GSTACK_CHROMIUM_PATH bundle is
+    // scoped out of the heal.
     this.browser = await launchWithXProtectHeal(() => chromium.launch({
-      headless: useHeadless,
+      headless: true,
       // #2220: the daemon owns signal policy, not Playwright. Playwright's
       // default handlers close Chromium the moment THIS process receives
       // SIGINT/SIGTERM/SIGHUP — which fights the deliberate headless
@@ -589,8 +637,9 @@ export class BrowserManager {
       // namespaces that aren't available.
       chromiumSandbox: shouldEnableChromiumSandbox(),
       ...(launchArgs.length > 0 ? { args: launchArgs } : {}),
+      ...(executablePath ? { executablePath } : {}),
       ...(this.proxyConfig ? { proxy: this.proxyConfig } : {}),
-    }));
+    }), { usesCustomExecutable: Boolean(executablePath) }).catch(nameCustomChromium);
 
     // Chromium disconnect → distinguish clean user-quit from crash. Both
     // events look identical to Playwright (one 'disconnected' fires), but
@@ -614,13 +663,6 @@ export class BrowserManager {
         : null;
     }
 
-    const contextOptions: BrowserContextOptions = {
-      viewport: { width: this.currentViewport.width, height: this.currentViewport.height },
-      deviceScaleFactor: this.deviceScaleFactor,
-    };
-    if (this.customUserAgent) {
-      contextOptions.userAgent = this.customUserAgent;
-    }
     this.context = await this.browser.newContext(contextOptions);
 
     if (Object.keys(this.extraHeaders).length > 0) {
@@ -956,7 +998,7 @@ export class BrowserManager {
       (t as { unref?: () => void }).unref?.();
     });
     if (this.browser || ((this.connectionMode === 'headed' || this.handoffPrevious) && this.context)) {
-      if (this.connectionMode === 'headed' || this.handoffPrevious) {
+      if (this.connectionMode === 'headed' || this.handoffPrevious || this.extensionContext) {
         // Headed/persistent context mode: close the context (which closes the browser)
         this.intentionalDisconnect = true;
         if (this.browser) this.browser.removeAllListeners('disconnected');
@@ -1680,6 +1722,9 @@ export class BrowserManager {
   async recreateContext(): Promise<string | null> {
     if (this.connectionMode === 'headed') {
       throw new Error('Cannot recreate context in headed mode. Use disconnect first.');
+    }
+    if (this.extensionContext) {
+      throw new Error('Cannot recreate context while BROWSE_EXTENSIONS_DIR extensions are loaded (persistent context). Restart browse with the new settings instead.');
     }
     if (!this.browser || !this.context) {
       throw new Error('Browser not launched');
