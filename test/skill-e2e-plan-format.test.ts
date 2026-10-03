@@ -33,6 +33,7 @@ import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import { KIND_NOTE_RE } from './helpers/plan-format-kind-note';
 
 const evalCollector = createEvalCollector('e2e-plan-format');
 
@@ -49,7 +50,6 @@ const evalCollector = createEvalCollector('e2e-plan-format');
 // scripts/resolvers/preamble/generate-ask-user-format.ts. The optional
 // `[A-Z]=` prefix tolerates either shape; both are acceptable spec output.
 const COMPLETENESS_RE = /Completeness:\s*(?:[A-Z]=)?\d{1,2}\/10/;
-const KIND_NOTE_RE = /options differ in kind/i;
 
 // v1.7.0.0 Pros/Cons format tokens. Tests are additive: existing
 // RECOMMENDATION / Completeness / kind-note assertions still hold; new
@@ -157,8 +157,9 @@ After writing the file, stop. Do not continue the review.`,
         const captured = fs.readFileSync(outFile, 'utf-8');
         expect(captured.length).toBeGreaterThan(100);
 
-        // Kind-differentiated: Completeness: N/10 must NOT appear, "options differ
-        // in kind" note must appear. Recommendation presence is checked by the judge.
+        // Kind-differentiated: Completeness: N/10 must NOT appear, and the brief
+        // says the options are not comparable on coverage (any wording).
+        // Recommendation presence is checked by the judge.
         expect(captured).not.toMatch(COMPLETENESS_RE);
         expect(captured).toMatch(KIND_NOTE_RE);
 
@@ -359,8 +360,9 @@ After writing the file with that ONE question, stop. Do not continue the review.
         const captured = fs.readFileSync(outFile, 'utf-8');
         expect(captured.length).toBeGreaterThan(100);
 
-        // Kind-differentiated: Completeness: N/10 must NOT appear, "options differ
-        // in kind" note must appear. Recommendation presence checked by the judge.
+        // Kind-differentiated: Completeness: N/10 must NOT appear, and the brief
+        // says the options are not comparable on coverage (any wording).
+        // Recommendation presence checked by the judge.
         expect(captured).not.toMatch(COMPLETENESS_RE);
         expect(captured).toMatch(KIND_NOTE_RE);
 
