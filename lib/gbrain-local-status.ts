@@ -48,7 +48,7 @@ import {
 import { atomicWriteSync } from "./fs-atomic";
 import { homedir } from "os";
 import { dirname, join } from "path";
-import { buildGbrainEnv, gbrainConfigDir, isExecTimeout, NEEDS_SHELL_ON_WINDOWS } from "./gbrain-exec";
+import { buildGbrainEnv, gbrainChildCwd, gbrainConfigDir, isExecTimeout, NEEDS_SHELL_ON_WINDOWS } from "./gbrain-exec";
 import { resolveStateRoot } from "./state-root";
 
 export type LocalEngineStatus =
@@ -458,6 +458,7 @@ function freshClassify(env?: NodeJS.ProcessEnv): LocalEngineStatus {
       timeout: probeTimeoutMs(env),
       stdio: ["ignore", "pipe", "pipe"],
       env: buildGbrainEnv({ baseEnv: env ?? process.env }),
+      cwd: gbrainChildCwd(undefined, env ?? process.env),
       shell: NEEDS_SHELL_ON_WINDOWS, // #1731: gbrain is a .cmd shim on Windows
     });
     return "ok";
