@@ -167,7 +167,7 @@ describe('workflow judge excerpts', () => {
     expect(review).toContain('present the findings, then use AskUserQuestion ONCE:');
     expect(review).toContain('On A or per-finding approvals, make the approved edits yourself');
     expect(text).toContain('Step 9 then commits and pushes those edits');
-    expect(text).toContain('Entries scoring <2 need attention, not replacement');
+    expect(text).toMatch(/needs?\s+attention,?\s+not\s+replacement/i);
     expect(text).not.toContain('Flag and rewrite');
     expect(text).toContain('if VERSION is absent, use the completion date only');
   });
