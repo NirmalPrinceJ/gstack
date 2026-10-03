@@ -103,18 +103,6 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
   characterize it before relying on the lane. **Priority:** P2.
 - **plan-eng-multi-finding-batching** — red in 6 of 12 runs read (batching:
   reviewCount 0-1, or Step 0 exhausting the 1495 s budget). **Priority:** P2.
-- **Free-suite timing reds under load (characterized 2026-10-03)** —
-  (1) `browse/test/commands.test.ts` "dead state file triggers a clean restart":
-  the restarted daemon is still alive 5 s after SIGINT under CPU load; it fails
-  on origin/main too (1 of 8 local runs under load; the wave branch 2 of 8), and
-  in Ubicloud run 4. Measure where shutdown spends the time (terminal-agent
-  stop, Chromium close) and bound it, rather than widening the test's wait.
-  (2) `test/qa-evidence.test.ts` "stdout pipe" cases: the child exited 69 while
-  stdout should have been held full (Ubicloud run 4 only; code untouched since
-  v1.91.16.0; 5 of 5 local passes under load). (3) Shard cleanup
-  "browser ownership deadline exceeded" in two shards of Ubicloud run 4
-  (stop-ack-before-shutdown/session-persist and bridge-chromium-e2e shards),
-  which also disables the flaky-retry pass. **Priority:** P2.
 - **Gate-outcome telemetry** — count `not_run`/`unavailable` outcomes per
   reason code from `lib/gate-outcomes.ts` so the most common gaps get fixed
   first. **Effort:** S. **Priority:** P3.
