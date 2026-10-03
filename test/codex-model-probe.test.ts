@@ -473,3 +473,29 @@ describe('B2: a 404 model rejection is unusable, never ready (#2843)', () => {
     });
   }
 });
+
+describe('Q2: one-time outside-review notice (#965)', () => {
+  test('names the account source per auth mode, never the credential, and shows once per state root', () => {
+    for (const [env, files, account] of [
+      [{ CODEX_API_KEY: 'sk-codex-secret' }, {}, 'the API key in CODEX_API_KEY'],
+      [{ OPENAI_API_KEY: 'sk-openai-secret' }, {}, 'the API key in OPENAI_API_KEY'],
+      [{}, { 'auth.json': '{"auth_mode":"chatgpt","tokens":{"id_token":"secret-token"}}' }, 'the ChatGPT account Codex is logged in with'],
+      [{}, { 'auth.json': '{"auth_mode":"apikey","OPENAI_API_KEY":"sk-file-secret"}' }, 'the API key saved by codex login'],
+      [{}, { 'config.toml': 'model_provider = "mimo"\n[model_providers.mimo]\nenv_key = "MIMO_API_KEY"\n' }, 'Codex (provider: mimo) using the credentials your Codex config.toml provider names'],
+    ] as const) {
+      const f = makeFixture();
+      try {
+        fs.rmSync(path.join(f.codexHome, 'auth.json'));
+        fs.rmSync(path.join(f.codexHome, 'config.toml'));
+        for (const [name, body] of Object.entries(files)) fs.writeFileSync(path.join(f.codexHome, name), body);
+        const first = runProbe(f, 'ok', { ...env }, '_gstack_codex_first_use_notice; echo "rc=$?"');
+        expect(first.stdout).toBe('rc=0\n');
+        expect(first.stderr).toContain(account);
+        expect(first.stderr).toContain('To turn them off: gstack-config set codex_reviews disabled');
+        expect(first.stderr).not.toMatch(/secret/);
+        expect(fs.existsSync(path.join(f.gstackHome, '.codex-review-notice-shown'))).toBe(true);
+        expect(runProbe(f, 'ok', { ...env }, '_gstack_codex_first_use_notice').stderr).toBe('');
+      } finally { fs.rmSync(f.home, { recursive: true, force: true }); }
+    }
+  });
+});

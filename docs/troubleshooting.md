@@ -189,3 +189,20 @@ never an outage.
 ```bash
 gstack-config set codex_reviews enabled
 ```
+
+<a id="codex-review-notice"></a>
+### `NOTICE: gstack outside reviews send the review prompt and code to Codex (...) using ...`
+
+**Meaning.** Outside reviews are on by default. The first one on a machine
+says which provider receives your prompt and code and which login or key pays
+for it. It shows once (gstack records `.codex-review-notice-shown` in its state
+directory) and never blocks the review.
+
+**Fix.** Nothing, if that is what you want. To stop sending code to Codex:
+
+```bash
+gstack-config set codex_reviews disabled
+```
+
+**Expected result.** Later reviews print `Codex review skipped (codex_reviews disabled)`
+or `CODEX_MODE: disabled`, and /ship and /review show the outside review as not run.

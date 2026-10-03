@@ -56,6 +56,7 @@ function environment(host: 'codex' | 'claude'): NodeJS.ProcessEnv {
     CAPTURE, FAKE_PROVIDER:host === 'codex' ? 'claude-code' : 'codex',
     CODEX_THREAD_ID:host === 'codex' ? 'codex-fixture' : '', CODEX_SANDBOX:'',
     CLAUDECODE:host === 'claude' ? '1' : '', GSTACK_ACTIVE_HOST:host, CODEX_HOME:TMP, GSTACK_CODEX_MODEL:'',
+    GSTACK_HOME:path.join(TMP,'state'), GSTACK_STATE_ROOT:'', CODEX_API_KEY:'', OPENAI_API_KEY:'',
     PATH:`${BIN}${path.delimiter}${process.env.PATH}`,
     GIT_AUTHOR_NAME:'Test',GIT_AUTHOR_EMAIL:'test@example.invalid',GIT_COMMITTER_NAME:'Test',GIT_COMMITTER_EMAIL:'test@example.invalid'};
 }
@@ -278,6 +279,19 @@ describe('generated outside-review dispatch', () => {
     expect(fs.existsSync(path.join(DIR, 'NEVER'))).toBe(false);
   });
 
+  test('Q2: the first automatic Codex review on a machine names the provider and account, once, without blocking', () => {
+    const state = path.join(TMP, 'notice-state');
+    const first = invoke('claude', {}, { GSTACK_HOME: state, OPENAI_API_KEY: 'sk-test-secret-value' });
+    expect(first.status).toBe(0);
+    expect(first.stderr).toContain('NOTICE: gstack outside reviews send the review prompt and code to Codex (provider: openai) using the API key in OPENAI_API_KEY.');
+    expect(first.stderr).toContain('To turn them off: gstack-config set codex_reviews disabled');
+    expect(first.stderr).not.toContain('sk-test-secret-value');
+    expect(first.stdout).toContain('OUTSIDE_STATUS: completed');
+    const second = invoke('claude', {}, { GSTACK_HOME: state, OPENAI_API_KEY: 'sk-test-secret-value' });
+    expect(second.status).toBe(0);
+    expect(second.stderr).not.toContain('NOTICE:');
+  });
+
   test('malformed Claude JSON cannot reach completion evaluation', () => {
     const result = invoke('codex',{}, {FAKE_MODE:'malformed'});
     expect(result.status).toBe(1);
@@ -320,6 +334,7 @@ describe('generated outside-review dispatch', () => {
     const probe = path.join(BIN, 'gstack-codex-probe');
     fs.writeFileSync(probe, `_gstack_codex_select_model() { _GSTACK_CODEX_SEL=gpt-6-astra; _GSTACK_CODEX_SANDBOX=read-only; }
 _gstack_codex_sandbox_preflight() { return 0; }
+_gstack_codex_first_use_notice() { :; }
 _gstack_codex_timeout_wrapper() { echo 'Partial finding'; return 124; }
 _gstack_codex_log_event() { printf '%s %s\\n' "$1" "$2" >> "$FAKE_EVENTS"; }
 _gstack_codex_log_hang() { printf '%s %s\\n' "$1" "$2" >> "$FAKE_EVENTS"; }

@@ -133,6 +133,7 @@ export function outsideVoiceCommand(ctx: TemplateContext, opts: OutsideCommandOp
   const invocation = v.id === 'codex'
     ? `source "${bin}/gstack-codex-probe" && _gstack_codex_select_model ${opts.structuredBase ? 'review' : 'exec'} || exit 1
 _gstack_codex_sandbox_preflight >/dev/null || exit 1
+_gstack_codex_first_use_notice
 _OUTSIDE_EXIT=0
 _gstack_codex_timeout_wrapper ${Math.ceil(opts.timeoutMs / 1000)} ${codex} >"$_OUTSIDE_TMP/${opts.structuredBase ? 'text' : 'events'}" 2>"$_OUTSIDE_TMP/stderr" || _OUTSIDE_EXIT=$?
 ${opts.structuredBase ? 'cat "$_OUTSIDE_TMP/text"' : 'cat "$_OUTSIDE_TMP/text" 2>/dev/null || tail -n 20 "$_OUTSIDE_TMP/events"'}`
@@ -242,7 +243,7 @@ export function outsideVoiceFailurePolicy(ctx: TemplateContext, opts: OutsideVoi
 
 export function outsideVoiceProvenance(ctx: TemplateContext, phase: string): string {
   const v = outsideVoiceFor(ctx);
-  return `Retain the historical review-log skill ID; add \`"host":"${ctx.host}","outside_provider":"${v.id}","outside_status":"completed|unavailable|disabled|skipped","phase":"${phase}"\`. Record differing attempt outcomes separately. \`source:"${v.id}"\` requires completed CLI output; native uses \`source:"in-host"\` (historical \`source:"claude"\`: native Claude). Availability/native fallback is not outside completion. Preserve all reported modelUsage; unknown model identity stays unknown.${v.id === 'codex' ? ' If `WARNING: GSTACK_CODEX_NO_SANDBOX=1` printed, add `"codex_sandbox":"danger-full-access"`.' : ''}`;
+  return `Retain the historical review-log skill ID; add \`"host":"${ctx.host}","outside_provider":"${v.id}","outside_status":"completed|unavailable|disabled|skipped","phase":"${phase}"\`. Record differing attempt outcomes separately. \`source:"${v.id}"\` requires completed CLI output; native uses \`source:"in-host"\` (historical \`source:"claude"\`: native Claude). Availability/native fallback is not outside completion. Preserve all reported modelUsage; unknown model identity stays unknown.${v.id === 'codex' ? ' Under `GSTACK_CODEX_NO_SANDBOX=1` add `"codex_sandbox":"danger-full-access"`.' : ''}`;
 }
 
 export function generateOutsideVoiceRouting(ctx: TemplateContext): string {

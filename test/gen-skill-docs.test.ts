@@ -2198,7 +2198,8 @@ describe('DESIGN_OUTSIDE_VOICES resolver', () => {
       const prepare = (file: string) => command.replace("'<prepared-prompt-file>'", quote(file))
         .replaceAll('$HOME/.claude/skills/gstack', ROOT);
       const env = { ...process.env, PATH: dir + path.delimiter + process.env.PATH, CAPTURE: capture,
-        CODEX_THREAD_ID: '', CODEX_SANDBOX: '', CLAUDECODE: '1', GSTACK_ACTIVE_HOST: 'claude' };
+        CODEX_THREAD_ID: '', CODEX_SANDBOX: '', CLAUDECODE: '1', GSTACK_ACTIVE_HOST: 'claude',
+        GSTACK_HOME: path.join(dir, 'state'), GSTACK_STATE_ROOT: '' };
       const result = spawnSync('bash', ['-c', prepare(brief)], { cwd: ROOT, env, encoding: 'utf8', timeout: 5_000 });
       expect(result.status, result.stderr).toBe(0);
       const { args, stdin } = JSON.parse(fs.readFileSync(capture, 'utf8'));
