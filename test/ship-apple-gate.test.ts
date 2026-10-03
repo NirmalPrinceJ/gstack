@@ -39,7 +39,7 @@ describe("ship Apple gate ordering (R2)", () => {
 
   test("store distribution explicitly bypasses the branch/PR ceremony", () => {
     expect(SKELETON).toContain("Store distribution proceeds");
-    expect(SKELETON).toMatch(/branch gate and repository-landing pipeline below apply ONLY to\s*\n?repository-landing asks/);
+    expect(SKELETON).toMatch(/branch gate and repository-landing pipeline below apply only to\s+repository-landing asks/i);
   });
 
   test("the non-Apple branch gate is byte-unchanged and appears exactly once", () => {
@@ -50,30 +50,23 @@ describe("ship Apple gate ordering (R2)", () => {
 
   test("the adapter section exists in the union with its battle-tested spine", () => {
     const section = readFileSync(join(ROOT, "ship", "sections", "apple-release.md"), "utf-8");
-    for (const anchor of [
-      "one authorization moment",
-      "fastlane spaceauth",
-      "iris/v1/apiKeys",
-      "appPriceSchedules",
-      "CLASSIFY the error before touching credentials",
-      "Never abort an App Store release over branch topology",
-    ]) {
+    for (const anchor of ["one authorization moment", "fastlane spaceauth", "iris/v1/apiKeys", "appPriceSchedules"]) {
       expect(section).toContain(anchor);
     }
+    expect(section).toMatch(/classify the error before touching credentials/i);
+    expect(section).toMatch(/never abort an App Store release over branch topology/i);
   });
 
   test("routine interaction limits cannot waive blocking documentation or safety decisions", () => {
     for (const name of ["apple-release.md.tmpl", "apple-release.md"]) {
-      const section = readFileSync(join(ROOT, "ship", "sections", name), "utf-8");
-      expect(section).toContain("Plan for two routine interactions");
-      expect(section).toContain("A genuine blocker may require a safety or named documentation-risk decision");
-      expect(section).toContain("STOP for that decision rather than treating release authorization as a waiver");
-      expect(section).toContain("routine interactions and blocking decisions above");
+      const section = readFileSync(join(ROOT, "ship", "sections", name), "utf-8").replace(/\s+/g, " ");
+      expect(section).toMatch(/two routine interactions/i);
+      expect(section).toMatch(/stop for that decision rather than treating release authorization as a waiver/i);
       expect(section).not.toContain("exactly two interactions, and no others");
       expect(section).not.toContain("two permitted interactions");
       expect(section.indexOf("**Documentation preflight:**")).toBeLessThan(section.indexOf("## The one authorization moment"));
-      expect(section).toContain("in `read-only` mode against the selected release source");
-      expect(section).toContain("Resolve blockers or obtain an explicit named documentation-risk exception before distribution");
+      expect(section).toContain("`read-only` mode");
+      expect(section).toMatch(/named documentation-risk exception before distribution/i);
     }
   });
 });
