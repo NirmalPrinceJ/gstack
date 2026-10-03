@@ -20,9 +20,9 @@ export const COMMANDS = new Map<string, {
     flags: ["--brief", "--brief-file", "--output", "--check", "--retry", "--size", "--quality"],
   }],
   ["variants", {
-    description: "Generate N design variants from a brief",
-    usage: "variants --brief \"...\" --count 3 --output-dir /path/",
-    flags: ["--brief", "--brief-file", "--count", "--output-dir", "--size", "--quality", "--viewports"],
+    description: "Generate N design variants from a brief, or one variant per entry of a briefs file",
+    usage: "variants --brief \"...\" --count 3 --output-dir /path/ | variants --briefs-file briefs.json --output-dir /path/  (briefs.json: [{\"brief\": \"Calm dashboard...\"}, {\"brief\": \"Bolder header...\", \"screenshot\": \"current.png\"}], 1-7 entries; exit 0 all generated, 3 some failed, 1 none or invalid input)",
+    flags: ["--brief", "--brief-file", "--briefs-file", "--count", "--output-dir", "--size", "--quality", "--viewports"],
   }],
   ["iterate", {
     description: "Iterate on an existing mockup with feedback",

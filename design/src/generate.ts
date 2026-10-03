@@ -135,7 +135,7 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
       lastResult.checkResult = checkResult;
 
       if (checkResult.pass) {
-        console.error(`Quality check: PASS`);
+        console.error(checkResult.status === "skipped" ? `Quality check: SKIPPED — ${checkResult.issues}` : `Quality check: PASS`);
         break;
       } else {
         console.error(`Quality check: FAIL — ${checkResult.issues}`);

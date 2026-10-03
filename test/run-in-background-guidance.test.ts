@@ -310,7 +310,6 @@ const GENERATED_WITH_GUIDANCE = [
   // guidance and its bounded worker policy is specified in its own skeleton.
   'design-consultation/sections/proposal-and-preview.md',
   'design-review/SKILL.md',
-  'design-shotgun/SKILL.md',
   'document-release/sections/release-body.md',
   'office-hours/SKILL.md',
   'office-hours/sections/design-and-handoff.md',
