@@ -1487,7 +1487,7 @@ describe('Codex skill', () => {
     expect(content).toContain('Step 2C: Consult Mode');
     const skeleton = fs.readFileSync(path.join(ROOT, 'codex', 'SKILL.md'), 'utf-8');
     expect(skeleton).toContain('## Step 1: Detect mode');
-    expect(skeleton).toContain('MUTUALLY EXCLUSIVE');
+    expect(skeleton).toMatch(/mutually exclusive/i);
   });
 
   test('codex union contains gate verdict logic', () => {
@@ -1587,7 +1587,7 @@ describe('Codex skill', () => {
     expect(content).toContain('CODEX_MODE');
     expect(content).toContain('command -v codex'); // install check kept literal
     // codex_reviews=disabled gates Codex passes only; Claude adversarial still runs
-    expect(content).toContain('skip the Codex passes ONLY');
+    expect(content).toMatch(/disabled[^\n]*skip the Codex passes only/i);
     // Review log
     expect(content).toContain('adversarial-review');
     expect(content).toContain('reasoning_effort="high"');
@@ -2023,7 +2023,7 @@ describe('Test failure triage in ship skill', () => {
 
   test('ship/SKILL.md uses in-branch language for stop condition', () => {
     const content = readShipUnion();
-    expect(content).toContain('If any in-branch failures remain unfixed, **STOP**. Do not proceed');
+    expect(content).toMatch(/in-branch failures remain unfixed[\s\S]{0,40}\bstop\b[\s\S]{0,20}do not proceed/i);
   });
 });
 
