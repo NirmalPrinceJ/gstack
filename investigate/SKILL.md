@@ -44,12 +44,12 @@ gbrain:
       render_as: "## Prior investigations in this repo"
     - id: project-learnings
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/learnings.jsonl"
+      glob: "{gstack_state_root}/projects/{repo_slug}/learnings.jsonl"
       tail: 10
       render_as: "## Recent learnings (patterns + pitfalls)"
     - id: recent-eureka
       kind: filesystem
-      glob: "~/.gstack/analytics/eureka.jsonl"
+      glob: "{gstack_state_root}/analytics/eureka.jsonl"
       tail: 5
       render_as: "## Recent eureka moments (cross-project)"
 ---

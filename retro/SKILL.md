@@ -25,12 +25,12 @@ gbrain:
       render_as: "## Prior retros for this project"
     - id: recent-timeline
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/timeline.jsonl"
+      glob: "{gstack_state_root}/projects/{repo_slug}/timeline.jsonl"
       tail: 30
       render_as: "## Recent timeline events"
     - id: recent-learnings
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/learnings.jsonl"
+      glob: "{gstack_state_root}/projects/{repo_slug}/learnings.jsonl"
       tail: 10
       render_as: "## Recent learnings"
 ---

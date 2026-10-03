@@ -30,17 +30,17 @@ gbrain:
       render_as: "## Prior office-hours sessions in this repo"
     - id: builder-profile
       kind: filesystem
-      glob: "~/.gstack/developer-profile.json"
+      glob: "{gstack_state_root}/developer-profile.json"
       render_as: "## Your builder profile snapshot"
     - id: design-doc-history
       kind: filesystem
-      glob: "~/.gstack/projects/{repo_slug}/*-design-*.md"
+      glob: "{gstack_state_root}/projects/{repo_slug}/*-design-*.md"
       sort: mtime_desc
       limit: 3
       render_as: "## Recent design docs for this project"
     - id: prior-eureka
       kind: filesystem
-      glob: "~/.gstack/analytics/eureka.jsonl"
+      glob: "{gstack_state_root}/analytics/eureka.jsonl"
       tail: 5
       render_as: "## Recent eureka moments"
 ---
