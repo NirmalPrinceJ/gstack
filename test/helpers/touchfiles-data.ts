@@ -144,25 +144,25 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
 
   // Plan reviews
   'plan-ceo-review':                  [  'plan-ceo-review/**', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
-    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
+    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
   'plan-ceo-review-selective':        [  'plan-ceo-review/**', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
-    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
+    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
   'plan-ceo-review-expansion-energy': [  'plan-ceo-review/**', 'scripts/resolvers/preamble.ts', 'test/fixtures/mode-posture/**', 'test/helpers/llm-judge.ts', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
-    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/codex-offering-fixture.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
+    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
   'plan-eng-review':           [ 
     
     'scripts/resolvers/learnings.ts',
     
     "test/fixtures/plan-scope-recovery-av.json",  'plan-eng-review/**', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
      "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
-    'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts',  'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
+    'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
   'plan-eng-review-artifact':  [ 
     
     'scripts/resolvers/learnings.ts',
     
     "test/fixtures/plan-scope-recovery-av.json",  'plan-eng-review/**', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
      "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
-    'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts',  'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
+    'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
   'plan-review-report':        [ 
     
     'test/helpers/office-hours-attempt.ts', 
@@ -171,7 +171,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     
     "test/fixtures/plan-scope-recovery-av.json",  'plan-eng-review/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
      "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
-    'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts',  'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
+    'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
 
   // Plan-mode smoke tests — gate-tier safety regression tests. Each test file
   // contains TWO test cases as of v1.21: the baseline plan-mode case and the
