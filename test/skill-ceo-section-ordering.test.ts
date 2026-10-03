@@ -34,6 +34,7 @@ import { ALL_HOST_CONFIGS } from '../hosts';
 import { generateTasksSectionEmit } from '../scripts/resolvers/tasks-section';
 import { generateBrainCacheRefresh } from '../scripts/resolvers/gbrain';
 import { runGeneration } from '../scripts/gen-skill-docs';
+import { ASK_QUESTIONS_HEADING } from './helpers/workflow-excerpt';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const SKELETON = path.join(ROOT, 'plan-ceo-review', 'SKILL.md');
@@ -935,12 +936,13 @@ test('CEO closing route checks approvals before outputs and verifies artifacts b
     expect(refresh).not.toContain('telemetry has logged');
   }
 
-  const governingStages = ['## CRITICAL RULE — How to ask questions', '## Formatting Rules',
+  const askQuestions = section.search(ASK_QUESTIONS_HEADING);
+  const governingStages = [askQuestions, ...['## Formatting Rules',
     '## Mode Quick Reference', '### Working review decisions', '### Section 1:']
-    .map(stage => section.indexOf(stage));
+    .map(stage => section.indexOf(stage))];
   expect(governingStages.every(position => position >= 0)).toBe(true);
   expect(governingStages).toEqual([...governingStages].sort((a, b) => a - b));
-  const questions = section.split('## CRITICAL RULE — How to ask questions')[1]!.split('## Mode Quick Reference')[0]!;
+  const questions = section.slice(askQuestions).split('\n').slice(1).join('\n').split('## Mode Quick Reference')[0]!;
   expect(questions).toContain('Use `D<N>` and A/B/C labels');
   expect(questions).toContain('Cite the stable ledger ID separately');
   const formatting = questions.split('## Formatting Rules')[1]!;

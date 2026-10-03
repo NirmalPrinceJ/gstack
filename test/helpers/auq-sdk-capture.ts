@@ -43,6 +43,19 @@ export function scoreAuqFormat(text: string): { present: number; total: number; 
 }
 
 /**
+ * Format problems that fail a first-question matrix run: only the fields
+ * software reads (a `Recommendation:` line and exactly one `(recommended)`
+ * option). ELI10, Pros / cons, ✅/❌ and Net: are reported, not failed.
+ */
+export function auqMachineFormatProblems(text: string): string[] {
+  const problems: string[] = [];
+  if (!/^[*_]*[ \t]*recommendation[ \t]*[*_]*[ \t]*:[*_ \t]*\S/im.test(text)) problems.push('missing Recommendation: line');
+  const recommended = text.match(/\(recommended\)/gi)?.length ?? 0;
+  if (recommended !== 1) problems.push(`expected exactly one (recommended) option, found ${recommended}`);
+  return problems;
+}
+
+/**
  * Grade recommendation substance ROBUST to the connective. judgeRecommendation()
  * keys on the literal "because" (correct for the spec, pinned by
  * llm-judge-recommendation.test.ts), but skills routinely write equally

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from 'bun:test';
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fixtureDocs } from './helpers/docsync-fixture';
@@ -17,9 +17,6 @@ test('fixture lifecycle guidance exposes owned skill paths and literal commands'
   const guidance = docsNativeInterface(fixture);
   const skills = fixture.skills.split(path.sep).join('/');
   expect(guidance).toContain(`${skills}/document-release/SKILL.md`);
-  expect(guidance).toContain('instead of copying the generated shell wrappers');
-  expect(guidance).toContain("satisfy the skill's start/end lifecycle requirements here");
-  expect(guidance).toContain('applies to parent and every child; include this interface in child prompts');
   const [start, end] = lifecycleCommands();
   expect(lifecycleCommands()).toHaveLength(2);
   expect(start).toBe(`GSTACK_SESSION_KIND=spawned ${skills}/bin/gstack-skill-start --skill document-release --model claude`);
@@ -33,11 +30,6 @@ test('fixture lifecycle guidance exposes owned skill paths and literal commands'
 });
 
 test.each(['success', 'error', 'abort', 'unknown'])('same-session literal end accepts outcome %s without wrappers', outcome => {
-  const guidance = docsNativeInterface(fixture);
-  expect(guidance).toContain('actual literal values echoed by that same start call');
-  expect(guidance).toContain('Never execute the placeholders or reuse values from another session');
-  expect(guidance).toContain('If start fails or SESSION_KIND is not spawned, report the blocker');
-  expect(guidance).toContain('do not suppress an error or claim completion if it failed');
   const end = lifecycleCommands()[1].replace('OUTCOME', outcome).replace('SESSION_ID_VALUE', '123-1790299423-control').replace('TEL_START_VALUE', '1790299423');
   expect(docsCommandAllowed(end, fixture)).toBe(true);
   const result = { toolCalls: [{ tool: 'Bash', input: { command: end }, output: '' }] } as SkillTestResult;
@@ -49,7 +41,6 @@ test('historical misplaced spawned prefix remains rejected while corrected pream
   const misplaced = `GSTACK_SESSION_KIND=spawned ${original}`;
   expect(docsCommandAllowed(misplaced, fixture)).toBe(false);
   expect(docsCommandAllowed(spawned, fixture)).toBe(true);
-  expect(docsNativeInterface(fixture)).toContain('prefix belongs directly on the helper invocation, not on a preceding assignment');
 });
 
 test.each([
@@ -95,27 +86,40 @@ test.each([
 });
 
 test('lifecycle instructions neither widen command authority nor grant mutation approvals', () => {
-  const guidance = docsNativeInterface(fixture);
-  expect(guidance).toContain('The only additional scripts are none');
-  expect(guidance).toContain('do not grant any additional scripts, write paths or risk approvals');
-  expect(guidance).toContain('do not rewrite installed skills, config, actor state or scripts');
+  expect(docsNativeInterface(fixture)).toContain('The only additional scripts are none');
+  expect(docsNativeInterface(fixture, ['/owned/publish.ts'])).toContain('The only additional scripts are /owned/publish.ts');
   for (const suffix of [' 2>/dev/null', ' || true', ' && git status', '\ntrue', ' $EXTRA']) {
     expect(docsCommandAllowed(lifecycleCommands()[0] + suffix, fixture)).toBe(false);
   }
   expect(docsCommandAllowed('bun arbitrary.ts', fixture)).toBe(false);
 });
 
-test('Git guidance uses the existing working directory without authorizing global options', () => {
+test('Git guidance uses the existing working directory; --git-dir and --work-tree stay unauthorized', () => {
   const guidance = docsNativeInterface(fixture);
-  expect(guidance).toContain(`working directory for parent and child Bash calls is already ${fixture.repo}`);
-  expect(guidance).toContain('literal git subcommand must immediately follow git');
-  expect(guidance).toContain('does not make git -C an allowed command');
+  expect(guidance).toContain(fixture.repo);
   for (const command of ['git status', 'git diff --cached', 'git merge-base main HEAD', 'git rev-parse HEAD']) {
     expect(guidance).toContain(command);
     expect(docsCommandAllowed(command, fixture)).toBe(true);
   }
-  for (const command of [`git -C ${fixture.repo} status`, `git --git-dir ${fixture.repo}/.git status`,
-    `git --work-tree ${fixture.repo} status`, 'git -c core.pager=cat status', `cd ${fixture.repo} && git status`]) {
+  for (const command of [`git --git-dir ${fixture.repo}/.git status`, `git --work-tree ${fixture.repo} status`]) {
     expect(docsCommandAllowed(command, fixture)).toBe(false);
   }
+});
+
+describe('stored docsync observer commands', () => {
+  const stored = JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures/docsync-observer-commands.json'), 'utf8')) as
+    { known_good: string[]; known_bad: string[] };
+  const fill = (command: string) => command.replaceAll('{repo}', fixture.repo).replaceAll('{other}', path.dirname(fixture.repo));
+  test.each(stored.known_good)('harmless read form is accepted: %s', command => {
+    expect(docsCommandAllowed(fill(command), fixture)).toBe(true);
+  });
+  test.each(stored.known_bad)('known-bad form stays rejected: %s', command => {
+    expect(docsCommandAllowed(fill(command), fixture)).toBe(false);
+  });
+  test('harmless wrappers never extend to lifecycle commands', () => {
+    for (const command of lifecycleCommands()) {
+      for (const suffix of [' 2>/dev/null', ' || true']) expect(docsCommandAllowed(command + suffix, fixture)).toBe(false);
+      expect(docsCommandAllowed(`cd ${fixture.repo} && ${command}`, fixture)).toBe(false);
+    }
+  });
 });

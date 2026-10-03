@@ -169,7 +169,7 @@ const copy = (capture = edit): Capture => ({ fixture: { ...capture.fixture, befo
   test('read-only and undeclared Git commands still block omitted-metadata attribution', () => {
     expect(docsWriteFailures(edit.observation, [], edit).length).toBeGreaterThan(0);
     const captured = copy();
-    captured.result.toolCalls.push({ tool: 'Bash', input: { command: `git -C ${captured.fixture.repo} status` }, output: '' });
+    captured.result.toolCalls.push({ tool: 'Bash', input: { command: `git --git-dir ${captured.fixture.repo}/.git status` }, output: '' });
     expect(verdict(captured).length).toBeGreaterThan(0);
   });
 });

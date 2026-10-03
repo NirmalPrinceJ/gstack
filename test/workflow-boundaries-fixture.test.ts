@@ -28,7 +28,7 @@ for (const attack of ['read-state', 'cat-state', 'bash-edit', 'receipt-write']) 
   } finally { fs.rmSync(fixture.root, { recursive: true, force: true }); }
 });
 
-function protocolControl(id: BoundaryCase, faults: { skipCleanup?: boolean; duplicateQuestion?: boolean; failVerification?: boolean; rateLimit?: boolean; undeclared?: string; deniedBash?: string; includeAvailability?: boolean; misleadingFinal?: boolean; splitFinal?: boolean } = {}) {
+function protocolControl(id: BoundaryCase, faults: { skipCleanup?: boolean; duplicateQuestion?: boolean; failVerification?: boolean; rateLimit?: boolean; undeclared?: string; deniedBash?: string; includeAvailability?: boolean; misleadingFinal?: boolean; splitFinal?: boolean; reverify?: 'pass' | 'fail-last' } = {}) {
   let directory = '';
   let calls = 0;
   const provider: QueryProvider = input => {
@@ -119,6 +119,13 @@ function protocolControl(id: BoundaryCase, faults: { skipCleanup?: boolean; dupl
           }
           const verified = await shell('bash ./verify.sh');
           expect(verified.status).toBe(id === 'investigate-owned-ending-error' ? 69 : faults.failVerification ? 1 : 0);
+          if (faults.reverify) {
+            if (faults.reverify === 'fail-last') {
+              const file = path.join(directory, 'verify.sh');
+              fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('value() !== 2', 'value() !== 3'));
+            }
+            await shell('bash ./verify.sh');
+          }
         } else expect(answer).toBe('Abort');
         if (!faults.skipCleanup) expect((await shell(`bash "$HOME/.claude/skills/gstack/freeze/bin/freeze-state.sh" release "${owner}"`)).status).toBe(0);
         const finalText = faults.misleadingFinal ? 'The fix is complete and verification succeeded.'
@@ -210,6 +217,27 @@ test('fixture records failed verification rather than crediting successful clean
   const records: EvalTestEntry[] = [];
   await expect(runBoundaryActor('investigate-owned-completion', entry => records.push(entry), driver.provider)).rejects.toThrow('verification did not succeed');
   expect(JSON.parse(records[0].output!).evidence.receipts).toContain('VERIFY_STATUS:1');
+});
+
+test('a passing re-verification is not a protocol failure', async () => {
+  const driver = protocolControl('investigate-owned-completion', { reverify: 'pass' });
+  const records: EvalTestEntry[] = [];
+  await runBoundaryActor('investigate-owned-completion', entry => records.push(entry), driver.provider);
+  expect(records[0].passed).toBe(true);
+  expect(JSON.parse(records[0].output!).evidence.receipts.match(/^VERIFY$/gm)).toHaveLength(2);
+});
+
+test('a failing final re-verification still fails after an earlier success', async () => {
+  const driver = protocolControl('investigate-owned-completion', { reverify: 'fail-last' });
+  const records: EvalTestEntry[] = [];
+  await expect(runBoundaryActor('investigate-owned-completion', entry => records.push(entry), driver.provider)).rejects.toThrow('final verification did not succeed');
+  expect(records[0].passed).toBe(false);
+});
+
+test('retrying the verifier after its ending error still fails', async () => {
+  const driver = protocolControl('investigate-owned-ending-error', { reverify: 'pass' });
+  const records: EvalTestEntry[] = [];
+  await expect(runBoundaryActor('investigate-owned-ending-error', entry => records.push(entry), driver.provider)).rejects.toThrow('without retry');
 });
 
 test('rate-limit retry restores the fixture and retains both native event streams', async () => {

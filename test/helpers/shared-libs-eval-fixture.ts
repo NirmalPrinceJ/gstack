@@ -1031,6 +1031,24 @@ export function toolCommandTrace(result: { toolCalls: Array<{ tool: string; inpu
   return result.toolCalls.filter(call => call.tool === 'Bash').map(call => String(call.input?.command || ''));
 }
 
+/**
+ * PR-coverage request check against the skill's stated older-open-PR budget
+ * (five metadata pages, fifty file-list pages, plus recent PR 7's one page)
+ * and the coverage outcome: PR 42's file list was read from page 1 through
+ * page 2. How often a page was re-read within budget is not graded.
+ */
+export function prCoverageRequestViolations(endpoints: string[]): string[] {
+  const violations: string[] = [];
+  const coordination = endpoints.filter(endpoint => /\/pulls\/42\/files/.test(endpoint));
+  if (!coordination.some(endpoint => !/[?&]page=/.test(endpoint) || /[?&]page=1(?:&|$)/.test(endpoint))) violations.push('PR 42 first file page not read');
+  if (!coordination.some(endpoint => /[?&]page=2(?:&|$)/.test(endpoint))) violations.push('PR 42 second file page not read');
+  const openPages = endpoints.filter(endpoint => /\/pulls\?/.test(endpoint) && /state=open/.test(endpoint)).length;
+  if (openPages > 5) violations.push(`${openPages} open-PR metadata pages exceed the budget of 5`);
+  const filePages = endpoints.filter(endpoint => /\/pulls\/\d+\/files/.test(endpoint)).length;
+  if (filePages > 51) violations.push(`${filePages} file-list pages exceed the budget of 50 plus PR 7`);
+  return violations;
+}
+
 /** Whether the first read of a PR's file-list page 1 left no usable file set:
  * truncated by `head -c`, or a failed filter (e.g. a jq error) that printed no
  * file entries. One recovery read of page 1 is then legitimate, still charged

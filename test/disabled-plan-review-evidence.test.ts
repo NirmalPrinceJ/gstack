@@ -257,6 +257,26 @@ describe('disabled outside-plan live oracle', () => {
 
 // Both actual attempts obeyed the off switch; prior records and rejected claims
 // were mistaken for current completion by the bare substring check.
+describe('closing outside-review self-report', () => {
+  const stored = require('./fixtures/disabled-plan-self-report.json') as { known_good: Record<string, string>; known_bad: Record<string, string> };
+  const withOutput = (text: string) => { const result = completed(); result.output += '\n' + text; return result; };
+  test.each(Object.entries(stored.known_good))('self-report passes %s', (_name, text) => {
+    expect(oracle(withOutput(text))).toMatchObject({ passed: true, falseCompletion: false, disabledAttribution: true });
+  });
+  test.each(Object.entries(stored.known_bad))('self-report fails %s', (_name, text) => {
+    expect(oracle(withOutput(text))).toMatchObject({ passed: false, falseCompletion: true });
+  });
+  test('a disabled self-report cannot override dispatch, CLI execution, preflight or persistence', () => {
+    const result = withOutput(stored.known_good['plain-history-wording']!);
+    expect(oracle(result, 'codex invoked\n').passed).toBe(false);
+    const dispatched = structuredClone(result); dispatched.transcript.splice(-1, 0, dispatch('Agent', { prompt: 'Outside review' }));
+    expect(oracle(dispatched).passed).toBe(false);
+    const noPreflight = structuredClone(result); noPreflight.transcript.splice(1, 2);
+    expect(oracle(noPreflight).passed).toBe(false);
+    expect(disabledPlanReviewEvidence(result, '', JSON.stringify(PRIOR_RECORD), PRIOR_RECORD).passed).toBe(false);
+  });
+});
+
 describe('AD v2 disabled-plan public attribution', () => {
   const captured = require('./fixtures/disabled-plan-attribution-ad-v2.json');
   test.each(captured.cases)('accepts actual attempt $attempt output without crediting historical coverage', (item: any) => {

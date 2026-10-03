@@ -19,7 +19,7 @@ import {
 } from './helpers/touchfiles';
 
 import { paidTestClosure, isCovered } from './helpers/touchfile-closure';
-import { readWorkflowExcerpt } from './helpers/workflow-excerpt';
+import { ASK_QUESTIONS_HEADING, readWorkflowExcerpt } from './helpers/workflow-excerpt';
 import { sharedLibsPlanExcerpt } from './helpers/shared-libs-plan-excerpt';
 
 const ROOT = path.resolve(import.meta.dir, '..');
@@ -216,7 +216,7 @@ describe('selectTests', () => {
     ['ship/sections/test-coverage.md', 'ship/SKILL.md workflow',
       'ship/SKILL.md', '# Ship:', '## Important Rules', '### REGRESSION RULE (mandatory)'],
     ['plan-design-review/sections/review-sections.md', 'plan-design-review/SKILL.md passes',
-      'plan-design-review/SKILL.md', '## Review Sections', '## CRITICAL RULE',
+      'plan-design-review/SKILL.md', '## Review Sections', ASK_QUESTIONS_HEADING,
       '## Review Sections (7 passes, after scope is agreed)'],
   ])('expanded judge content remains selected by its section alone: %s', (file, judge, skill, start, end, marker) => {
     const body = fs.readFileSync(path.join(ROOT, file), 'utf8').replace(/^<!--[^\n]*-->\n/gm, '').trim();

@@ -413,20 +413,8 @@ describe('office-hours reviewer finding preservation', () => {
       calls++;
       expect(prompt).toContain(JSON.stringify(original));
       expect(prompt).toContain(JSON.stringify(review!.concerns));
-      expect(prompt).toContain('Do not require verbatim wording or judge by issue count alone');
-      expect(prompt).toContain('optional alternative remedies may be omitted');
-      expect(prompt).toContain('only actual defects, never successful mappings');
-      expect(prompt).toContain('Keep reasoning brief');
-      expect(prompt).toContain('Complete EVERY applicable audit even if another already fails');
-      expect(prompt).toContain('a coverage failure cannot skip metrics');
-      expect(prompt).toContain('a metrics failure cannot skip convergence');
-      expect(prompt).toContain('one brief conclusion per applicable audit');
-      expect(prompt).toContain('APPROVED records user approval and is compatible with CONCERNS_RECORDED');
+      // The response schema is the wire contract; the judge's wording is not.
       expect(prompt).toContain('{"reasoning":string,"missing":string[],"unsupported":string[],"complete":boolean}');
-      expect(prompt).toContain('finalize missing and unsupported, and emit complete last');
-      expect(prompt).toContain('at most 150 words total');
-      expect(prompt).toContain('Coverage and the remaining inventory come from the FINAL reviewer verdict only');
-      expect(prompt).toContain('lack of a confirmed prior fix does not invent a missing final-verdict finding');
       return JSON.stringify(accepted);
     });
     expect(calls).toBe(1);

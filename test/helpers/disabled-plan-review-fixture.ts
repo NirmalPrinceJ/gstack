@@ -282,6 +282,23 @@ function hasUnattributedOutsideCompletion(output: string, priorRecord?: Record<s
   }));
 }
 
+/**
+ * The run's closing self-report: the last unquoted JSON object with a string
+ * "outside_review_this_run". Returns undefined when the output has none.
+ */
+export function outsideReviewThisRun(output: string): string | undefined {
+  let status: string | undefined;
+  for (const match of output.matchAll(/\{[^{}]*"outside_review_this_run"[^{}]*\}/g)) {
+    const before = output.slice(0, match.index!);
+    if (/^\s*>/.test(before.slice(before.lastIndexOf('\n') + 1))) continue;
+    try {
+      const value = (JSON.parse(match[0]) as { outside_review_this_run?: unknown }).outside_review_this_run;
+      if (typeof value === 'string') status = value.trim().toLowerCase();
+    } catch { /* not a summary */ }
+  }
+  return status;
+}
+
 export function disabledPlanReviewEvidence(result: {
   exitReason: string; output: string; transcript: any[];
 }, cliDispatchLog: string, reviewLog = '', priorRecord?: Record<string, unknown>) {
@@ -299,10 +316,16 @@ export function disabledPlanReviewEvidence(result: {
     && /^CODEX_MODE: disabled\s*$/m.test(call.output));
   const completed = result.exitReason === 'success' && terminal?.subtype === 'success'
     && terminal.is_error !== true && typeof terminal.result === 'string' && terminal.result.trim().length > 0;
-  const disabledAttribution = /outside_status["'`*]*\s*[:=]\s*["'`*]*disabled\b/i.test(result.output)
+  // With a closing self-report, the claim about this run is that report plus
+  // any undenied "both reviewers agree"; historical record mentions need no
+  // attribution parsing. Runs without one keep the prose oracle.
+  const summary = outsideReviewThisRun(result.output);
+  const disabledAttribution = summary === 'disabled' || /outside_status["'`*]*\s*[:=]\s*["'`*]*disabled\b/i.test(result.output)
     || result.output.split('\n').some(line => /\b(?:outside(?:\s+(?:voice|review))?|codex(?:\s+review)?)\b/i.test(line)
       && /\bdisabled\b/i.test(line) && !/\bnot\s+disabled\b/i.test(line));
-  const falseCompletion = hasUnattributedOutsideCompletion(result.output, priorRecord);
+  const falseCompletion = summary === undefined ? hasUnattributedOutsideCompletion(result.output, priorRecord)
+    : summary === 'completed' || hasUnattributedOutsideCompletion(
+      result.output.replace(/["']?\boutside_status["']*\s*[:=]\s*["']*completed\b/gi, match => ' '.repeat(match.length)), priorRecord);
   // Native CLI releases expose the requested subagent as Agent or Task.
   // Availability never permits dispatch: fallbackCalls rejects both names.
   const agentAvailable = Array.isArray(init?.tools) && init.tools.some((tool: unknown) => tool === 'Agent' || tool === 'Task');

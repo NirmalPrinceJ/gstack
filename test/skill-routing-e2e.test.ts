@@ -6,6 +6,7 @@ import { EvalCollector } from './helpers/eval-store';
 import type { EvalTestEntry } from './helpers/eval-store';
 import { selectTests, detectBaseBranch, getChangedFiles, E2E_TOUCHFILES, E2E_TIERS, GLOBAL_TOUCHFILES } from './helpers/touchfiles';
 import { extractSkillHead } from './helpers/skill-fixture';
+import { readShippedSkillRouting } from './helpers/shipped-skill-routing';
 import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -94,26 +95,19 @@ function installSkills(tmpDir: string) {
 
   // The names-only catalog keeps new CLI built-ins from changing the candidate
   // set. Descriptions still choose the skill; no request-to-skill answer key.
-  // Write a CLAUDE.md with a GENERIC invoke-skills nudge — deliberately NO
-  // per-skill routing table. These journey tests exist to catch skill
-  // DESCRIPTION regressions (their touchfiles key on */SKILL.md.tmpl), and
-  // the old fixture shipped an explicit prompt→skill answer key: with the
-  // lookup table in context, a badly regressed frontmatter description
-  // still routed correctly and the tests could not fail on the regression
-  // class they select for (2026-08 audit). The generic nudge keeps Claude's
-  // reach-for-a-skill posture; the FRONTMATTER carries the routing load.
+  // The routing instruction is the one gstack ships (bin/gstack-skill-start),
+  // without its per-skill rule list. These journey tests exist to catch skill
+  // DESCRIPTION regressions (their touchfiles key on */SKILL.md.tmpl): with a
+  // lookup table in context, a badly regressed frontmatter description still
+  // routes correctly and the tests cannot fail on the regression class they
+  // select for. The FRONTMATTER carries the routing load.
   fs.writeFileSync(path.join(tmpDir, 'CLAUDE.md'), `# Project Instructions
 
-## Skill routing
+${readShippedSkillRouting().instruction}
 
 This project uses the following installed gstack skills: ${installedSkills.join(', ')}.
 Choose among this project catalog by matching the request to the skill descriptions.
 The CLI's built-in skills are outside this project's workflow.
-
-When the user's request matches an available project skill, ALWAYS invoke it using the Skill
-tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
-The skill has specialized workflows that produce better results than ad-hoc answers.
-Choose the skill by matching the request against each skill's description.
 `);
 }
 

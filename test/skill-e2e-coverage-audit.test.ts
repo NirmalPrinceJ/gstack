@@ -66,6 +66,8 @@ Existing tests are in ${cwd}/test/billing.test.ts.
 
 Produce the ASCII coverage diagram showing which code paths are tested and which have gaps.
 Output the diagram directly, name both billing functions, and include a coverage summary.
+End with one JSON line listing the functions with and without test coverage:
+{"tested": ["<function>", ...], "untested": ["<function>", ...]}
 Do not modify the supplied source or tests.`,
             workingDirectory: cwd, maxTurns: 15,
             allowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep'],

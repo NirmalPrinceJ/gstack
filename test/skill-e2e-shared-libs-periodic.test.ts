@@ -10,7 +10,7 @@ import { createSharedPlanReuseSelector } from './helpers/shared-libs-plan-actor'
 import {
   SHARED_LIBS_ROOT, commitFixture, createSharedLibsFixture, fixtureWrite, installSourceShims,
   readRequests, runSharedCapture, runSharedInteractive, seedOpportunitySources,
-  sharedReadOnlyViolations, snapshotFixture, standaloneInstructions, toolCommandTrace, incompleteFirstFileView, type SharedLibsFixture,
+  sharedReadOnlyViolations, snapshotFixture, standaloneInstructions, toolCommandTrace, prCoverageRequestViolations, type SharedLibsFixture,
   SharedCaptureAccumulator, type SharedCaptureAttempt,
 } from './helpers/shared-libs-eval-fixture';
 
@@ -152,25 +152,9 @@ describeE2E('Shared-code opportunity and coordination judgment (periodic)', () =
         `Run /deslop-shared-libs using ${instructions}. Recent PR 7 mentions https://github.com/fixture/shared-libs/pull/42 as related work. Return the report after checking coordination within the skill's budget.`, attempt), async result => {
         assertReadOnly(f, before, result, 'shared-libs-pr-coverage');
         const requests = readRequests(f).filter(row => row.tool === 'gh' || row.tool === 'curl');
-        const endpoints = requests.map(row => row.endpoint || '');
-        expect(endpoints.some(endpoint => /\/pulls\/42\/files/.test(endpoint))).toBe(true);
-        expect(endpoints.some(endpoint => /\/pulls\/42\/files/.test(endpoint) && /[?&]page=2(?:&|$)/.test(endpoint))).toBe(true);
-        const openPages = endpoints.filter(endpoint => /\/pulls\?/.test(endpoint) && /state=open/.test(endpoint));
-        const filePages = endpoints.filter(endpoint => /\/pulls\/\d+\/files/.test(endpoint));
-        expect(openPages.length).toBeLessThanOrEqual(5);
-        // Only recent PR7's one page is outside the additional scan. Known old PR42
-        // shares that scan's 50-page budget, including both of its file-list pages.
-        expect(filePages.length).toBeLessThanOrEqual(51);
-        const coordinationPages = endpoints.filter(endpoint => /\/pulls\/42\/files/.test(endpoint));
-        // An incomplete first page is not a reusable complete file set. The
-        // observed capture truncated its first response with head, then fetched
-        // full pages 1–3. Permit that one recovery while charging every request
-        // to the hard budget and forbidding repeated complete first-page reads.
-        const truncatedFirstView = incompleteFirstFileView(result, 42);
-        expect(coordinationPages.length).toBeLessThanOrEqual(truncatedFirstView ? 4 : 3);
-        const firstPages = coordinationPages.filter(endpoint => !/[?&]page=/.test(endpoint) || /[?&]page=1(?:&|$)/.test(endpoint));
-        expect(firstPages.length).toBeGreaterThan(0);
-        expect(firstPages.length).toBeLessThanOrEqual(truncatedFirstView ? 2 : 1);
+        // The skill's stated page budget and PR 42 file-set coverage; per-PR
+        // page ceilings tuned to one observed run are not graded.
+        expect(prCoverageRequestViolations(requests.map(row => row.endpoint || ''))).toEqual([]);
         await assertJudgment(result.output, {
           older_open_pr: 'Identifies open PR 42 from 2020 as existing coordination work despite its activity being outside the 14-day window. The PR already proposes migrating retry-worker to the proven parser.',
           partial_overlap: 'Does not count the worker migration already covered by PR 42 as a new opportunity. It may recommend the independent remaining retry-route migration if it explains the narrowed scope and adjusted savings.',

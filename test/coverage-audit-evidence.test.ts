@@ -467,6 +467,25 @@ Guard clauses tested: 0 / 4
   });
 });
 
+describe('coverage audit closing summary', () => {
+  const stored = require('./fixtures/coverage-audit-summary.json') as { known_good: Record<string, string>; known_bad: Record<string, string> };
+  test.each(Object.entries(stored.known_good))('summary passes %s', (_name, output) => {
+    const s = synthetic(); s.result.output = output;
+    expect(verdict(s)).toEqual({ sourceRead: true, testsRead: true, diagram: true, passed: true, failures: [] });
+  });
+  test.each(Object.entries(stored.known_bad))('summary fails %s', (_name, output) => {
+    const s = synthetic(); s.result.output = output;
+    expect(verdict(s).passed).toBe(false);
+  });
+  test('a correct summary cannot replace native file delivery or a completed capture', () => {
+    const output = stored.known_good['unfamiliar-diagram-with-summary']!;
+    const unread = synthetic(); unread.result.output = output; block(unread, 2).content = 'not the file';
+    expect(verdict(unread)).toMatchObject({ sourceRead: false, passed: false });
+    const timedOut = synthetic(); timedOut.result.output = output; timedOut.result.exitReason = 'timeout';
+    expect(verdict(timedOut).passed).toBe(false);
+  });
+});
+
 describe('coverage-audit-af', () => {
 const fixture = fixture_coverage_audit_af;
 const actual = (index: number) => structuredClone(fixture.rows[index]!);

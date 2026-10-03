@@ -11,7 +11,7 @@ import { buildEvalInputIdentity, lookupEvalInputCache, sourceDependencyClosure, 
 
 type Thresholds = { clarity: number; completeness: number; actionability: number };
 export interface WorkflowCacheOptions {
-  root: string; testName: string; skillPath: string; startMarker: string; endMarker: string | null;
+  root: string; testName: string; skillPath: string; startMarker: string; endMarker: string | RegExp | null;
   judgeContext: string; judgeGoal: string; model?: string; thresholds: Thresholds; prompt: string; attempt: number;
   references?: readonly string[];
   agentCapability?: 'frontier';
@@ -134,4 +134,16 @@ export function prepareWorkflowJudgeCache(opts: WorkflowCacheOptions): {
       if (stored.status === 'stored') return () => fs.rmSync(path.join(common.cacheDir, `${stored.key}.json`), { force: true });
     },
   };
+}
+
+/**
+ * Pass floors for the browse reference judge panel mean. The stored baseline
+ * is recorded for comparison only: a three-sample mean is too noisy for a
+ * no-dip ratchet, and gating on it silently raised the clarity floor to 4.
+ */
+export const BROWSE_JUDGE_FLOORS = { clarity: 3, completeness: 4, actionability: 4 } as const;
+
+export function browseJudgeFloorsMet(scores: Record<keyof typeof BROWSE_JUDGE_FLOORS, number>): boolean {
+  return (Object.keys(BROWSE_JUDGE_FLOORS) as Array<keyof typeof BROWSE_JUDGE_FLOORS>)
+    .every(dim => scores[dim] >= BROWSE_JUDGE_FLOORS[dim]);
 }

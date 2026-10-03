@@ -5,6 +5,13 @@ import type { AskUserQuestionFingerprint } from './claude-pty-runner';
 import type { PlanCountTranscript } from './plan-count-transcript';
 import { isDeepStrictEqual } from 'node:util';
 
+/**
+ * Minimum target AskUserQuestion calls for the five split-overflow candidates:
+ * five options at four per call need at least two calls. Batching compatible
+ * candidates is legitimate; every candidate still needs its own disposition.
+ */
+export const CEO_SPLIT_CALL_FLOOR = 2;
+
 const optionLabel = (label: string) => label.trim().replace(/^[A-D][).] /, '')
   .replace(/ \(recommended\)$/i, '');
 const platforms = ['Slack', 'Discord', '(?:Microsoft )?Teams', 'Telegram', 'Mattermost'];
