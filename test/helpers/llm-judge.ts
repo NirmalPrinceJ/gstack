@@ -800,7 +800,8 @@ export function parseArmJudgeResponse(raw: unknown): ArmJudgeScore {
  * - One sample, never re-asked: a malformed or refused verdict is a failed
  *   sample. callJudge's transport-level 429 backoff is not a verdict retry.
  * - `opts.call` is an injection seam so the free selftest can exercise the
- *   malformed path without spending API money. Defaults to the real callJudge.
+ *   malformed path without spending API money. Defaults to the real callJudge
+ *   and receives the request options (ARM_JUDGE_SCHEMA, calibrated in W2).
  */
 export async function armJudge(
   task: string,
@@ -815,7 +816,7 @@ export async function armJudge(
     };
   }
   const call = opts?.call ?? callJudge;
-  const raw = await call<Record<string, unknown>>(buildArmJudgePrompt(task, diff), ARM_JUDGE_MODEL);
+  const raw = await call<Record<string, unknown>>(buildArmJudgePrompt(task, diff), ARM_JUDGE_MODEL, { jsonSchema: ARM_JUDGE_SCHEMA });
   try {
     return parseArmJudgeResponse(raw);
   } catch (err) {
