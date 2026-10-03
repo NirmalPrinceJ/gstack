@@ -23,7 +23,7 @@ describe('prompt-audit manifest', () => {
     }
     expect(files.some(f => f.endsWith('SKILL.md'))).toBe(false);
     const resolvers = (readdirSync(join(ROOT, 'scripts/resolvers'), { recursive: true }) as string[])
-      .filter(f => f.endsWith('.ts')).map(f => `scripts/resolvers/${f}`);
+      .filter(f => f.endsWith('.ts')).map(f => `scripts/resolvers/${f.replaceAll('\\', '/')}`);
     expect(resolvers.filter(f => !files.includes(f))).toEqual([]);
   });
 
