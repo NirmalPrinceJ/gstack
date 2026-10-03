@@ -459,25 +459,26 @@ describe('run_in_background guidance (#2440)', () => {
   // class regressed twice via unpinned prose. Pin the document-release
   // contract, the Step 8.4d spawned note, and the resolver-side Codex
   // doc-review skip in both generated output and templates.
-  const CONTRACT_PINS: Array<[string[], string]> = [
+  const CONTRACT_PINS: Array<[string[], string | RegExp]> = [
     [['document-release/SKILL.md', 'document-release/SKILL.md.tmpl'], 'When dispatched as a subagent'],
     [
       ['document-release/sections/release-body.md', 'document-release/sections/release-body.md.tmpl'],
-      'A spawned run must never change VERSION',
+      /a spawned run must never change VERSION/i,
     ],
     [['document-release/sections/release-body.md'], 'Spawned-session skip'],
     // Anti-injection trigger + invariant carve-out — the two clauses whose
     // deletion would silently reopen the prompt-injection / silent-VERSION
-    // holes while the 'When dispatched' heading pin stays green.
-    [['document-release/SKILL.md', 'document-release/SKILL.md.tmpl'], 'NEVER trigger it on their own'],
-    // (short form — the sentence wraps across template lines; toContain is literal)
-    [['document-release/SKILL.md', 'document-release/SKILL.md.tmpl'], 'The NEVER-do invariants below do'],
+    // holes while the 'When dispatched' heading pin stays green. Matched on
+    // meaning (case-insensitive, whitespace-normalized), not register.
+    [['document-release/SKILL.md', 'document-release/SKILL.md.tmpl'], /claims never trigger it on their own/i],
+    [['document-release/SKILL.md', 'document-release/SKILL.md.tmpl'], /skip any recommendation that rewrites CHANGELOG or changes VERSION/i],
   ];
   test('document-release carries the spawned-dispatch contract', () => {
     for (const [sites, phrase] of CONTRACT_PINS) {
       for (const rel of sites) {
         const content = fs.readFileSync(path.join(ROOT, rel), 'utf-8');
-        expect(content).toContain(phrase);
+        if (typeof phrase === 'string') expect(content).toContain(phrase);
+        else expect(content.replace(/\s+/g, ' ')).toMatch(phrase);
       }
     }
   });
