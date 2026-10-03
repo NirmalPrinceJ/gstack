@@ -2,6 +2,89 @@
 
 ## NEXT PRIORITY
 
+### P2/P3: severe fix wave follow-ups (filed 2026-10-03, v1.91.19.0)
+
+Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10.md), each with its reason.
+
+- **Enforce the Bun floor at setup (#2815)** — `engines.bun` is now `>=1.4.0`
+  (the CI pin), but Bun does not enforce `engines` and setup never checks the
+  version. Bun older than 1.3.3 silently ignores `--no-compile-autoload-dotenv`
+  and `--no-env-file` (verified with 1.3.2), so D0's protection against a
+  project's `.env`/`bunfig.toml` is silently off there. Setup should refuse or
+  warn below the floor. **Effort:** S. **Priority:** P2.
+- **Windows Node CLI lane for Smart App Control (E3; #2596, #2595, #2124)** —
+  a `dist/browse` wrapper would shadow `browse.exe` for every Windows user;
+  launcher precedence (browse vs browse.exe vs browse.cmd under Git Bash and
+  cmd) and the node-missing message need a Windows SAC machine to verify.
+  **Effort:** M. **Priority:** P2.
+- **C8 router wording behind a routing panel** — disabled skills now leave the
+  router, but the "When in doubt, invoke the skill" wording change (Tier 3) was
+  not run through a routing eval panel. **Effort:** S. **Priority:** P3.
+- **Cross-block variables on fresh-shell hosts: make-pdf `$P`** — make-pdf
+  "exports" `$P` for later blocks, which Codex and the other env-var hosts lose
+  between blocks (same class as `$B`/`$D`, which the shared prelude now
+  re-derives). Add `P` to the runtime prelude or resolve it per block.
+  **Effort:** S. **Priority:** P2.
+- **#2709's recorded-Chromium reap never runs on Playwright 1.62** — Playwright
+  1.62's `Browser` has no `process()`, so `chromiumProcInfo` is always null and
+  the cleanup is a no-op (verified by probe). Record the PID another way (CDP
+  `SystemInfo.getProcessInfo` or the launch server). **Effort:** S. **Priority:** P2.
+- **#2670's bash half in `bin/gstack-brain-sync`** — the TypeScript stage
+  verdict now reports a 0-page artifacts source; the bash brain-sync still has
+  no `index_failed` status file or page-count probe. **Effort:** S. **Priority:** P3.
+- **Navigation guard acts after the request is sent** — Playwright routing
+  cannot see redirect hops, so a blocked hop resets the tab and fails the
+  command after the request left. Pre-send blocking needs CDP Fetch
+  interception, including out-of-process iframes. **Effort:** M. **Priority:** P3.
+- **Redaction repo allowlist (#2598)** — a per-repo `+++ b/<path>` skip list
+  (generated `*.svg`/`*.excalidraw`, #2827) for noise context rules cannot
+  cover. New config surface, so out of the wave. **Effort:** M. **Priority:** P2.
+- **Global-discover Codex session schema (#2750)**, **ios-qa boot-token fixes
+  (#1837, #1975; need a device)**, **absolute bun path for compiled browse
+  spawns (#931; macOS repro unclear)** and **GitLab CI `curl | bash` (#1713)** —
+  out of the wave's scope. **Priority:** P3 each.
+- **Upstream gbrain batch lookup** — a per-slug existence lookup and a separate
+  `pending` list in `gbrain import --json`, so the landing check need not list a
+  whole source and spawn `get` per page. **Effort:** M (upstream). **Priority:** P2.
+- **Memory follow-ups** — record repo identity for gbrain sources at
+  registration (prune can prove ownership of a pre-wave source only from the
+  same repository's main checkout); a deliberate migration of pre-wave
+  transcripts out of `default` into per-repo sources (needs gbrain-side page
+  moves); decide #2778's "nearest existing ancestor" attribution for deleted
+  worktrees (risk: attributing to an unrelated parent repo like a dotfiles
+  repo). **Priority:** P3 each.
+- **G2 on the TS twin** — `lib/bin-context.ts` (the Windows fallback) shares the
+  common-dir slug keying but does not record former worktree buckets.
+  **Effort:** S. **Priority:** P3.
+- **Codex follow-ups** — post-run `codex_sandbox_unavailable` telemetry (only
+  the preflight logs it today); the Q2 first-use notice covers Codex only, not
+  the Codex host's Claude Code outside voice; the bash-native timeout watchdog
+  cannot reap grandchildren when `pkill` is missing; document enabling
+  unprivileged user namespaces in common containers. **Priority:** P3 each.
+- **Live Codex multi-block check as a periodic paid case** — the wave ran it
+  once by hand (fresh `CODEX_HOME`, fresh clone, `./setup --host codex`, one
+  multi-block skill). Make it a periodic case so a regression shows up weekly.
+  **Effort:** M. **Priority:** P2.
+- **Gate-outcome telemetry** — count `not_run`/`unavailable` outcomes per
+  reason code from `lib/gate-outcomes.ts` so the most common gaps get fixed
+  first. **Effort:** S. **Priority:** P3.
+- **/gstack-upgrade redesign around the install registry**, a **marketplace
+  distribution channel**, and a **placeholder convention for generated bash**
+  (`<placeholder>` vs real syntax in fences). **Priority:** P3 each.
+- **Design CLI health subcommand** — the DESIGN SETUP probe uses `--version`; a
+  richer `design health` could check the API key and model access too.
+  **Effort:** S. **Priority:** P3.
+- **Autoplan publication hook under cmd.exe** — `scripts/resolvers/composition.ts`
+  still registers `bash -c '<script>'`; the multi-line script with JSON printf
+  needs its own cmd.exe argv verification. **Effort:** S. **Priority:** P3.
+- **#2971 pieces outside the approved salvage** — ship/land validation-command
+  tuples and the requested-review/waiver gate in /land-and-deploy, the click
+  `<option>` 500 ms probe, 0600 modes on ingest state and staging files,
+  gbrain-sync's held-checkpoint refusal, and the question-preference hook's
+  fail-closed allowlist. **Priority:** P3 each.
+- **Close the skillify gate TODO once I2 is green** (see "skillify gate test
+  red" below). **Priority:** P3.
+
 ### P1: paid-eval follow-ups from the v1.91.12.0 proof censuses (filed 2026-09-29)
 
 - **Thin budgets on slow API days** — on Claude Code 2.1.284, review-army-perf
