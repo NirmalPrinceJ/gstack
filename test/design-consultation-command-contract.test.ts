@@ -57,7 +57,8 @@ test('actual CLI variants have no session; generation supplies the session requi
     const variants = f.run(['variants', '--brief', 'Readable civic dashboard', '--count', '1', '--output-dir', f.dir]);
     expect(variants.status, variants.stderr).toBe(0);
     const variantResult = JSON.parse(variants.stdout);
-    expect(variantResult.paths).toEqual([path.join(f.dir, 'variant-A.png')]);
+    // F4 (#1529): each variants run writes its own round directory.
+    expect(variantResult.paths).toEqual([path.join(f.dir, 'round-1', 'variant-A.png')]);
     expect(variantResult).not.toHaveProperty('sessionFile');
     const callCount = readFileSync(f.calls, 'utf8').split('\n').length;
     const missing = f.run(['iterate', '--feedback', 'Larger title', '--output', path.join(f.dir, 'missing.png')]);

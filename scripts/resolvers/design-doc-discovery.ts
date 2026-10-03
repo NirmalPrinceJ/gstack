@@ -3,8 +3,10 @@
  *
  * Finds the design doc a plan review should read: newest branch-scoped doc
  * under ~/.gstack/projects/<slug>/, falling back to newest project-scoped
- * doc, then lets a repo-local doc (DESIGN.md or docs/designs/*.md) win when
- * it is at least as fresh. office-hours dual-writes docs/designs/ alongside
+ * doc, then lets a repo-local feature doc (docs/designs/*.md) win when
+ * it is at least as fresh. A root DESIGN.md is never a design doc: it is the
+ * design system /design-consultation writes, and preferring it reviewed
+ * plans against a token file while printing "Design doc found" (#2839). office-hours dual-writes docs/designs/ alongside
  * ~/.gstack, and the committed copy is what teammates see — but a stale old
  * repo doc must never shadow a newer private session.
  *
@@ -34,10 +36,8 @@ export const DESIGN_DOC_DISCOVERY_BLOCK = `_LOCALDOC=$(ls -t ~/.gstack/projects/
 # see. A stale old repo doc never shadows a newer private session.
 _REPOTOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _REPODOC=""
-if [ -n "$_REPOTOP" ]; then
-  [ -f "$_REPOTOP/DESIGN.md" ] && _REPODOC="$_REPOTOP/DESIGN.md"
-  [ -z "$_REPODOC" ] && _REPODOC=$(ls -t "$_REPOTOP"/docs/designs/*.md 2>/dev/null | head -1)
-fi
+# Only docs/designs/ holds feature design docs; a root DESIGN.md is the design system (#2839).
+[ -n "$_REPOTOP" ] && _REPODOC=$(ls -t "$_REPOTOP"/docs/designs/*.md 2>/dev/null | head -1)
 DESIGN="$_LOCALDOC"
 if [ -n "$_REPODOC" ] && { [ -z "$_LOCALDOC" ] || [ "$_REPODOC" -nt "$_LOCALDOC" ]; }; then
   DESIGN="$_REPODOC"

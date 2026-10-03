@@ -44,13 +44,18 @@ export function generateGalleryHtml(designsDir: string): string {
       }
     }
 
-    // Find variant PNGs
+    // Find variant PNGs: legacy flat files plus every round-<N>/ directory
+    // (`$D variants` writes each regenerate round to its own directory, #1529).
     const variants: string[] = [];
     try {
-      const files = fs.readdirSync(sessionDir);
-      for (const f of files) {
-        if (f.match(/variant-[A-Z]\.png$/i) || f.match(/variant-\d+\.png$/i)) {
-          variants.push(path.join(sessionDir, f));
+      const dirs = [sessionDir, ...fs.readdirSync(sessionDir)
+        .filter(f => /^round-\d+$/.test(f))
+        .map(f => path.join(sessionDir, f))];
+      for (const dir of dirs) {
+        for (const f of fs.readdirSync(dir)) {
+          if (f.match(/variant-[A-Z]\.png$/i) || f.match(/variant-\d+\.png$/i)) {
+            variants.push(path.join(dir, f));
+          }
         }
       }
       variants.sort();
