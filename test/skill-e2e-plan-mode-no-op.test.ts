@@ -21,11 +21,13 @@
  *    ends in 'asked', the question that fired must be the scope gate itself
  *    (outside plan mode with no named target, the gate is the FIRST
  *    question by contract).
+ *  - plan-devex-review: no no-target scope gate, so only the terminal
+ *    outcome and the absent plan-mode reminder are asserted.
  *  - named-target case: a pasted draft (initialPlanContent) IS an
  *    explicitly-named target, so the gate must NOT ask — and the review
  *    must actually consume the pasted content.
  *
- * Cost note: 5 sequential PTY runs (~3-5 min each) in the gate lane, up
+ * Cost note: 6 sequential PTY runs (~3-5 min each) in the gate lane, up
  * from 1 pre-bypass. Selected only when plan-ceo/eng/design or the runner
  * change (see 'plan-mode-no-op' in touchfiles.ts).
  */
@@ -58,7 +60,8 @@ weekly export emails. One new component, one route, one test file.
 `;
 
 describeE2E('plan-mode-info no-op outside plan mode (gate regression)', () => {
-  for (const skillName of ['plan-ceo-review', 'plan-eng-review', 'plan-design-review'] as const) {
+  for (const skillName of ['plan-ceo-review', 'plan-eng-review', 'plan-design-review', 'plan-devex-review'] as const) {
+    const hasScopeGate = skillName === 'plan-eng-review' || skillName === 'plan-design-review';
     test(`${skillName} reaches a terminal outcome outside plan mode`, async () => {
       const obs = await runPlanSkillObservation({
         skillName,
@@ -74,9 +77,9 @@ describeE2E('plan-mode-info no-op outside plan mode (gate regression)', () => {
         // renders as a lettered menu, so a judge 'waiting' verdict on a
         // spinner-only frame must not end the run as 'asked' before that
         // menu has rendered.
-        ...(skillName === 'plan-ceo-review'
-          ? {}
-          : { extraArgs: ['--disallowedTools', 'AskUserQuestion'], requireProseEvidence: true }),
+        ...(hasScopeGate
+          ? { extraArgs: ['--disallowedTools', 'AskUserQuestion'], requireProseEvidence: true }
+          : {}),
       });
 
       if (obs.outcome === 'silent_write' || obs.outcome === 'exited' || obs.outcome === 'timeout') {
@@ -94,7 +97,7 @@ describeE2E('plan-mode-info no-op outside plan mode (gate regression)', () => {
       // section is leaking outside plan mode.
       expect(obs.evidence).not.toContain(PLAN_MODE_REMINDER);
 
-      if (skillName !== 'plan-ceo-review') {
+      if (hasScopeGate) {
         // Scope-gate bypass must not misfire: no auto-select announcement
         // outside plan mode.
         expect(obs.scopeGateAutoSelectObserved ?? false).toBe(false);

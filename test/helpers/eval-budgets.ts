@@ -109,7 +109,7 @@ export const FILE_RETRY_BUDGETS = [
     { file: 'test/skill-e2e-plan-eng-finding-floor.test.ts', attemptMs: PTY_MS, caseMs: PTY_MS },
     { file: 'test/skill-e2e-plan-design-finding-floor.test.ts', attemptMs: PTY_MS, caseMs: PTY_MS },
     { file: 'test/skill-e2e-plan-devex-finding-floor.test.ts', attemptMs: PTY_MS, caseMs: PTY_MS },
-    { file: 'test/skill-e2e-plan-mode-no-op.test.ts', attemptMs: 5 * CAPTURE_LONG_MS, caseMs: CAPTURE_LONG_MS },
+    { file: 'test/skill-e2e-plan-mode-no-op.test.ts', attemptMs: 6 * CAPTURE_LONG_MS, caseMs: CAPTURE_LONG_MS },
     { file: 'test/skill-e2e-plan-ceo-mode-routing.test.ts', attemptMs: 2 * CAPTURE_LONG_MS, caseMs: CAPTURE_LONG_MS },
     { file: 'test/skill-e2e-plan-eng-plan-mode.test.ts', attemptMs: 2 * CAPTURE_LONG_MS, caseMs: CAPTURE_LONG_MS },
     { file: 'test/skill-e2e-plan-prosons.test.ts', attemptMs: 4 * (CAPTURE_MS + 10_000), caseMs: CAPTURE_MS + 10_000 },
