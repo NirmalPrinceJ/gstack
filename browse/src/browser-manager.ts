@@ -323,6 +323,21 @@ export class BrowserManager {
   private extensionContext = false;
   /** Pending and recorded navigation-guard verdicts per page (D2). */
   private navigationGuards = new WeakMap<Page, { pending: Set<Promise<void>>; blocked: string | null }>();
+  // Our own 'disconnected' listeners per browser. Detach only these: removing
+  // every 'disconnected' listener also strips Playwright's internal one that
+  // resolves browser.close(), so each close waited the full race timeout (and
+  // Playwright 1.62 has no Browser.process() for the SIGKILL fallback).
+  private disconnectHandlers = new WeakMap<Browser, Array<() => void>>();
+  private onBrowserDisconnected(browser: Browser | null | undefined, handler: () => void): void {
+    if (!browser) return;
+    browser.on('disconnected', handler);
+    this.disconnectHandlers.set(browser, [...(this.disconnectHandlers.get(browser) ?? []), handler]);
+  }
+  private detachDisconnectHandlers(browser: Browser | null | undefined): void {
+    if (!browser) return;
+    for (const handler of this.disconnectHandlers.get(browser) ?? []) browser.off('disconnected', handler);
+    this.disconnectHandlers.delete(browser);
+  }
 
   // ─── Dialog Handling (global, not per-tab) ──────────────────
   private dialogAutoAccept: boolean = true;
@@ -601,7 +616,7 @@ export class BrowserManager {
       }), { usesCustomExecutable: Boolean(executablePath) }).catch(nameCustomChromium);
       this.extensionContext = true;
       this.browser = this.context.browser();
-      this.browser?.on('disconnected', () => {
+      this.onBrowserDisconnected(this.browser, () => {
         void handleChromiumDisconnect(this.browser);
       });
       for (const page of this.context.pages()) await page.close().catch(() => {});
@@ -651,7 +666,7 @@ export class BrowserManager {
     // means "user wanted this, don't restart"; non-zero means "crash, please
     // bring me back." Without this distinction every Cmd+Q gets treated as
     // a crash and the user-visible window keeps respawning.
-    this.browser.on('disconnected', () => {
+    this.onBrowserDisconnected(this.browser, () => {
       void handleChromiumDisconnect(this.browser);
     });
 
@@ -944,7 +959,7 @@ export class BrowserManager {
     // terminal agent, save session, clean profile locks + state file) so
     // crashes don't strand resources either.
     if (this.browser) {
-      this.browser.on('disconnected', () => {
+      this.onBrowserDisconnected(this.browser, () => {
         if (this.intentionalDisconnect) return;
         const browserRef = this.browser;
         void (async () => {
@@ -1003,14 +1018,14 @@ export class BrowserManager {
       if (this.connectionMode === 'headed' || this.handoffPrevious || this.extensionContext) {
         // Headed/persistent context mode: close the context (which closes the browser)
         this.intentionalDisconnect = true;
-        if (this.browser) this.browser.removeAllListeners('disconnected');
+        this.detachDisconnectHandlers(this.browser);
         await Promise.race([
           this.context ? this.context.close() : Promise.resolve(),
           raceTimeout(this.closeRaceMs),
         ]).catch(() => {});
       } else if (this.browser) {
         // Launched mode: close the browser we spawned.
-        this.browser.removeAllListeners('disconnected');
+        this.detachDisconnectHandlers(this.browser);
         // Grab the child handle BEFORE the race: nulling this.browser after a
         // race-timeout used to ABANDON a live Chromium whose sockets kept the
         // caller's event loop (and keep-alive connections into test servers)
@@ -1028,7 +1043,7 @@ export class BrowserManager {
       this.browser = null;
     }
     if (previousBrowser && previousBrowser !== currentBrowser) {
-      previousBrowser.removeAllListeners('disconnected');
+      this.detachDisconnectHandlers(previousBrowser);
       const child = launchedProcess(previousBrowser);
       const closed = await Promise.race([
         previousBrowser.close().then(() => true), raceTimeout(this.closeRaceMs),
@@ -2001,7 +2016,7 @@ export class BrowserManager {
 
       if (this.browser) {
         const browserRef = this.browser;
-        this.browser.on('disconnected', () => {
+        this.onBrowserDisconnected(this.browser, () => {
           if (this.intentionalDisconnect) return;
           void handleChromiumDisconnect(browserRef);
         });
@@ -2015,7 +2030,7 @@ export class BrowserManager {
       catch (err) { console.warn('[browse] Headed promotion callback failed:', err); }
 
       // 4. Close old headless browser (fire-and-forget)
-      previous.browser.removeAllListeners('disconnected');
+      this.detachDisconnectHandlers(previous.browser);
       previous.browser.close().catch(() => {});
 
       return [

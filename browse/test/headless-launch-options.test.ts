@@ -51,6 +51,17 @@ describe.skipIf(process.platform !== 'linux')('headless launch options (Linux, r
     expect(cmdlines.some(c => c.includes('headless_shell'))).toBe(false);
   }, 60_000);
 
+  test('close returns when Chromium exits, not at the close race timeout', async () => {
+    // Removing every 'disconnected' listener used to strip Playwright's own,
+    // so browser.close() never resolved and every close waited 5 s.
+    bm = new BrowserManager();
+    await bm.launch();
+    const started = performance.now();
+    await bm.close();
+    expect(performance.now() - started).toBeLessThan(2_500);
+    bm = null;
+  }, 60_000);
+
   test('a broken GSTACK_CHROMIUM_PATH fails with the path named', async () => {
     const missing = path.join(scratch, 'no-such-chromium');
     process.env.GSTACK_CHROMIUM_PATH = missing;

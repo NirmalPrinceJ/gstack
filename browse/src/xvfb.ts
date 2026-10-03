@@ -234,14 +234,23 @@ export async function spawnXvfb(displayNum: number): Promise<XvfbHandle> {
  *
  * Best-effort: never throws.
  */
+function isZombie(pid: number): boolean {
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    return stat.slice(stat.lastIndexOf(')') + 2).startsWith('Z');
+  } catch { return false; }
+}
+
 export function cleanupXvfb(state: { pid: number; startTime: string; display: string }): void {
   if (!state.pid) return;
   if (!isOurXvfb(state.pid, state.startTime)) return;
   try { safeKill(state.pid, 'SIGTERM'); } catch { /* swallow */ }
   // Wait briefly for Xvfb to exit, then SIGKILL if still alive.
+  // An exited child stays a zombie until our event loop reaps it, and this
+  // synchronous wait blocks that loop, so a zombie counts as exited here.
   const deadline = Date.now() + 1000;
   while (Date.now() < deadline) {
-    if (!isProcessAlive(state.pid)) break;
+    if (!isProcessAlive(state.pid) || isZombie(state.pid)) break;
     Bun.sleepSync(10);
   }
   if (isOurXvfb(state.pid, state.startTime)) {
