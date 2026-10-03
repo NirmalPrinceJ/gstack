@@ -1,5 +1,5 @@
 /**
- * v1.91.17.0 migration (placeholder name; the release queue may rename it):
+ * v1.91.19.0 migration:
  * step 1 records a pending memory-ingest reconcile (A1) without calling gbrain.
  */
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
@@ -9,14 +9,14 @@ import * as path from "path";
 import { spawnSync } from "child_process";
 
 const ROOT = path.resolve(import.meta.dir, "..");
-const MIGRATION = path.join(ROOT, "gstack-upgrade", "migrations", "v1.91.17.0.sh");
+const MIGRATION = path.join(ROOT, "gstack-upgrade", "migrations", "v1.91.19.0.sh");
 
 let home: string;
 let gstackHome: string;
 let bin: string;
 
 beforeEach(() => {
-  home = fs.mkdtempSync(path.join(os.tmpdir(), "mig-v1.91.17-"));
+  home = fs.mkdtempSync(path.join(os.tmpdir(), "mig-v1.91.19-"));
   gstackHome = path.join(home, ".gstack");
   bin = path.join(home, "bin");
   fs.mkdirSync(bin, { recursive: true });
@@ -38,7 +38,7 @@ function run() {
   return { code: r.status, stdout: r.stdout || "", stderr: r.stderr || "" };
 }
 
-describe("v1.91.17.0 migration: memory reconcile pending (A1)", () => {
+describe("v1.91.19.0 migration: memory reconcile pending (A1)", () => {
   test("marks a reconcile pending on an existing ingest state and never calls gbrain", () => {
     fs.mkdirSync(gstackHome, { recursive: true });
     const statePath = path.join(gstackHome, ".transcript-ingest-state.json");
@@ -63,7 +63,7 @@ describe("v1.91.17.0 migration: memory reconcile pending (A1)", () => {
   });
 });
 
-describe("v1.91.17.0 migration: artifacts remote repair (A8, #1437)", () => {
+describe("v1.91.19.0 migration: artifacts remote repair (A8, #1437)", () => {
   const NEW = "https://github.com/acme/gstack-artifacts-dev";
   const OLD = "https://github.com/acme/gstack-brain-dev";
   function gh(views: string[]) {

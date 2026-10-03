@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Migration: v1.91.17.0 — severe fix wave (memory ingest, artifacts remote).
+# Migration: v1.91.19.0 — severe fix wave (memory ingest, artifacts remote).
 # Placeholder name: the release queue may rename this file at /ship.
 #
 # Each step is independent and guarded. Idempotent and non-fatal: every path
