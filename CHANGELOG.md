@@ -33,6 +33,8 @@ This wave rebuilds three community PRs from @mvanhorn on current main. A checkpo
 - `/context-save` Remaining Work did not record whether a step was run, read or assumed, and `/context-restore` offered the first item as the next action (#3004). Marker format from #3019 by @mvanhorn, field-tested by @tomg65.
 - Design images were silently overwritten by later rounds and `--retry` attempts (#1529). Exclusive-create claim idea from #1737 by @mvanhorn.
 - Comparison boards and quality checks read fixed `variant-A/B/C` names or a `variant-*.png` glob and mixed rounds; a stale `feedback.json` could approve a new round.
+- `$D` wrote iterate session files to `/tmp`, which does not exist on Windows, so `generate` could not record its session and `iterate` could not find it there; sessions now live in the OS temp directory.
+- /setup-deploy reported a failing status command as success (the pipe hid its exit code), matched `cd` anywhere in a workflow as a deploy workflow, and left the merge-method check, Fly `/health` detection and GitHub-Actions-only status command unspecified.
 
 #### Added
 - `$D compare --images-file` and JSON-array `--images`, `bin/gstack-design-claim`, `bin/gstack-design-approved`, and `approved_path` in approval records.
