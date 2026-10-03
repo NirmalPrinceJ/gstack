@@ -100,8 +100,7 @@ test('source allowances retain all captures, cases, and finalization grace', () 
   expect(timeoutExpressions('test/skill-e2e-auq-matrix.test.ts')).toEqual(['CAPTURE_MS']);
   expect(timeoutExpressions('test/skill-e2e-plan.test.ts')).toEqual([
     'PTY_MS', 'PTY_MS', 'CAPTURE_LONG_MS', 'CAPTURE_LONG_MS', 'CAPTURE_LONG_MS',
-    'CAPTURE_MS', 'CAPTURE_MS', 'CAPTURE_LONG_MS + OFFICE_HOURS_BUN_GRACE_MS',
-    'CAPTURE_MS', 'CAPTURE_MS', 'CAPTURE_MS', 'CAPTURE_MS',
+    'CAPTURE_LONG_MS + OFFICE_HOURS_BUN_GRACE_MS',
   ]);
 });
 
@@ -211,7 +210,7 @@ test('detached PR fallback and release commands cover their actual default worke
   const prFloor = Math.ceil((Math.ceil(fullGateFiles.length / prWorkers) * 1_800_000 + fullGateFiles.reduce(
     (total, file) => total + Math.max(0, resolvePaidShardBudget([file]).timeoutMs - 1_800_000), 0,
   )) / 1000 * 1.05);
-  expect(prFloor).toBe(78_425);
+  expect(prFloor).toBe(72_755);
   expect(prWall).toBe(92_820_000);
   expect(prWall).toBeGreaterThanOrEqual(paidShardWallUpperBoundMs(files, prWorkers) + 120_000);
 

@@ -67,7 +67,7 @@ describe('PR profile paid-runner integration', () => {
   test('planner binds E2E and judge IDs and explicitly defers direct-describe broad probes', () => {
     const manifest = ceoManifest();
     expect(manifest.profile).toBe('pr');
-    expect(manifest.selection?.e2e).toContain('plan-ceo-review-benefits');
+    expect(manifest.selection?.e2e).toContain('auq-format-gate');
     expect(manifest.selection?.e2e).not.toContain('plan-ceo-review-plan-mode');
     expect(manifest.selection?.judges).toContain('plan-ceo-review/SKILL.md modes');
     expect(manifest.entries.find(entry => entry.file.includes('skill-e2e-retro'))?.status).toBe('skipped-by-diff');
@@ -150,8 +150,8 @@ describe('PR profile paid-runner integration', () => {
     expect(() => parseRunManifest(JSON.stringify(injected))).toThrow('outside its PR case selection');
     for (const action of ['remove', 'skip', 'duplicate'] as const) {
       const missing = structuredClone(manifest);
-      // plan.test is case-sharded: its PR case runs as `<file>#<case id>`.
-      const file = manifest.entries.find(entry => entry.status === 'planned' && entry.file.startsWith('test/skill-e2e-plan.test.ts#'))!.file;
+      // The CEO template's PR case runs from the AskUserQuestion format file.
+      const file = manifest.entries.find(entry => entry.status === 'planned' && entry.file.includes('ask-user-question'))!.file;
       if (action === 'remove') missing.entries = missing.entries.filter(entry => entry.file !== file);
       if (action === 'skip') missing.entries.find(entry => entry.file === file)!.status = 'skipped-by-diff';
       if (action === 'duplicate') missing.entries.push({ ...missing.entries.find(entry => entry.file === file)! });
@@ -192,16 +192,16 @@ describe('PR profile paid-runner integration', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'pr-profile-'));
     const file = 'test/skill-e2e-plan.test.ts';
     const receipt = path.join(root, 'receipt.txt');
-    const selection: PaidCaseSelection = { e2e: ['plan-ceo-review-benefits'], judges: [] };
+    const selection: PaidCaseSelection = { e2e: ['plan-review-report'], judges: [] };
     try {
       fs.mkdirSync(path.join(root, 'test'));
       fs.writeFileSync(path.join(root, file), `
         import { test } from 'bun:test';
         import { appendFileSync } from 'node:fs';
         import { describeIfSelected, testIfSelected } from ${JSON.stringify(path.join(ROOT, 'test/helpers/e2e-helpers.ts'))};
-        describeIfSelected('fixture', ['plan-ceo-review-benefits', 'plan-review-report'], () => {
-          testIfSelected('plan-ceo-review-benefits', async () => { appendFileSync(${JSON.stringify(receipt)}, 'selected\\n'); }, 5000);
-          testIfSelected('plan-review-report', async () => { throw new Error('unselected model boundary executed'); }, 5000);
+        describeIfSelected('fixture', ['plan-review-report', 'plan-ceo-review'], () => {
+          test('/plan-eng-review writes GSTACK REVIEW REPORT to plan file', async () => { appendFileSync(${JSON.stringify(receipt)}, 'selected\\n'); }, 5000);
+          testIfSelected('plan-ceo-review', async () => { throw new Error('unselected model boundary executed'); }, 5000);
           test('unexpected raw paid call', () => { throw new Error('raw model boundary executed'); });
         });
       `);

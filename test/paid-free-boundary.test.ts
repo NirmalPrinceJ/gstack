@@ -182,7 +182,7 @@ describe('paid/free dependency boundary', () => {
     const real = computePaidCaseSelection({ profile: 'pr', env: {},
       changedFiles: [file, 'plan-ceo-review/SKILL.md.tmpl'] });
     expect(real.coverage?.mode).toBe('pr');
-    expect(real.selection.e2e).toContain('plan-ceo-review-benefits');
+    expect(real.selection.e2e).toContain('auq-format-gate');
     expect(real.selection.judges).toContain('plan-ceo-review/SKILL.md modes');
     expect(real.selection.e2e?.every(id => PR_PROFILE_CASE_IDS.includes(id as typeof PR_PROFILE_CASE_IDS[number]))).toBe(true);
   });

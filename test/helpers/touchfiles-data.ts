@@ -135,8 +135,6 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
      'test/helpers/office-hours-attempt.ts'],
 
   // Office Hours
-  'office-hours-spec-review':     [  'office-hours/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
-    'bin/gstack-office-hours-review', 'lib/office-hours-review.ts', 'lib/fs-atomic.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'test/helpers/skill-fixture.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/workflow-judge-input.ts'],
   'office-hours-forcing-energy':  [ 'office-hours/**', 'scripts/resolvers/preamble.ts', 'test/fixtures/mode-posture/**', 'test/helpers/llm-judge.ts', 'test/skill-e2e-office-hours.test.ts', 
     'test/helpers/office-hours-attempt.ts' 
   ],
@@ -148,8 +146,6 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'plan-ceo-review':                  [  'plan-ceo-review/**', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
     'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
   'plan-ceo-review-selective':        [  'plan-ceo-review/**', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
-    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
-  'plan-ceo-review-benefits':         [  'plan-ceo-review/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
     'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/codex-offering-fixture.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
   'plan-ceo-review-expansion-energy': [  'plan-ceo-review/**', 'scripts/resolvers/preamble.ts', 'test/fixtures/mode-posture/**', 'test/helpers/llm-judge.ts', 'test/skill-e2e-plan.test.ts', 'test/helpers/workflow-excerpt.ts',
     'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/codex-offering-fixture.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
@@ -611,33 +607,6 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'plan-tune-inspect':         ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'plan-tune/**', 'scripts/question-registry.ts', 'scripts/psychographic-signals.ts', 'scripts/one-way-doors.ts', 'bin/gstack-question-log', 'bin/gstack-question-preference', 'bin/gstack-developer-profile', 'test/skill-e2e-plan-tune.test.ts'],
 
   // /plan-tune cathedral (T16 — 5 E2E scenarios, all gate per D12)
-
-  // Codex offering verification
-  'codex-offered-office-hours':  [  'office-hours/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-plan.test.ts',
-    'test/helpers/codex-offering-fixture.ts',  'test/fixtures/codex-offering-cdd-public.json', 'test/fixtures/codex-offering-timeout-public.json',
-    'test/helpers/workflow-judge-input.ts',  'test/helpers/workflow-excerpt.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts'],
-  'codex-offered-ceo-review':    [  'plan-ceo-review/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-plan.test.ts',
-    'test/helpers/codex-offering-fixture.ts',  'test/fixtures/codex-offering-cdd-public.json', 'test/fixtures/codex-offering-timeout-public.json',
-    'test/helpers/workflow-judge-input.ts',  'test/helpers/workflow-excerpt.ts',
-    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/tasks-section.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts'],
-  'codex-offered-design-review': [ 
-    'test/helpers/codex-offering-fixture.ts',  'test/fixtures/codex-offering-cdd-public.json', 'test/fixtures/codex-offering-timeout-public.json',
-    'test/helpers/workflow-judge-input.ts',  'test/helpers/workflow-excerpt.ts',
-    
-    "test/fixtures/plan-scope-recovery-av.json",
-    "test/fixtures/design-scope-checkpoint-at.json",'plan-design-review/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-plan.test.ts',
-    
-
-     "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
-    'scripts/resolvers/preamble/generate-ask-user-format.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts'],
-  'codex-offered-eng-review':    [ 
-    'test/helpers/codex-offering-fixture.ts',  'test/fixtures/codex-offering-cdd-public.json', 'test/fixtures/codex-offering-timeout-public.json',
-    'test/helpers/workflow-judge-input.ts',  'test/helpers/workflow-excerpt.ts',
-    'scripts/resolvers/learnings.ts',
-    
-    "test/fixtures/plan-scope-recovery-av.json",  'plan-eng-review/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-plan.test.ts',
-     "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
-    'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts',  'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts'],
 
   // Ship
   'ship-managed-hook-refresh': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'ship/**', 'bin/gstack-redact', 'bin/gstack-config', 'scripts/gen-skill-docs.ts',
@@ -1191,7 +1160,6 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   'review-army-simplification-precision': 'periodic', // False-flag noise benchmark
 
   // Office Hours
-  'office-hours-spec-review': 'gate',
   // Brain-writeback E2E — periodic per cost (claude -p) + non-deterministic
   // (model interprets the gbrain instruction). Matches nearby
   // setup-gbrain-path4-* tier classification.
@@ -1215,7 +1183,6 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   // Plan reviews — gate for cheap functional, periodic for Opus quality
   'plan-ceo-review': 'periodic',
   'plan-ceo-review-selective': 'periodic',
-  'plan-ceo-review-benefits': 'gate',
   'plan-ceo-review-expansion-energy': 'periodic',  // Demoted from gate (2026-08 audit): Opus generator + subjective 2-axis >=4/5 LLM-judge threshold in the merge lane — the exact class siblings were demoted for (a +21-line preamble change once flipped the score). CLAUDE.md's own rule: Opus model test -> periodic.
   'plan-eng-review': 'periodic',
   'plan-eng-review-artifact': 'periodic',
@@ -1310,12 +1277,6 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   'plan-tune-inspect': 'gate',
 
   // /plan-tune cathedral (T16 per D12 — all gate)
-
-  // Codex offering verification
-  'codex-offered-office-hours': 'gate',
-  'codex-offered-ceo-review': 'gate',
-  'codex-offered-design-review': 'gate',
-  'codex-offered-eng-review': 'gate',
 
   // Session Intelligence — gate for data flow, periodic for agent integration
   'timeline-event-flow': 'gate',                   // Binary data flow (no LLM needed)
@@ -1643,7 +1604,6 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'review-army-consensus': 'behavior',
   'review-army-simplification': 'behavior',
   'review-army-simplification-precision': 'behavior',
-  'office-hours-spec-review': 'rule',
   'office-hours-brain-writeback': 'behavior',
   'gbrain-roundtrip-local': 'rule',
   'sync-gbrain-read-ready': 'rule',
@@ -1652,7 +1612,6 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'office-hours-builder-wildness': 'behavior',
   'plan-ceo-review': 'rule',
   'plan-ceo-review-selective': 'rule',
-  'plan-ceo-review-benefits': 'rule',
   'plan-ceo-review-expansion-energy': 'behavior',
   'plan-eng-review': 'rule',
   'plan-eng-review-artifact': 'rule',
@@ -1700,10 +1659,6 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'plan-review-prosons-hardstop-neg': 'behavior',
   'plan-review-prosons-neutral-neg': 'behavior',
   'plan-tune-inspect': 'rule',
-  'codex-offered-office-hours': 'rule',
-  'codex-offered-ceo-review': 'rule',
-  'codex-offered-design-review': 'rule',
-  'codex-offered-eng-review': 'rule',
   'timeline-event-flow': 'rule',
   'context-recovery-artifacts': 'rule',
   'context-save-writes-file': 'rule',

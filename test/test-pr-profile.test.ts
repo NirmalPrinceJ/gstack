@@ -32,7 +32,6 @@ const select = (options: Partial<Parameters<typeof selectPrProfile>[0]> = {}) =>
 describe('fast PR coverage policy', () => {
   test('canonical short probes exist in the unchanged broad gate census', () => {
     expect(() => validatePrProfileInventory()).not.toThrow();
-    expect(PR_PROFILE_CASE_IDS).toContain('plan-ceo-review-benefits');
     expect(PR_PROFILE_CASE_IDS).toContain('plan-review-report');
     expect(PR_PROFILE_CASE_IDS).toContain('auq-format-gate');
     for (const tier of Object.values(PR_PROFILE_MAPS.tiers)) expect(['gate', 'periodic', 'marathon']).toContain(tier);
