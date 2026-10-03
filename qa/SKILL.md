@@ -491,7 +491,7 @@ Read sections in full when directed; do not work from memory.
 - **Standard:** + medium severity (default)
 - **Exhaustive:** + low/cosmetic severity
 
-`--quick` also selects Quick exploration; `--exhaustive` changes only the fix tier.
+`--quick` sets both the Quick fix tier and Quick exploration; `--exhaustive` changes only the fix tier.
 Regression mode preserves the selected fix tier.
 If both `--quick` and `--regression` are supplied, ask which exploration mode to use
 before setup or probes. Keep the selected fix tier; this choice concerns exploration only.
@@ -594,7 +594,7 @@ Prefer the richer of recent project test plans and plans in conversation over gi
 ## Phases 1-6: QA Baseline
 
 Follow the shared section's ordered preparation, then run its probe loop.
-The numbered browser phases label techniques, not another workflow.
+Browser runs apply the browser method's numbered phases inside this loop; functional runs apply its contract map.
 
 > **STOP.** Before running the selected target's QA baseline and exploratory probes, with caller-owned authority, Read `sections/exploratory.md` relative to the installed `qa`/`gstack-qa` SKILL.md directory in full and follow it.
 > Use this host's installed path, never the product working directory or another host's assets.
