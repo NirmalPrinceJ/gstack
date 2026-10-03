@@ -26,7 +26,6 @@ Options:
                       instruction-only: slate, openclaw, hermes, gbrain
                       auto:             every installed agent that setup detects
                     An explicit --host never changes another host's install.
-  --model <id>      Codex model profile override. Otherwise reads Codex config.
   --global          Allow this checkout to replace an existing global install
                     (or register Codex globally from a project-vendored source).
   --prefix          Install skills with the gstack- prefix (e.g. /gstack-review).
@@ -40,11 +39,21 @@ Options:
   -q, --quiet       Suppress progress output.
   -h, --help        Show this help and exit.
 
+Model selection:
+  --model <id>      Codex model profile override. Otherwise reads Codex config.
+  --claude-model <id>
+                    Claude skill overlay for a Claude model ID (for example
+                    claude-opus-4-8). Saved as claude_overlay_model and used by
+                    every later setup, upgrade and gbrain-refresh. Without it
+                    the generic claude overlay is used; --claude-model claude
+                    returns to it.
+
 Examples:
   ./setup                          # solo install for Claude Code
   ./setup --host codex             # install for OpenAI Codex CLI only
   ./setup --host auto              # install for every detected agent
   ./setup --host codex --model gpt-5.6-sol
+  ./setup --claude-model claude-opus-4-8   # Opus 4.8 overlay for Claude skills
   ./setup --status                 # what is installed, where, at which version
   ./setup --team                   # team mode for a shared repo
   ./setup --no-prefix              # use short slash-command names
@@ -66,9 +75,11 @@ for _arg in "$@"; do
   case "$_arg" in
     --status)
       _STATUS_DIR="$(cd "$(dirname "$0")" && pwd -P)"
-      . "$_STATUS_DIR/bin/gstack-state-root.sh" && . "$_STATUS_DIR/bin/gstack-install-registry.sh" || exit 1
+      . "$_STATUS_DIR/bin/gstack-state-root.sh" && . "$_STATUS_DIR/bin/gstack-install-registry.sh" \
+        && . "$_STATUS_DIR/bin/gstack-render-claude.sh" || exit 1
       gstack_state_root_select; GSTACK_STATE_ROOT="$_gstack_sr_root"
       gstack_install_status
+      gstack_claude_overlay_status
       exit 0 ;;
   esac
 done
@@ -88,12 +99,14 @@ PLAN_TUNE_HOOKS_MODE=""   # "" = resolve from env/config/prompt; "yes"/"no" = ex
 TIMELINE_STOP_HOOK_MODE=""  # "" = resolve from env/config; "yes"/"no" = explicit (#2677)
 MODEL_OVERRIDE=""
 MODEL_OVERRIDE_SET=0
+CLAUDE_MODEL_ARG=""
+CLAUDE_MODEL_SET=0
 REFRESH_REGISTERED=0
 HOST_FLAG_SET=0
 # Reject unknown options before anything is written, with the closest flag.
 _setup_unknown_option() {
   local bad="$1" next="${2:-}" best="" best_d=99 flag d value=""
-  for flag in --host --model --global --local --prefix --no-prefix --team --no-team \
+  for flag in --host --model --claude-model --global --local --prefix --no-prefix --team --no-team \
     --plan-tune-hooks --no-plan-tune-hooks --timeline-stop-hook --no-timeline-stop-hook \
     --refresh-registered --status --quiet --help; do
     d="$(awk -v a="${bad%%=*}" -v b="$flag" 'BEGIN {
@@ -109,7 +122,7 @@ _setup_unknown_option() {
     if [ "$d" -lt "$best_d" ]; then best_d="$d"; best="$flag"; fi
   done
   echo "Unknown option: $bad — nothing was installed or changed." >&2
-  case "$best" in --host|--model) case "$next" in ''|-*) ;; *) value=" $next" ;; esac ;; esac
+  case "$best" in --host|--model|--claude-model) case "$next" in ''|-*) ;; *) value=" $next" ;; esac ;; esac
   if [ "$best_d" -le 3 ]; then
     echo "Did you mean: ./setup $best$value" >&2
   fi
@@ -121,6 +134,8 @@ while [ $# -gt 0 ]; do
     --host=*) HOST="${1#--host=}"; HOST_FLAG_SET=1; shift ;;
     --model) [ -z "$2" ] && echo "Missing value for --model" >&2 && exit 1; MODEL_OVERRIDE="$2"; MODEL_OVERRIDE_SET=1; shift 2 ;;
     --model=*) MODEL_OVERRIDE="${1#--model=}"; MODEL_OVERRIDE_SET=1; shift ;;
+    --claude-model) [ -z "$2" ] && echo "Missing value for --claude-model (a Claude model ID such as claude-opus-4-8, or claude)" >&2 && exit 1; CLAUDE_MODEL_ARG="$2"; CLAUDE_MODEL_SET=1; shift 2 ;;
+    --claude-model=*) CLAUDE_MODEL_ARG="${1#--claude-model=}"; [ -z "$CLAUDE_MODEL_ARG" ] && echo "Missing value for --claude-model (a Claude model ID such as claude-opus-4-8, or claude)" >&2 && exit 1; CLAUDE_MODEL_SET=1; shift ;;
     --local) LOCAL_INSTALL=1; shift ;;
     --global) GLOBAL_INSTALL=1; shift ;;
     --prefix)    SKILL_PREFIX=1; SKILL_PREFIX_FLAG=1; shift ;;
@@ -225,7 +240,34 @@ SOURCE_GSTACK_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 . "$SOURCE_GSTACK_DIR/bin/gstack-state-root.sh" 2>/dev/null || { echo "$0: cannot resolve the gstack state root: $SOURCE_GSTACK_DIR/bin/gstack-state-root.sh is missing. fix: reinstall with ./setup or /gstack-upgrade (docs/state-root.md)" >&2; exit 1; }
 gstack_state_root_select; GSTACK_STATE_ROOT="$_gstack_sr_root"
 . "$SOURCE_GSTACK_DIR/bin/gstack-install-registry.sh" || { echo "$0: $SOURCE_GSTACK_DIR/bin/gstack-install-registry.sh is missing. fix: reinstall from a fresh clone (docs/ADDING_A_HOST.md)" >&2; exit 1; }
+. "$SOURCE_GSTACK_DIR/bin/gstack-render-claude.sh" || { echo "$0: $SOURCE_GSTACK_DIR/bin/gstack-render-claude.sh is missing. fix: reinstall from a fresh clone" >&2; exit 1; }
 SETUP_VERSION="$(cat "$SOURCE_GSTACK_DIR/VERSION" 2>/dev/null || echo unknown)"
+
+# --claude-model is validated before anything is written, and persisted once
+# Claude is known to be selected (below, and in the --refresh-registered parent).
+if [ "$CLAUDE_MODEL_SET" -eq 1 ]; then
+  if ! _CLAUDE_MODEL_RESOLVED="$(cd "$SOURCE_GSTACK_DIR" && bun run scripts/models.ts claude-overlay "$CLAUDE_MODEL_ARG" 2>&1)"; then
+    printf 'Error: --claude-model %s\n' "$_CLAUDE_MODEL_RESOLVED" | sed '2,$s/^/  /' >&2
+    echo "  Nothing was installed or changed." >&2
+    exit 1
+  fi
+fi
+# _persist_claude_model — save the validated --claude-model value as given.
+_persist_claude_model() {
+  local overlay generic
+  [ "$CLAUDE_MODEL_SET" -eq 1 ] || return 0
+  if ! "$SOURCE_GSTACK_DIR/bin/gstack-config" set claude_overlay_model "$CLAUDE_MODEL_ARG" >/dev/null; then
+    echo "Error: could not save claude_overlay_model. Nothing was installed or changed." >&2
+    exit 1
+  fi
+  overlay="$(printf '%s' "$_CLAUDE_MODEL_RESOLVED" | tail -1 | cut -f1)"
+  generic="$(printf '%s' "$_CLAUDE_MODEL_RESOLVED" | tail -1 | cut -f2)"
+  if [ "$generic" = 1 ]; then
+    log "Claude overlay: $CLAUDE_MODEL_ARG has no overlay of its own, so it uses the generic claude overlay (saved as claude_overlay_model)."
+  else
+    log "Claude overlay: $CLAUDE_MODEL_ARG uses the $overlay overlay (saved as claude_overlay_model; ./setup --claude-model claude returns to the generic overlay)."
+  fi
+}
 
 # ─── Quiet mode helper ────────────────────────────────────────
 log() { [ "$QUIET" -eq 0 ] && echo "$@" || true; }
@@ -292,6 +334,16 @@ $_RF_TARGETS" in
 $HOST	"*) ;;
     *) if [ "$HOST_FLAG_SET" -eq 1 ] || [ -z "$_RF_TARGETS" ]; then _rf_add "$HOST" global -; fi ;;
   esac
+  # The children read claude_overlay_model, so the parent saves it first.
+  if [ "$CLAUDE_MODEL_SET" -eq 1 ]; then
+    case "
+$_RF_TARGETS" in
+      *"
+claude	"*) _persist_claude_model ;;
+      *) echo "Error: --claude-model applies to Claude installs, and no Claude install is registered for this checkout. Nothing was installed or changed. Install Claude first: ./setup --claude-model $CLAUDE_MODEL_ARG" >&2
+         exit 1 ;;
+    esac
+  fi
   _RF_SUMMARY="$(mktemp "${TMPDIR:-/tmp}/gstack-refresh.XXXXXX")"
   printf '%s' "$_RF_SKIPPED" > "$_RF_SUMMARY"
   _RF_FAILED=0
@@ -821,7 +873,7 @@ _render_install() {
   rm -rf "$tmp"
   rc=0
   if [ "$host" = claude ]; then
-    out="$(cd "$SOURCE_GSTACK_DIR" && bun_cmd run gen:skill-docs:user --host claude --out-dir "$tmp" --link-root "$render" --install-root "$named" 2>&1)" || rc=$?
+    out="$(cd "$SOURCE_GSTACK_DIR" && bun_cmd run gen:skill-docs:user --host claude --out-dir "$tmp" --link-root "$render" --install-root "$named" --model "$_GSTACK_OVERLAY" 2>&1)" || rc=$?
     want="$(find "$SOURCE_GSTACK_DIR" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l)"
     got="$(find "$tmp" -mindepth 2 -maxdepth 2 -name SKILL.md 2>/dev/null | wc -l)"
     [ "$rc" -ne 0 ] || { [ "$want" -eq "$got" ] && grep -qF "$named/bin/gstack-skill-start --skill" "$tmp/SKILL.md" 2>/dev/null; } \
@@ -840,7 +892,10 @@ _render_install() {
     printf '%s\n' "$out" | tail -3 | sed 's/^/    /' >&2
     [ -d "$render" ] || return 1
   else
+    gstack_render_lock "$render"
     _swap_in_render "$render" "$tmp"
+    gstack_render_unlock "$render"
+    [ "$host" != claude ] || gstack_claude_render_settle "$SOURCE_GSTACK_DIR" "$render" "${_GBRAIN_RENDER_STATE:-unknown}" rendered 0
   fi
   _INSTALL_RENDER="$render"
 }
@@ -1092,9 +1147,14 @@ if [ "$INSTALL_COPILOT" -eq 1 ] && [ -n "${COPILOT_HOME:-}" ] && [ "${COPILOT_HO
 fi
 
 if [ "$MODEL_OVERRIDE_SET" -eq 1 ] && [ "$INSTALL_CODEX" -eq 0 ]; then
-  echo "Error: --model is supported only when Codex is selected (--host codex or --host auto with Codex installed)." >&2
+  echo "Error: --model is supported only when Codex is selected (--host codex or --host auto with Codex installed). For the Claude overlay, use --claude-model <id>." >&2
   exit 1
 fi
+if [ "$CLAUDE_MODEL_SET" -eq 1 ] && [ "$INSTALL_CLAUDE" -eq 0 ]; then
+  echo "Error: --claude-model is supported only when Claude is selected (the default host, --host claude, or --host auto with Claude Code installed). Nothing was installed or changed." >&2
+  exit 1
+fi
+_persist_claude_model
 
 migrate_direct_codex_install() {
   local gstack_dir="$1"
@@ -1434,6 +1494,10 @@ if [ "$INSTALL_CODEX" -eq 1 ] || [ "$CODEX_GENERATION_MODEL" != "gpt-6-astra" ];
   log "Codex skill profile: $CODEX_GENERATION_MODEL"
   log "Source: $CODEX_GENERATION_MODEL_SOURCE"
 fi
+# Claude skill overlay: claude_overlay_model when present (only ./setup
+# --claude-model writes it), else the generic claude overlay
+# (bin/gstack-render-claude.sh).
+gstack_claude_overlay "$SOURCE_GSTACK_DIR" "$SOURCE_GSTACK_DIR/bin/gstack-config"
 
 # Migrate existing wrappers BEFORE build can regenerate/prune shared host trees.
 # This also repairs existing Codex/Kiro installs during a Claude-only setup.
@@ -3514,6 +3578,11 @@ fi
 # as-is (zero token overhead) and any stale render dir is removed so it
 # can't shadow canonical files on the next relink.
 #
+# A pinned Claude overlay (claude_overlay_model, set by ./setup
+# --claude-model) is rendered into the same dir whatever detection says; a
+# missing or failed detector counts as "no brain blocks"
+# (bin/gstack-render-claude.sh).
+#
 # Users who install gbrain after running ./setup should re-run setup OR
 # call `gstack-config gbrain-refresh`.
 DETECT_BIN="$SOURCE_GSTACK_DIR/bin/gstack-gbrain-detect"
@@ -3523,6 +3592,8 @@ _GSTACK_RENDER_DIR="${GSTACK_USER_RENDER_DIR:-$GBRAIN_STATE_DIR/render/claude}"
 # PID-unique tmp so concurrent setups (parallel Conductor workspaces) can't
 # clobber each other's in-flight detection write.
 DETECTION_TMP="$DETECTION_FILE.$$.tmp"
+# ok | absent | unknown (detector missing or failed).
+_GBRAIN_RENDER_STATE=unknown
 mkdir -p "$GBRAIN_STATE_DIR"
 if [ -x "$DETECT_BIN" ]; then
   if "$DETECT_BIN" > "$DETECTION_TMP" 2>/dev/null; then
@@ -3534,10 +3605,12 @@ if [ -x "$DETECT_BIN" ]; then
       # This install serves its own per-install render (:user, so gbrain
       # detection decides the brain-aware blocks); refresh it with the
       # detection just written.
+      _GBRAIN_RENDER_STATE=detected
       if _render_claude_install "$INSTALL_GSTACK_DIR" && [ "${_CLAUDE_SKILLS_LINKED:-0}" -eq 1 ]; then
         link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR" >/dev/null
       fi
     elif "$DETECT_BIN" --is-ok 2>/dev/null; then
+      _GBRAIN_RENDER_STATE=ok
       if [ -n "${GSTACK_SKIP_GBRAIN_REGEN:-}" ]; then
         # Dev/source tree (set by bin/dev-setup): detection is persisted
         # above; the dev workspace renders the :user variant into its own
@@ -3560,29 +3633,36 @@ if [ -x "$DETECT_BIN" ]; then
           # No pipe before the || guard: `cmd | tail -3` reports TAIL's exit
           # status, so a generator crash read as success (same masking the
           # main gen:skill-docs site had). Capture, show the tail, propagate.
-          _GEN_USER_OUT=$(bun_cmd run gen:skill-docs:user --host claude --out-dir "$_GSTACK_RENDER_TMP" --link-root "$_GSTACK_RENDER_DIR" 2>&1)
+          _GEN_USER_OUT=$(bun_cmd run gen:skill-docs:user --host claude --out-dir "$_GSTACK_RENDER_TMP" --link-root "$_GSTACK_RENDER_DIR" --model "$_GSTACK_OVERLAY" 2>&1)
           _GEN_USER_RC=$?
           printf '%s\n' "$_GEN_USER_OUT" | tail -3
           exit "$_GEN_USER_RC"
         ); then
+          gstack_render_lock "$_GSTACK_RENDER_DIR"
           _swap_in_render "$_GSTACK_RENDER_DIR" "$_GSTACK_RENDER_TMP"
-          # Repoint the installed skills at the fresh render — the installer
-          # prefers rendered files when present (#2569).
-          if [ "${_CLAUDE_SKILLS_LINKED:-0}" -eq 1 ]; then
-            link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR" >/dev/null
-          fi
+          gstack_render_unlock "$_GSTACK_RENDER_DIR"
+          gstack_claude_render_settle "$SOURCE_GSTACK_DIR" "$_GSTACK_RENDER_DIR" ok rendered
         else
           rm -rf "$_GSTACK_RENDER_TMP"
           log "  warning: gen:skill-docs:user failed — previous render (if any) left in place, links stay valid. Run 'bun run gen:skill-docs:user --host claude --out-dir $_GSTACK_RENDER_DIR' manually if you want fresh brain-aware blocks"
+          gstack_claude_render_settle "$SOURCE_GSTACK_DIR" "$_GSTACK_RENDER_DIR" ok failed
+        fi
+        # Repoint the installed skills at the fresh render — the installer
+        # prefers rendered files when present (#2569).
+        if [ "${_CLAUDE_SKILLS_LINKED:-0}" -eq 1 ]; then
+          link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR" >/dev/null
         fi
       fi
     else
+      _GBRAIN_RENDER_STATE=absent
       log "gbrain not detected — brain-aware blocks suppressed in planning-skill SKILL.md files (zero token overhead)."
       log "  To enable: install gbrain via /setup-gbrain, then re-run ./setup or 'gstack-config gbrain-refresh'."
       # A render from a previous gbrain install would shadow canonical files
-      # on the next link/relink — drop it and restore canonical links.
-      if [ -d "$_GSTACK_RENDER_DIR" ] && [ -z "${GSTACK_SKIP_GBRAIN_REGEN:-}" ] && [ "$INSTALL_CLAUDE" -eq 1 ]; then
+      # on the next link/relink — drop it and restore canonical links. A
+      # pinned overlay re-renders it without brain blocks instead (below).
+      if [ -d "$_GSTACK_RENDER_DIR" ] && [ -z "${GSTACK_SKIP_GBRAIN_REGEN:-}" ] && [ "$INSTALL_CLAUDE" -eq 1 ] && [ "$_GSTACK_OVERLAY" = claude ]; then
         rm -rf "$_GSTACK_RENDER_DIR"
+        gstack_claude_render_settle "$SOURCE_GSTACK_DIR" "$_GSTACK_RENDER_DIR" absent removed
         if [ "${_CLAUDE_SKILLS_LINKED:-0}" -eq 1 ]; then
           link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR" >/dev/null
         fi
@@ -3591,6 +3671,32 @@ if [ -x "$DETECT_BIN" ]; then
   else
     rm -f "$DETECTION_TMP"
     log "  warning: gstack-gbrain-detect failed — brain-aware blocks will stay suppressed"
+  fi
+fi
+# Default install without brain blocks: render a pinned overlay, or (detector
+# missing or failed) drop a previous pinned render after a switch back to claude.
+if [ "$INSTALL_CLAUDE" -eq 1 ] && [ -z "$_CLAUDE_INSTALL_RENDER" ] && [ -z "${GSTACK_SKIP_GBRAIN_REGEN:-}" ] \
+  && { [ "$_GBRAIN_RENDER_STATE" = absent ] || [ "$_GBRAIN_RENDER_STATE" = unknown ]; }; then
+  gstack_claude_render_action "$_GSTACK_RENDER_DIR" "$_GBRAIN_RENDER_STATE"
+  case "$_GSTACK_RENDER_ACTION" in
+    plain)
+      if gstack_claude_render_plain "$SOURCE_GSTACK_DIR" "$_GSTACK_RENDER_DIR"; then
+        gstack_claude_render_settle "$SOURCE_GSTACK_DIR" "$_GSTACK_RENDER_DIR" "$_GBRAIN_RENDER_STATE" rendered
+      else
+        gstack_claude_render_settle "$SOURCE_GSTACK_DIR" "$_GSTACK_RENDER_DIR" "$_GBRAIN_RENDER_STATE" failed
+      fi
+      ;;
+    remove)
+      if [ "$_GBRAIN_RENDER_STATE" = unknown ]; then
+        rm -rf "$_GSTACK_RENDER_DIR"
+        gstack_claude_render_settle "$SOURCE_GSTACK_DIR" "$_GSTACK_RENDER_DIR" unknown removed
+      else
+        _GSTACK_RENDER_ACTION=keep
+      fi
+      ;;
+  esac
+  if [ "$_GSTACK_RENDER_ACTION" != keep ] && [ "${_CLAUDE_SKILLS_LINKED:-0}" -eq 1 ]; then
+    link_claude_skill_dirs "$SOURCE_GSTACK_DIR" "$INSTALL_SKILLS_DIR" >/dev/null
   fi
 fi
 

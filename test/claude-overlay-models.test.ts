@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { ALL_MODEL_NAMES, CLAUDE_OVERLAY_MODELS, resolveClaudeOverlay } from '../scripts/models';
+import { ALL_MODEL_NAMES, CLAUDE_OVERLAY_MODELS, type ClaudeOverlay, type ClaudeOverlayError, resolveClaudeOverlay } from '../scripts/models';
 
 const ROOT = resolve(import.meta.dir, '..');
 
@@ -23,7 +23,7 @@ describe('resolveClaudeOverlay', () => {
     ['claude-opus-4-7-1', 'claude', true],
     ['claude-haiku-4-5', 'claude', true],
     ['claude-3-opus-20240229', 'claude', true],
-  ])('%p uses the %p overlay', (id, overlay, generic) => {
+  ] as [string, ClaudeOverlay, boolean][])('%p uses the %p overlay', (id, overlay, generic) => {
     expect(resolveClaudeOverlay(id)).toEqual({ overlay, generic });
   });
 
@@ -39,7 +39,7 @@ describe('resolveClaudeOverlay', () => {
     ['gpt-6-astra', 'non-claude'],
     ['banana', 'unknown'],
     ['', 'unknown'],
-  ])('%p is rejected as %p with problem, cause and fix', (id, kind) => {
+  ] as [string, ClaudeOverlayError['kind']][])('%p is rejected as %p with problem, cause and fix', (id, kind) => {
     const result = resolveClaudeOverlay(id);
     expect('error' in result).toBe(true);
     if (!('error' in result)) return;
