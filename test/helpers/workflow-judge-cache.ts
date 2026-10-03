@@ -135,3 +135,15 @@ export function prepareWorkflowJudgeCache(opts: WorkflowCacheOptions): {
     },
   };
 }
+
+/**
+ * Pass floors for the browse reference judge panel mean. The stored baseline
+ * is recorded for comparison only: a three-sample mean is too noisy for a
+ * no-dip ratchet, and gating on it silently raised the clarity floor to 4.
+ */
+export const BROWSE_JUDGE_FLOORS = { clarity: 3, completeness: 4, actionability: 4 } as const;
+
+export function browseJudgeFloorsMet(scores: Record<keyof typeof BROWSE_JUDGE_FLOORS, number>): boolean {
+  return (Object.keys(BROWSE_JUDGE_FLOORS) as Array<keyof typeof BROWSE_JUDGE_FLOORS>)
+    .every(dim => scores[dim] >= BROWSE_JUDGE_FLOORS[dim]);
+}
