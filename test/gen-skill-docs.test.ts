@@ -1838,6 +1838,16 @@ describe('Codex filesystem boundary', () => {
   });
 });
 
+// --- Codex outside-voice availability probe ---
+
+describe('Codex outside voice is offered behind an executed availability probe', () => {
+  test.each(['office-hours', 'plan-ceo-review', 'plan-design-review', 'plan-eng-review'])('%s probes codex and has a not-installed fallback', skill => {
+    const content = readSkillUnion(skill);
+    expect(content).toContain('command -v codex');
+    expect(content).toContain('not_installed');
+  });
+});
+
 // --- {{BENEFITS_FROM}} resolver tests ---
 
 describe('BENEFITS_FROM resolver', () => {
