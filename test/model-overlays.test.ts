@@ -9,7 +9,7 @@ import * as path from 'path';
 import type { TemplateContext } from '../scripts/resolvers/types';
 import { HOST_PATHS } from '../scripts/resolvers/types';
 import { generateModelOverlay } from '../scripts/resolvers/model-overlay';
-import { resolveModel } from '../scripts/models';
+import { resolveModel, type Model } from '../scripts/models';
 import { CLAUDE_FRONTIER_EVAL_MODEL } from '../lib/eval-model';
 import { readOverlay } from '../scripts/resolvers/model-overlay';
 import { generateCompletenessSection } from '../scripts/resolvers/preamble/generate-completeness-section';
@@ -391,7 +391,7 @@ describe('model-routing-claude', () => {
     ['claude-opus-5-5', 'claude'],
     ['claude-fable-5', 'fable-5'],
     ['claude-fable-5-1', 'fable-5'],
-  ])('%s routes to %s', (input, expected) => {
+  ] as Array<[string, Model]>)('%s routes to %s', (input, expected) => {
     expect(resolveModel(input)).toBe(expected);
   });
 

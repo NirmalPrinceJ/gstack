@@ -351,7 +351,7 @@ Do NOT halt for clarification.`,
       && fs.existsSync(path.join(skillDir, 'fixtures'));
 
     // D2 enforcement: the SKILL.md prose body must not contain conversation
-    // fragments (stored good/bad bodies: skill-body-narration.test.ts).
+    // fragments (stored good/bad bodies: skill-fixture.test.ts).
     let prosesClean = false;
     if (hasAllFiles) {
       const skillMd = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf-8');
