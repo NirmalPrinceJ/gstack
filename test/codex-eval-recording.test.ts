@@ -53,6 +53,12 @@ describe('Codex assertion and record parity', () => {
     ['invalid skill', { stderr: 'invalid skill metadata' }, validateCodexDiscovery, 'validation_failed'],
     ['skipped skill', { stderr: 'Skipped loading gstack-review' }, validateCodexDiscovery, 'validation_failed'],
     ['missing skill reference', { output: 'Nothing available.' }, validateCodexDiscovery, 'validation_failed'],
+    ['tool error saying invalid is not a skill problem', { stderr: 'ERROR codex_core::tools::router: error=apply_patch verification failed: invalid hunk at line 4' }, validateCodexDiscovery, 'success'],
+    ['review whose sandbox never started', {
+      // Periodic run 37151477069 recorded this as a passing review; its only command failed in bwrap.
+      output: "I couldn't run the review because the sandbox failed before executing the command to read the gstack-review skill:\n\n> `bwrap: No permissions to create a new namespace`\n\nNo repository files or branch diff were inspected, so I have no findings to report.",
+      rawLines: fs.readFileSync(path.join(import.meta.dir, 'fixtures/codex-sandbox/exec-json-userns-denied.jsonl'), 'utf8').split('\n'),
+    }, validateCodexReview, 'validation_failed'],
     ['short review', { output: 'review' }, validateCodexReview, 'validation_failed'],
     ['long non-review', { output: 'x'.repeat(100) }, validateCodexReview, 'validation_failed'],
   ];
@@ -265,11 +271,25 @@ describe('Codex Sol scope assertion and record parity', () => {
     expect(records[0]).toMatchObject({ passed: true, exit_reason: 'success', turns_used: 30 });
   });
 
+  test('tool errors that say invalid are not skill load problems (periodic run 37151477069)', async () => {
+    const { records, error } = await runFixture({
+      run: async () => result({ stderr: [
+        'WARNING: proceeding, even though we could not create PATH aliases: Refusing to create helper binaries under temporary dir "/tmp/x"',
+        'ERROR codex_core::tools::router: error=apply_patch verification failed: invalid hunk at line 4, Update hunk does not contain any lines',
+        'ERROR codex_core::tools::router: error=unable to process image: invalid or unsupported image data',
+      ].join('\n') }),
+      validate: captured => validateCodexSolScope(captured, evidence()),
+    });
+    expect(error).toBeUndefined();
+    expect(records[0]).toMatchObject({ passed: true, exit_reason: 'success' });
+  });
+
   const failures: Array<[
     string, (captured: CodexResult, fixture: CodexSolScopeEvidence) => void, string,
   ]> = [
     ['invalid skill', captured => { captured.stderr = 'invalid skill metadata'; }, 'skill load problem'],
     ['skipped skill', captured => { captured.stderr = 'Skipped loading gstack-investigate'; }, 'skill load problem'],
+    ['skill load failure', captured => { captured.stderr = 'failed to load skill /home/u/.codex/skills/gstack-investigate/SKILL.md: missing name'; }, 'skill load problem'],
     ['tool budget exceeded', captured => { captured.toolCalls = Array(31).fill('fixture command'); }, 'tool calls: 31 > 30'],
     ['targeted test fails', (_, fixture) => { fixture.targeted = { status: 1, stderr: 'zero limit still returns ten', stdout: '' }; }, 'zero limit still returns ten'],
     ['targeted test does not exit normally', (_, fixture) => { fixture.targeted = { status: null, stderr: '', stdout: 'test process terminated' }; }, 'test process terminated'],
