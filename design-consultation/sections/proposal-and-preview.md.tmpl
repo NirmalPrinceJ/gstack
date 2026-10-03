@@ -114,10 +114,12 @@ Brief: Phase 3 aesthetic/colors/type/spacing/layout plus Phase 1 product context
 $D variants --brief "<product name: [name]. Product type: [type]. Aesthetic: [direction]. Colors: primary [hex], secondary [hex], neutrals [range]. Typography: display [font], body [font]. Layout: [approach]. Show a realistic [page type] screen with [specific content for this product].>" --count 3 --output-dir "$_DESIGN_DIR/"
 ```
 
-Run quality check on each successful path returned by `variants`; never include failed variants:
+`variants` writes into a new `round-<N>/` under the output dir and prints `roundDir`,
+`manifest` and `paths` (saved images only). Run the quality check on each of those
+`paths`; never include failed variants:
 
 ```bash
-$D check --image "$_DESIGN_DIR/variant-A.png" --brief "<the original brief>"
+$D check --image "<one path from paths>" --brief "<the original brief>"
 ```
 
 Read JSON, not exit code: `pass: false` means regenerate addressing `issues`, then recheck. `pass: true` with an unavailable/skipped warning is missing automated coverage; disclose it and inspect visually.

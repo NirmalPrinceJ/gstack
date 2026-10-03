@@ -71,7 +71,7 @@ GSTACK_STATE_ROOT=$(~/.claude/skills/gstack/bin/gstack-paths --get GSTACK_STATE_
 setopt +o nomatch 2>/dev/null || true
 _APPROVED=$(ls -t "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/approved.json 2>/dev/null | head -1)
 [ -n "$_APPROVED" ] && echo "APPROVED: $_APPROVED" || echo "NO_APPROVED"
-_VARIANTS=$(ls -t "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/variant-*.png 2>/dev/null | head -1)
+_VARIANTS=$(ls -t "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/variant-*.png "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/round-*/variant-*.png 2>/dev/null | head -1)
 [ -n "$_VARIANTS" ] && echo "VARIANTS: $_VARIANTS" || echo "NO_VARIANTS"
 _FINALIZED=$(ls -t "$GSTACK_STATE_ROOT/projects/$SLUG/designs/"*/finalized.html 2>/dev/null | head -1)
 [ -n "$_FINALIZED" ] && echo "FINALIZED: $_FINALIZED" || echo "NO_FINALIZED"
@@ -83,7 +83,10 @@ Now route based on what was found. Check these cases in order:
 ### Case A: approved.json exists (design-shotgun ran)
 
 If `APPROVED` was found, read it. Extract: approved variant PNG path, user feedback,
-screen name. Also read the CEO plan if one exists (it adds strategic context).
+screen name. The PNG path is `approved_path` when present (it may sit in a `round-<N>/`
+directory); older files name only a letter in `approved_variant`, meaning
+`variant-<letter>.png` beside approved.json. If that file is missing, say so and ask
+which variant to use instead of picking the newest PNG. Also read the CEO plan if one exists (it adds strategic context).
 
 Read `DESIGN.md` if it exists in the repo root. These tokens take priority for
 system-level values (fonts, brand colors, spacing scale).

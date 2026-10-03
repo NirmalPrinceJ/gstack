@@ -136,4 +136,13 @@ describe('Gallery generation', () => {
     // All images are base64
     expect(html).toContain('data:image/png;base64,');
   });
+  test('F4: variants in round-<N>/ directories are shown, not only flat files (#1529)', () => {
+    const sessionDir = path.join(tmpDir, 'rounds', 'pricing-20261003');
+    fs.mkdirSync(path.join(sessionDir, 'round-1'), { recursive: true });
+    fs.mkdirSync(path.join(sessionDir, 'round-2'), { recursive: true });
+    createTestPng(path.join(sessionDir, 'round-1', 'variant-A.png'));
+    createTestPng(path.join(sessionDir, 'round-2', 'variant-A.png'));
+    const html = generateGalleryHtml(path.join(tmpDir, 'rounds'));
+    expect(html.match(/data:image\/png;base64,/g)?.length).toBe(2);
+  });
 });

@@ -2,9 +2,16 @@
  * Generate N design variants from a brief.
  * Uses staggered parallel: 1s delay between API calls to avoid rate limits.
  * Falls back to exponential backoff on 429s.
+ *
+ * Every run writes into its own round directory (<output-dir>/round-<N>/,
+ * reserved atomically) with a manifest.json of what was saved, so a
+ * regenerate round never overwrites the images an earlier round paid for
+ * (#1529). The paid request and the local write retry separately: a disk
+ * error retries the write, never the purchase.
  */
 
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
@@ -50,7 +57,7 @@ export async function generateVariant(
   size: string,
   quality: string,
   fetchFn: typeof globalThis.fetch = globalThis.fetch,
-): Promise<{ path: string; success: boolean; error?: string }> {
+): Promise<VariantResult> {
   const maxRetries = 3;
   const MAX_RETRY_AFTER_MS = 60_000; // cap honored Retry-After to bound stalls
   let lastError = "";
@@ -130,8 +137,7 @@ export async function generateVariant(
         return { path: outputPath, success: false, error: "No image data in response" };
       }
 
-      fs.writeFileSync(outputPath, Buffer.from(imageItem.result, "base64"));
-      return { path: outputPath, success: true };
+      return saveVariantImage(outputPath, Buffer.from(imageItem.result, "base64"));
     } catch (err: any) {
       clearTimeout(timeout);
       if (err.name === "AbortError") {
@@ -142,6 +148,94 @@ export async function generateVariant(
   }
 
   return { path: outputPath, success: false, error: lastError };
+}
+
+export interface VariantResult {
+  path: string;
+  success: boolean;
+  error?: string;
+  /** Where a paid image was kept when the output path could not be written. */
+  rescuedPath?: string;
+}
+
+/**
+ * Write an image that was already paid for. Retries the local write (temp
+ * file + rename) and, if the output path stays unwritable, keeps the bytes in
+ * the system temp dir instead of dropping them. Never re-requests the image.
+ */
+export function saveVariantImage(outputPath: string, bytes: Buffer, attempts = 3): VariantResult {
+  let lastError = "";
+  for (let i = 0; i < attempts; i++) {
+    const tmp = `${outputPath}.${process.pid}.${i}.tmp`;
+    try {
+      fs.writeFileSync(tmp, bytes);
+      fs.renameSync(tmp, outputPath);
+      return { path: outputPath, success: true };
+    } catch (err: any) {
+      lastError = err.message;
+      try { fs.rmSync(tmp, { force: true }); } catch { /* best effort */ }
+    }
+  }
+  const error = `image was generated but could not be saved to ${outputPath} (${lastError})`;
+  try {
+    const rescueDir = fs.mkdtempSync(path.join(os.tmpdir(), "gstack-variant-rescue-"));
+    const rescuedPath = path.join(rescueDir, path.basename(outputPath));
+    fs.writeFileSync(rescuedPath, bytes);
+    return { path: outputPath, success: false, error: `${error}; kept at ${rescuedPath}`, rescuedPath };
+  } catch {
+    return { path: outputPath, success: false, error };
+  }
+}
+
+export interface RoundManifestEntry {
+  label: string;
+  file: string;
+  status: "saved" | "failed";
+  error?: string;
+  rescuedPath?: string;
+}
+
+/**
+ * Reserve the next free round-<N> directory under outputDir. mkdir without
+ * `recursive` fails with EEXIST when the name is taken, so two runs (or two
+ * sessions) can never be handed the same directory.
+ */
+export function reserveRoundDir(outputDir: string): { round: number; dir: string } {
+  fs.mkdirSync(outputDir, { recursive: true });
+  const taken = fs.readdirSync(outputDir)
+    .map(name => /^round-(\d+)$/.exec(name))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map(m => Number(m[1]));
+  for (let round = taken.length ? Math.max(...taken) + 1 : 1; ; round++) {
+    const dir = path.join(outputDir, `round-${round}`);
+    try {
+      fs.mkdirSync(dir);
+      return { round, dir };
+    } catch (err: any) {
+      if (err.code !== "EEXIST") throw err;
+    }
+  }
+}
+
+/** Write the round's manifest last, atomically, from the results actually on disk. */
+function writeRoundManifest(dir: string, round: number, kind: "style" | "responsive", entries: RoundManifestEntry[]): string {
+  const manifestPath = path.join(dir, "manifest.json");
+  const tmp = `${manifestPath}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify({ schema: 1, round, kind, created_at: new Date().toISOString(), variants: entries }, null, 2) + "\n");
+  fs.renameSync(tmp, manifestPath);
+  return manifestPath;
+}
+
+function manifestEntries(labels: string[], results: PromiseSettledResult<VariantResult>[]): RoundManifestEntry[] {
+  return results.map((result, i) => {
+    const file = result.status === "fulfilled" ? path.basename(result.value.path) : `${labels[i]}.png`;
+    if (result.status === "fulfilled" && result.value.success && fs.existsSync(result.value.path)) {
+      return { label: labels[i], file, status: "saved" };
+    }
+    const error = result.status === "fulfilled" ? result.value.error : (result.reason as Error).message;
+    const rescuedPath = result.status === "fulfilled" ? result.value.rescuedPath : undefined;
+    return { label: labels[i], file, status: "failed", error, ...(rescuedPath ? { rescuedPath } : {}) };
+  });
 }
 
 /**
@@ -155,11 +249,11 @@ export async function variants(options: VariantsOptions): Promise<void> {
 
   const quality = options.quality || "high";
 
-  fs.mkdirSync(options.outputDir, { recursive: true });
+  const { round, dir: roundDir } = reserveRoundDir(options.outputDir);
 
   // If viewports specified, generate responsive variants instead of style variants
   if (options.viewports) {
-    await generateResponsiveVariants(apiKey, baseBrief, options.outputDir, options.viewports, quality);
+    await generateResponsiveVariants(apiKey, baseBrief, roundDir, round, options.viewports, quality);
     return;
   }
 
@@ -174,11 +268,12 @@ export async function variants(options: VariantsOptions): Promise<void> {
   });
   const size = options.size || "1536x1024";
 
-  console.error(`Generating ${count} variants...`);
+  console.error(`Generating ${count} variants into ${roundDir}...`);
   const startTime = Date.now();
 
   // Staggered parallel: start each call 1.5s apart
-  const promises: Promise<{ path: string; success: boolean; error?: string }>[] = [];
+  const promises: Promise<VariantResult>[] = [];
+  const labels: string[] = [];
 
   for (let i = 0; i < count; i++) {
     const variation = STYLE_VARIATIONS[i] || "";
@@ -186,7 +281,8 @@ export async function variants(options: VariantsOptions): Promise<void> {
       ? `${baseBrief}\n\nStyle direction: ${variation}`
       : baseBrief;
 
-    const outputPath = path.join(options.outputDir, `variant-${String.fromCharCode(65 + i)}.png`);
+    labels.push(String.fromCharCode(65 + i));
+    const outputPath = path.join(roundDir, `variant-${labels[i]}.png`);
 
     // Stagger: wait 1.5s between launches
     const delay = i * 1500;
@@ -201,33 +297,32 @@ export async function variants(options: VariantsOptions): Promise<void> {
 
   const results = await Promise.allSettled(promises);
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const entries = manifestEntries(labels, results);
+  const manifest = writeRoundManifest(roundDir, round, "style", entries);
+  const succeeded = entries.filter(e => e.status === "saved").map(e => path.join(roundDir, e.file));
 
-  const succeeded: string[] = [];
-  const failed: string[] = [];
-
-  for (const result of results) {
-    if (result.status === "fulfilled" && result.value.success) {
-      const size = fs.statSync(result.value.path).size;
-      console.error(`  ✓ ${path.basename(result.value.path)} (${(size / 1024).toFixed(0)}KB)`);
-      succeeded.push(result.value.path);
+  for (const e of entries) {
+    if (e.status === "saved") {
+      const size = fs.statSync(path.join(roundDir, e.file)).size;
+      console.error(`  ✓ ${e.file} (${(size / 1024).toFixed(0)}KB)`);
     } else {
-      const error = result.status === "fulfilled" ? result.value.error : (result.reason as Error).message;
-      const filePath = result.status === "fulfilled" ? result.value.path : "unknown";
-      console.error(`  ✗ ${path.basename(filePath)}: ${error}`);
-      failed.push(path.basename(filePath));
+      console.error(`  ✗ ${e.file}: ${e.error}`);
     }
   }
 
-  console.error(`\n${succeeded.length}/${count} variants generated (${elapsed}s)`);
+  console.error(`\n${succeeded.length}/${count} variants generated in round ${round} (${elapsed}s)`);
 
   // Output structured result to stdout
   console.log(JSON.stringify({
     outputDir: options.outputDir,
+    round,
+    roundDir,
+    manifest,
     count,
     succeeded: succeeded.length,
-    failed: failed.length,
+    failed: entries.length - succeeded.length,
     paths: succeeded,
-    errors: failed,
+    errors: entries.filter(e => e.status === "failed").map(e => e.file),
   }, null, 2));
 }
 
@@ -240,7 +335,8 @@ const VIEWPORT_CONFIGS: Record<string, { size: string; suffix: string; desc: str
 async function generateResponsiveVariants(
   apiKey: string,
   baseBrief: string,
-  outputDir: string,
+  roundDir: string,
+  round: number,
   viewports: string,
   quality: string,
 ): Promise<void> {
@@ -249,6 +345,7 @@ async function generateResponsiveVariants(
 
   if (configs.length === 0) {
     console.error(`No valid viewports. Use: desktop, tablet, mobile`);
+    fs.rmdirSync(roundDir);
     process.exit(1);
   }
 
@@ -261,10 +358,10 @@ async function generateResponsiveVariants(
       config.suffix === "tablet" ? "Use a responsive layout that works for medium screens." :
       ""
     }`;
-    const outputPath = path.join(outputDir, `responsive-${config.suffix}.png`);
+    const outputPath = path.join(roundDir, `responsive-${config.suffix}.png`);
     const delay = i * 1500;
 
-    return new Promise<{ path: string; success: boolean; error?: string }>(resolve =>
+    return new Promise<VariantResult>(resolve =>
       setTimeout(resolve, delay)
     ).then(() => {
       console.error(`  Starting ${config.desc}...`);
@@ -274,22 +371,25 @@ async function generateResponsiveVariants(
 
   const results = await Promise.allSettled(promises);
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  const entries = manifestEntries(configs.map(c => c.suffix), results);
+  const manifest = writeRoundManifest(roundDir, round, "responsive", entries);
+  const succeeded = entries.filter(e => e.status === "saved").map(e => path.join(roundDir, e.file));
 
-  const succeeded: string[] = [];
-  for (const result of results) {
-    if (result.status === "fulfilled" && result.value.success) {
-      const sz = fs.statSync(result.value.path).size;
-      console.error(`  ✓ ${path.basename(result.value.path)} (${(sz / 1024).toFixed(0)}KB)`);
-      succeeded.push(result.value.path);
+  for (const e of entries) {
+    if (e.status === "saved") {
+      const sz = fs.statSync(path.join(roundDir, e.file)).size;
+      console.error(`  ✓ ${e.file} (${(sz / 1024).toFixed(0)}KB)`);
     } else {
-      const error = result.status === "fulfilled" ? result.value.error : (result.reason as Error).message;
-      console.error(`  ✗ ${error}`);
+      console.error(`  ✗ ${e.file}: ${e.error}`);
     }
   }
 
-  console.error(`\n${succeeded.length}/${configs.length} responsive variants generated (${elapsed}s)`);
+  console.error(`\n${succeeded.length}/${configs.length} responsive variants generated in round ${round} (${elapsed}s)`);
   console.log(JSON.stringify({
-    outputDir,
+    outputDir: path.dirname(roundDir),
+    round,
+    roundDir,
+    manifest,
     viewports: viewportList,
     succeeded: succeeded.length,
     paths: succeeded,
