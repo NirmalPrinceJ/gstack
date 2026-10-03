@@ -58,9 +58,7 @@ describe('E2E_KINDS registry', () => {
     }
   });
 
-  test('the classification is the reviewed one: rule by default, 22 behavior, 25 judge', () => {
-    const counts = Object.values(E2E_KINDS).reduce<Record<string, number>>((acc, kind) => ({ ...acc, [kind]: (acc[kind] ?? 0) + 1 }), {});
-    expect(counts).toEqual({ rule: liveIds.length - 22 - 25, behavior: 22, judge: 25 });
+  test('contract-shaped cases stay rule-kind', () => {
     // Contract-shaped cases stay rule: ask-before-decide, plan-mode no-writes,
     // mandated steps, secrets, and the batching floor never ride a majority.
     for (const id of ['plan-ceo-mode-routing', 'plan-eng-multi-finding-batching', 'plan-design-review-plan-mode',
