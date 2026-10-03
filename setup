@@ -496,6 +496,21 @@ _link_or_copy() {
   fi
 }
 
+# _link_runtime_dists SOURCE ROOT — the compiled design and make-pdf binaries
+# behind $GSTACK_DESIGN and $GSTACK_MAKE_PDF on every env-var host (#2891).
+# dist/ only, never the whole directory: make-pdf/ ships a Claude SKILL.md a
+# host scanning its skills root would discover as a duplicate skill.
+_link_runtime_dists() {
+  local d
+  for d in design/dist make-pdf/dist; do
+    [ -d "$1/$d" ] || continue
+    if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$2/$d" ] || [ ! -e "$2/$d" ]; then
+      mkdir -p "$2/${d%/dist}"
+      _link_or_copy "$1/$d" "$2/$d"
+    fi
+  done
+}
+
 # ─── Ownership gate for skill entries (#2119) ─────────────────────────────────
 # setup and gstack-relink must never delete or link over a skill they do not
 # own. This is the single rule both use (relink carries the same logic — keep
@@ -2322,6 +2337,8 @@ create_agents_sidecar() {
     fi
   done
 
+  _link_runtime_dists "$SOURCE_GSTACK_DIR" "$agents_gstack"
+
   # supabase/config.sh — required by gstack-telemetry-sync to resolve GSTACK_SUPABASE_URL
   # (file-level on purpose: migrations/ and functions/ are dev-only)
   if [ -f "$SOURCE_GSTACK_DIR/supabase/config.sh" ]; then
@@ -2398,6 +2415,7 @@ create_codex_runtime_root() {
   if [ -d "$gstack_dir/browse/bin" ]; then
     _link_or_copy "$gstack_dir/browse/bin" "$codex_gstack/browse/bin"
   fi
+  _link_runtime_dists "$gstack_dir" "$codex_gstack"
   if [ -f "$agents_dir/gstack-upgrade/SKILL.md" ]; then
     _link_or_copy "$agents_dir/gstack-upgrade/SKILL.md" "$codex_gstack/gstack-upgrade/SKILL.md"
   fi
@@ -2453,6 +2471,7 @@ create_factory_runtime_root() {
   if [ -d "$gstack_dir/browse/bin" ]; then
     _link_or_copy "$gstack_dir/browse/bin" "$factory_gstack/browse/bin"
   fi
+  _link_runtime_dists "$gstack_dir" "$factory_gstack"
   if [ -f "$factory_dir/gstack-upgrade/SKILL.md" ]; then
     _link_or_copy "$factory_dir/gstack-upgrade/SKILL.md" "$factory_gstack/gstack-upgrade/SKILL.md"
   fi
@@ -2489,7 +2508,7 @@ create_opencode_runtime_root() {
     rm -rf "$opencode_gstack"
   fi
 
-  mkdir -p "$opencode_gstack" "$opencode_gstack/browse" "$opencode_gstack/design" "$opencode_gstack/gstack-upgrade" "$opencode_gstack/review" "$opencode_gstack/qa" "$opencode_gstack/plan-devex-review"
+  mkdir -p "$opencode_gstack" "$opencode_gstack/browse" "$opencode_gstack/gstack-upgrade" "$opencode_gstack/review" "$opencode_gstack/qa" "$opencode_gstack/plan-devex-review"
 
   if [ -f "$opencode_dir/gstack/SKILL.md" ]; then
     _link_or_copy "$opencode_dir/gstack/SKILL.md" "$opencode_gstack/SKILL.md"
@@ -2506,9 +2525,7 @@ create_opencode_runtime_root() {
   if [ -d "$gstack_dir/browse/bin" ]; then
     _link_or_copy "$gstack_dir/browse/bin" "$opencode_gstack/browse/bin"
   fi
-  if [ -d "$gstack_dir/design/dist" ]; then
-    _link_or_copy "$gstack_dir/design/dist" "$opencode_gstack/design/dist"
-  fi
+  _link_runtime_dists "$gstack_dir" "$opencode_gstack"
   if [ -f "$opencode_dir/gstack-upgrade/SKILL.md" ]; then
     _link_or_copy "$opencode_dir/gstack-upgrade/SKILL.md" "$opencode_gstack/gstack-upgrade/SKILL.md"
   fi
@@ -2671,6 +2688,7 @@ create_cursor_runtime_root() {
   if [ -d "$gstack_dir/browse/bin" ]; then
     _link_or_copy "$gstack_dir/browse/bin" "$cursor_gstack/browse/bin"
   fi
+  _link_runtime_dists "$gstack_dir" "$cursor_gstack"
   if [ -f "$cursor_dir/gstack-upgrade/SKILL.md" ]; then
     _link_or_copy "$cursor_dir/gstack-upgrade/SKILL.md" "$cursor_gstack/gstack-upgrade/SKILL.md"
   fi
@@ -2728,6 +2746,7 @@ create_cursor_sidecar() {
       _link_or_copy "$repo_root/browse/bin" "$cursor_gstack/browse/bin"
     fi
   fi
+  _link_runtime_dists "$repo_root" "$cursor_gstack"
   if [ -f "$cursor_dir/gstack-upgrade/SKILL.md" ]; then
     if [ "$IS_WINDOWS" -eq 1 ] || [ -L "$cursor_gstack/gstack-upgrade/SKILL.md" ] || [ ! -e "$cursor_gstack/gstack-upgrade/SKILL.md" ]; then
       _link_or_copy "$cursor_dir/gstack-upgrade/SKILL.md" "$cursor_gstack/gstack-upgrade/SKILL.md"
@@ -2838,6 +2857,7 @@ create_copilot_runtime_root() {
       _link_or_copy "$gstack_dir/$asset" "$copilot_gstack/$asset"
     fi
   done
+  _link_runtime_dists "$gstack_dir" "$copilot_gstack"
   if [ -f "$copilot_dir/gstack-upgrade/SKILL.md" ]; then
     _link_or_copy "$copilot_dir/gstack-upgrade/SKILL.md" "$copilot_gstack/gstack-upgrade/SKILL.md"
   fi
@@ -3122,6 +3142,7 @@ if [ "$INSTALL_KIRO" -eq 1 ]; then
     _link_or_copy "$SOURCE_GSTACK_DIR/lib" "$KIRO_GSTACK/lib"
     _link_or_copy "$SOURCE_GSTACK_DIR/browse/dist" "$KIRO_GSTACK/browse/dist"
     _link_or_copy "$SOURCE_GSTACK_DIR/browse/bin" "$KIRO_GSTACK/browse/bin"
+    _link_runtime_dists "$SOURCE_GSTACK_DIR" "$KIRO_GSTACK"
     if [ -f "$SOURCE_GSTACK_DIR/ETHOS.md" ]; then
       _link_or_copy "$SOURCE_GSTACK_DIR/ETHOS.md" "$KIRO_GSTACK/ETHOS.md"
     fi
