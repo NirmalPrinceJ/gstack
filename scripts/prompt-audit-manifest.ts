@@ -27,7 +27,7 @@ function walk(dir: string, keep: (rel: string) => boolean): string[] {
   const visit = (d: string) => {
     for (const entry of readdirSync(d, { withFileTypes: true })) {
       const p = join(d, entry.name);
-      const rel = relative(ROOT, p);
+      const rel = relative(ROOT, p).replaceAll('\\', '/');
       if (entry.isDirectory()) {
         if (!entry.name.startsWith('.') && entry.name !== 'node_modules') visit(p);
       } else if (keep(rel)) {
