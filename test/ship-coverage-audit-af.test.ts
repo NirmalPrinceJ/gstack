@@ -92,11 +92,11 @@ test('AF ship actual read helper accepts only literal owned delivery before read
   for(const row of fixture.rows.slice(0,2))expect((evidence as any).coverageAuditReadEvidence(row.result.transcript,{cwd:row.cwd,source:{path:row.cwd+'/src/billing.ts',content:fixture.files.source},tests:{path:row.cwd+'/test/billing.test.ts',content:fixture.files.tests}})).toEqual({sourceRead:true,testsRead:true});
 });
 
-function commandReads(command:string) {
+function commandReads(command:string,content=fixture.files.source+fixture.files.tests) {
   const row=fixture.rows[0]!;const session=row.sessionId;
   const transcript=[{type:'system',subtype:'init',session_id:session,cwd:row.cwd},
     {type:'assistant',session_id:session,message:{role:'assistant',content:[{type:'tool_use',id:'pair',name:'Bash',input:{command}}]}},
-    {type:'user',session_id:session,message:{role:'user',content:[{type:'tool_result',tool_use_id:'pair',is_error:false,content:fixture.files.source+'\n'+fixture.files.tests}]}}];
+    {type:'user',session_id:session,message:{role:'user',content:[{type:'tool_result',tool_use_id:'pair',is_error:false,content}]}}];
   return (evidence as any).coverageAuditReadEvidence(transcript,{cwd:row.cwd,source:{path:row.cwd+'/src/billing.ts',content:fixture.files.source},tests:{path:row.cwd+'/test/billing.test.ts',content:fixture.files.tests}});
 }
 const plainPair='cat -n src/billing.ts; cat -n test/billing.test.ts';
@@ -110,7 +110,9 @@ test('AF ship closed read-only suffixes cannot turn quoting, substitution or mut
   expect(commandReads(`cd ${fixture.rows[0]!.cwd}; ${plainPair}; git ls-files | grep -E '(\\.test\\.|\\.spec\\.)' | wc -l; cat CLAUDE.md 2>/dev/null || echo none`)).toEqual({sourceRead:true,testsRead:true});
 });
 test('AF ship optional cat fallback and conditional or redirected source segments receive no read credit',()=>{
-  expect(commandReads('cat src/billing.ts 2>/dev/null || echo none; cat test/billing.test.ts')).toEqual({sourceRead:false,testsRead:true});
+  // The fallback's output is unknown, so an unlabeled read after it has no provable position; a label pins it.
+  expect(commandReads('cat src/billing.ts 2>/dev/null || echo none; cat test/billing.test.ts')).toEqual({sourceRead:false,testsRead:false});
+  expect(commandReads('cat src/billing.ts 2>/dev/null || echo none; echo ====; cat test/billing.test.ts',fixture.files.source+'====\n'+fixture.files.tests)).toEqual({sourceRead:false,testsRead:true});
   for(const command of ['false || cat src/billing.ts; cat test/billing.test.ts',
     `cd /foreign; ${plainPair}`, `${plainPair}; cd /foreign`,
     'cat src/billing.ts > hidden; cat test/billing.test.ts'])expect(commandReads(command)).toEqual({sourceRead:false,testsRead:false});

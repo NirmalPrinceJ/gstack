@@ -15,6 +15,7 @@ import captured_coverage_diagram_legend_as from './fixtures/coverage-diagram-leg
 import fixture_coverage_shell_display_aq from './fixtures/coverage-shell-display-aq.json';
 import billing_coverage_shell_display_aq from './fixtures/coverage-audit-ae.json';
 import captured_parallel_column from './fixtures/coverage-audit-parallel-column.json';
+import captured_sed_context from './fixtures/coverage-audit-sed-context.json';
 
 const clone = <T>(v:T):T => structuredClone(v);
 const diagram = '```text\nsrc/billing.ts\n├── processPayment: happy path [TESTED]\n└── refundPayment [UNTESTED]\n```';
@@ -49,7 +50,8 @@ describe('coverage audit native evidence',()=>{
       }
       expect(verdict(s)).toMatchObject({ sourceRead: true, testsRead: true });
       block(s, 1).input.command = `cat ${flags}${quote}${s.files.source.path}${quote} ${quote}${s.files.tests.path}${quote}`;
-      block(s, 2).content = s.files.source.content + '\n' + s.files.tests.content;
+      // cat prints both newline-terminated files back to back.
+      block(s, 2).content = s.files.source.content + s.files.tests.content;
       s.result.transcript.splice(3);
       expect(verdict(s)).toMatchObject({ sourceRead: true, testsRead: true });
       for (const operands of [
@@ -478,12 +480,13 @@ for (let i=0;i<fixture.rows.length;i++) test(`AF exact public coverage audit ${i
   const row=actual(i); expect(coverageAuditVerdict(row.result, files(row))).toEqual({sourceRead:true,testsRead:true,diagram:true,passed:true,failures:[]});
 });
 
-function delivered(command: string, mutate?: (events: any[]) => void) {
+// The output an `echo ----` pair chain prints; reads without the separator print the files back to back.
+function delivered(command: string, mutate?: (events: any[]) => void, content = fixture.files.source+'----\n'+fixture.files.tests) {
   const row=actual(2), session=row.sessionId;
   const transcript:any[]=[
     {type:'system',subtype:'init',session_id:session,cwd:row.cwd},
     {type:'assistant',session_id:session,parent_tool_use_id:null,message:{role:'assistant',content:[{type:'tool_use',id:'read-pair',name:'Bash',input:{command}}]}},
-    {type:'user',session_id:session,parent_tool_use_id:null,message:{role:'user',content:[{type:'tool_result',tool_use_id:'read-pair',is_error:false,content:fixture.files.source+'\n----\n'+fixture.files.tests}]}},
+    {type:'user',session_id:session,parent_tool_use_id:null,message:{role:'user',content:[{type:'tool_result',tool_use_id:'read-pair',is_error:false,content}]}},
   ];
   mutate?.(transcript);
   return coverageAuditVerdict({...row.result,transcript},files(row));
@@ -497,7 +500,7 @@ test('recorded POSIX and Windows paths bind reads independently of the replay ho
     const transcript = [
       {type:'system',subtype:'init',session_id:'owned',cwd},
       {type:'assistant',session_id:'owned',message:{role:'assistant',content:[{type:'tool_use',id:'pair',name:'Bash',input:{command:both}}]}},
-      {type:'user',session_id:'owned',message:{role:'user',content:[{type:'tool_result',tool_use_id:'pair',is_error:false,content:fixture.files.source+'\n'+fixture.files.tests}]}},
+      {type:'user',session_id:'owned',message:{role:'user',content:[{type:'tool_result',tool_use_id:'pair',is_error:false,content:fixture.files.source+fixture.files.tests}]}},
     ];
     expect(coverageAuditReadEvidence(transcript,owned)).toEqual({sourceRead:true,testsRead:true});
     expect(coverageAuditReadEvidence(transcript,{...owned,source:{...owned.source,path:paths.join(cwd,'../foreign.ts')}}))
@@ -510,7 +513,8 @@ test('recorded POSIX and Windows paths bind reads independently of the replay ho
 test('AF complete literal reads permit a successful chain and one leading owned cwd assertion', () => {
   const cwd=actual(2).cwd;
   for (const command of [both, `cd ${cwd}; cat -n src/billing.ts; cat -n test/billing.test.ts`, `cd '${cwd}' && ${both}`, 'cat -n src/billing.ts; echo ----; cat -n test/billing.test.ts']) {
-    const v=delivered(command); expect(v.sourceRead).toBe(true); expect(v.testsRead).toBe(true); expect(v.passed).toBe(true);
+    const v=delivered(command,undefined,command.includes('----')?undefined:fixture.files.source+fixture.files.tests);
+    expect(v.sourceRead).toBe(true); expect(v.testsRead).toBe(true); expect(v.passed).toBe(true);
   }
 });
 
@@ -553,8 +557,12 @@ test('AF added command forms retain exact parent request/result success and deli
     e=>{e[2].message.content[0].content='The two filenames were read.';},
   ];
   for (const mutate of mutations) { const v=delivered(both,mutate); expect(v.sourceRead).toBe(false); expect(v.testsRead).toBe(false); }
+  // An && chain that printed only the source is not this command's output:
+  // the position-bound detector credits neither file from it.
   const onlySource=delivered(both,e=>{e[2].message.content[0].content=fixture.files.source;});
-  expect(onlySource.sourceRead).toBe(true); expect(onlySource.testsRead).toBe(false);
+  expect(onlySource.sourceRead).toBe(false); expect(onlySource.testsRead).toBe(false);
+  const complete=delivered(both,undefined,fixture.files.source+fixture.files.tests);
+  expect(complete.sourceRead).toBe(true); expect(complete.testsRead).toBe(true);
 });
 
 const flat = (legend = 'Legend: [✓] tested   [✗] GAP') => `\`\`\`text\n${legend}\nprocessPayment(amount, currency)\n├── [✓] happy path USD\nrefundPayment(paymentId, reason)\n└── [✗] happy path refund\n\`\`\``;
@@ -614,8 +622,15 @@ const fresh=(n=0)=>{
 const reads=(x:ReturnType<typeof fresh>)=>coverageAuditReadEvidence(x.transcript,x.files);
 const diagram=(text:string)=>{const x=fresh();return coverageAuditVerdict({exitReason:'success',browseErrors:[],output:text,transcript:x.transcript} as any,x.files).diagram;};
 describe('Coverage audit owned display composition and marker continuations',()=>{
- test.each([0,1,2,3])('credits exact complete public file delivery %i',n=>{
-  expect(fixture.provenance.actualCollectorFailuresRetained).toBe(true);expect(reads(fresh(n))).toEqual({sourceRead:true,testsRead:true});
+ test('credits exact complete public file delivery 2',()=>{
+  expect(fixture.provenance.actualCollectorFailuresRetained).toBe(true);expect(reads(fresh(2))).toEqual({sourceRead:true,testsRead:true});
+ });
+ // These excerpts omit printed lines (excerptLines): row 0 drops the context
+ // cat before its first label; rows 1 and 3 stop before later echoed labels.
+ // An excerpt is not the command's output, so it cannot pin a read position.
+ test.each([0,1,3])('a partial public excerpt %i cannot prove read position',n=>{
+  expect(fixture.reads[n]!.excerptLines.end).toBeGreaterThan(fixture.reads[n]!.excerptLines.start);
+  expect(reads(fresh(n))).toEqual({sourceRead:false,testsRead:false});
  });
  test.each(['failed result','foreign session','foreign cwd','foreign tool id','sidechain','missing result','repeated result','partial body','forged body'])('rejects %s',form=>{
   for(let n=0;n<4;n++){const x=fresh(n),e=x.transcript[2],b=e.message.content[0];if(form==='failed result')b.is_error=true;else if(form==='foreign session')e.session_id='foreign';else if(form==='foreign cwd')x.transcript[0].cwd+='/other';else if(form==='foreign tool id')b.tool_use_id='foreign';else if(form==='sidechain')e.parent_tool_use_id='parent';else if(form==='missing result')x.transcript.pop();else if(form==='repeated result')x.transcript.push(structuredClone(e));else if(form==='partial body')b.content=b.content.replace(/.*(?:export function processPayment|import \{ describe).*\n/g,'');else b.content='src/billing.ts and test/billing.test.ts were read';expect(reads(x)).toEqual({sourceRead:false,testsRead:false});}
@@ -668,8 +683,15 @@ test('literal grep display options and filename captions do not own source bytes
   for (const flags of ['-n', '-n -i', '-n -B1 -A200', '-n -i -B3 -A40']) {
     expect(reads(0, s => { s.use.input.command = s.use.input.command.replace('-n -i -B3 -A40', flags); })).toEqual(both);
   }
-  for (const replace of ['echo \'=== another-file.md ===\'', 'echo "--- src/billing.ts ---"', 'echo']) {
-    expect(reads(1, s => { s.use.input.command = s.use.input.command.replace('echo "=== testing.md ==="', replace); })).toEqual(both);
+  // The caption text is display only; the result shows whatever the echo printed
+  // (a bare echo's blank first line is trimmed from the native result).
+  for (const [replace, printed] of [['echo \'=== another-file.md ===\'', '=== another-file.md ===\n'], ['echo "--- src/billing.ts ---"', '--- src/billing.ts ---\n'], ['echo', '']]) {
+    expect(reads(1, s => {
+      s.use.input.command = s.use.input.command.replace('echo "=== testing.md ==="', replace!);
+      s.delivered.content = s.delivered.content.replace('=== testing.md ===\n', printed!);
+    })).toEqual(both);
+    // A caption the result never printed makes the result inconsistent with the command.
+    if (printed) expect(reads(1, s => { s.use.input.command = s.use.input.command.replace('echo "=== testing.md ==="', replace!); })).toEqual(neither);
   }
   expect(reads(1, s => { s.use.input.command = s.use.input.command.replace('git diff main --stat', 'git diff HEAD~1 --stat'); })).toEqual(both);
 });
@@ -706,8 +728,9 @@ test('a valid display path still requires one complete successful owned delivery
     (s: ReturnType<typeof owned>) => { s.row.result.transcript.push(structuredClone(s.resultEvent)); },
     (s: ReturnType<typeof owned>) => { s.use.input.command = s.use.input.command.replace('cat -n src/billing.ts', 'echo src/billing.ts').replace('cat -n test/billing.test.ts', 'echo test/billing.test.ts'); },
   ]) expect(reads(index, mutate)).toEqual(neither);
-  expect(reads(1, s => { s.delivered.content = s.row.files.source.content; })).toEqual({ sourceRead: true, testsRead: false });
-  expect(reads(1, s => { s.delivered.content = s.row.files.tests.content; })).toEqual({ sourceRead: false, testsRead: true });
+  // A bare file body is not where this labeled chain prints either read.
+  expect(reads(1, s => { s.delivered.content = s.row.files.source.content; })).toEqual(neither);
+  expect(reads(1, s => { s.delivered.content = s.row.files.tests.content; })).toEqual(neither);
 });
 
 test('text statuses use the declared local meanings with whitespace and either pair order', () => {
@@ -1017,5 +1040,71 @@ describe('coverage-audit-parallel-column', () => {
     expect(diagram(text.replace(covered, '[GAP]        Happy path USD — billing.test.ts:6           │          [★★ TESTED] happy USD flow'))).toBe(false);
     expect(diagram(text.replace(covered, '[GAP]        Happy path USD — billing.test.ts:6           [+] [★★ TESTED] happy USD flow'))).toBe(false);
     expect(diagram(text.replace(/(refundPayment[\s\S]*?)\n\n/, m => m.replaceAll('[GAP]        ', '[★★ TESTED]  ')))).toBe(false);
+  });
+});
+
+describe('coverage-audit-sed-context', () => {
+  const capture = captured_sed_context;
+  const both = { sourceRead: true, testsRead: true }, neither = { sourceRead: false, testsRead: false };
+  const files = { cwd: capture.cwd, source: { path: capture.cwd + '/src/billing.ts', content: capture.files.source },
+    tests: { path: capture.cwd + '/test/billing.test.ts', content: capture.files.tests } };
+  const transcript = (command = capture.command, output = capture.output, isError = capture.isError) => [
+    { type: 'system', subtype: 'init', session_id: capture.sessionId, cwd: capture.cwd },
+    { type: 'assistant', session_id: capture.sessionId, parent_tool_use_id: null, message: { role: 'assistant', content: [{ type: 'tool_use', id: capture.toolUseId, name: 'Bash', input: { command } }] } },
+    { type: 'user', session_id: capture.sessionId, parent_tool_use_id: null, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: capture.toolUseId, is_error: isError, content: output }] } },
+  ];
+  const reads = (command?: string, output?: string, isError?: boolean) => coverageAuditReadEvidence(transcript(command, output, isError), files);
+  const nonce = (body: string) => body.match(/\/\/ coverage-read-evidence: [0-9a-f-]{36}/)![0];
+
+  test('the slice-12 sed-context chain delivered both owned files at their printed positions', () => {
+    expect(capture.provenance.recordedPassed).toBe(false);
+    expect(reads()).toEqual(both);
+    expect(coverageAuditVerdict({ exitReason: 'success', browseErrors: [], output: capture.finalOutput, transcript: transcript() } as any, files))
+      .toEqual({ ...both, diagram: true, passed: true, failures: [] });
+  });
+
+  test('Git displays may name the revision before or after the display flag', () => {
+    expect(reads(capture.command.replace('git diff --stat main', 'git diff main --stat'))).toEqual(both);
+    expect(reads(capture.command.replace('git diff --stat main', 'git log --oneline main'))).toEqual(both);
+    expect(reads(capture.command.replace('git diff --stat main', 'git diff main -- src/billing.ts test/billing.test.ts'))).toEqual(both);
+  });
+
+  test.each([
+    ['an echoed fixture line', (c: string) => c + ` && echo '${nonce(capture.files.source)}'`],
+    ['an echoed fixture code line', (c: string) => c.replace('echo ===== SRC', "echo '===== SRC export function processPayment(amount: number, currency: string) {'")],
+    ['an escaped echo', (c: string) => c.replace('echo ===== SRC', 'echo -e ===== SRC')],
+    ['a redirected read', (c: string) => c.replace('cat -n src/billing.ts', 'cat -n src/billing.ts > /tmp/copy.ts')],
+    ['a command substitution', (c: string) => c.replace('cat -n src/billing.ts', 'echo "$(cat -n src/billing.ts)"')],
+    ['a backtick substitution', (c: string) => c.replace('cat -n src/billing.ts', 'echo `cat -n src/billing.ts`')],
+    ['an unknown printer', (c: string) => c.replace('echo ... &&', 'printf x &&')],
+    ['an interpreter', (c: string) => 'python3 -c pass && ' + c],
+    ['a here-string input', (c: string) => c.replace('cat -n src/billing.ts', 'cat -n <<< src/billing.ts')],
+    ['a context file outside the fixture', (c: string) => c.replace('sed -n 542,560p plan-eng-review', 'sed -n 542,560p ../plan-eng-review')],
+    ['a writing Git option', (c: string) => c.replace('git diff --stat main', 'git diff --stat --output=src/billing.ts main')],
+    ['a Git magic pathspec', (c: string) => c.replace('git diff --stat main', "git diff main -- ':(top)src'")],
+    ['a context range narrower than its printed lines', (c: string) => c.replace('sed -n 1118,1127p', 'sed -n 1118,1119p')],
+    ['a background job', (c: string) => c.replace(' && echo ===== SRC', ' & echo ===== SRC')],
+  ] as const)('%s cannot supply or relocate owned output', (_, mutate) => {
+    expect(mutate(capture.command)).not.toBe(capture.command);
+    expect(reads(mutate(capture.command))).toEqual(neither);
+  });
+
+  test.each([
+    ['a context copy of the source label', (o: string) => o.replace('===== SRC\n', '===== SRC\n===== SRC\n')],
+    ['a repeated anchor after the reads', (o: string) => o + '\n===== SRC'],
+    ['a missing source label', (o: string) => o.replace('===== SRC\n', '')],
+    ['a source body moved into the context', (o: string) => { const body = o.slice(o.indexOf('===== SRC\n') + 10, o.indexOf('===== TEST')); return body + o.replace(body, ''); }],
+    ['a forged source line', (o: string) => o.replace("throw new Error('Invalid amount')", "throw new Error('Forged')")],
+    ['a stale nonce', (o: string) => o.replace(nonce(capture.files.source).slice(-12), '000000000000')],
+    ['an unprinted trailing label', (o: string) => o.replace('===== DIFF\n', '')],
+    ['a bare file body', () => capture.files.source + capture.files.tests],
+  ] as const)('%s leaves the read position unproved', (_, mutate) => {
+    expect(mutate(capture.output)).not.toBe(capture.output);
+    expect(reads(undefined, mutate(capture.output))).toEqual(neither);
+  });
+
+  test('a failed result or a discarded-stderr read gets no credit; a labeled neighbor keeps its own', () => {
+    expect(reads(undefined, undefined, true)).toEqual(neither);
+    expect(reads(capture.command.replace('cat -n src/billing.ts', 'cat -n src/billing.ts 2>/dev/null'))).toEqual({ sourceRead: false, testsRead: true });
   });
 });

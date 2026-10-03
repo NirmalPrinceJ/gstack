@@ -658,7 +658,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     'scripts/resolvers/testing.ts'
   ],
   'ship-local-workflow': [ 'ship/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-workflow.test.ts',
-    'scripts/resolvers/testing.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/office-hours-attempt.ts'],
+    'scripts/resolvers/testing.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
   'review-dashboard-via': [ 'ship/**', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'codex/**', 'autoplan/**', 'land-and-deploy/**', 'test/skill-e2e-review-attribution.test.ts',
     'scripts/resolvers/testing.ts'
   ],
@@ -695,10 +695,10 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'context-save-list-all-branches':        [ 'context-save/**', 'test/skill-e2e-context-skills.test.ts'],
 
   // Document-release
-  'document-release': [ 'document-release/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/office-hours-attempt.ts'],
+  'document-release': [ 'document-release/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
 
   // Codex (Claude E2E — tests /codex skill via Claude)
-  'codex-review': [ 'codex/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/office-hours-attempt.ts', 'bin/gstack-codex-probe', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/outside-voice-steps.ts'],
+  'codex-review': [ 'codex/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts', 'bin/gstack-codex-probe', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/outside-voice-steps.ts'],
 
   // Codex E2E (tests skills via Codex CLI + worktree)
   'codex-discover-skill':  ['codex/**', 'scripts/gen-skill-docs.ts', 'test/helpers/codex-session-runner.ts', 'lib/worktree.ts', 'test/codex-e2e.test.ts',
@@ -757,7 +757,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     'test/helpers/coverage-audit-evidence.ts',
     
     'test/fixtures/ship-coverage-audit-af.json','ship/**', 'test/fixtures/coverage-audit-fixture.ts', 'bin/gstack-repo-mode', 'test/skill-e2e-workflow.test.ts',
-     "test/fixtures/coverage-shell-display-aq.json",
+     "test/fixtures/coverage-shell-display-aq.json", "test/fixtures/coverage-audit-sed-context.json",
     'test/helpers/coverage-audit.ts', 'test/helpers/office-hours-attempt.ts',  'scripts/resolvers/testing.ts'
   ],
   'review-coverage-audit': [
@@ -768,7 +768,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     
     "test/fixtures/coverage-checkbox-tail-av.json",
      "test/fixtures/coverage-audit-shell-legend-at.json",'review/**', 'test/fixtures/coverage-audit-fixture.ts', 'test/skill-e2e-coverage-audit.test.ts', 'test/helpers/coverage-audit-evidence.ts',  'test/fixtures/coverage-audit-ae.json',  'test/fixtures/coverage-audit-af.json',
-     "test/fixtures/coverage-shell-display-aq.json",
+     "test/fixtures/coverage-shell-display-aq.json", "test/fixtures/coverage-audit-sed-context.json",
      "test/fixtures/coverage-diagram-legend-as.json",
     'test/helpers/coverage-audit.ts', 'test/helpers/office-hours-attempt.ts' 
   ],
@@ -787,7 +787,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     
     "test/fixtures/plan-scope-recovery-av.json",
      "test/fixtures/coverage-audit-shell-legend-at.json", 'plan-eng-review/**', 'test/fixtures/coverage-audit-fixture.ts', 'test/skill-e2e-coverage-audit.test.ts', 'test/helpers/coverage-audit-evidence.ts',  'test/fixtures/coverage-audit-ae.json',  'test/fixtures/coverage-audit-af.json',
-     "test/fixtures/coverage-shell-display-aq.json",
+     "test/fixtures/coverage-shell-display-aq.json", "test/fixtures/coverage-audit-sed-context.json",
      "test/fixtures/coverage-diagram-legend-as.json",
 
      "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
@@ -850,7 +850,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'diagram-authoring-quality':  ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'diagram/**', 'lib/diagram-render/**', 'lib/aside-render.ts', 'bin/gstack-render.ts', 'test/helpers/aside-available.ts', 'browse/src/**', 'test/helpers/llm-judge.ts', 'test/skill-e2e-diagram.test.ts'],
 
   // gstack-upgrade
-  'gstack-upgrade-happy-path': [ 'gstack-upgrade/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/office-hours-attempt.ts'],
+  'gstack-upgrade-happy-path': [ 'gstack-upgrade/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
 
   // Deploy skills
   'land-and-deploy-workflow':      [ 'land-and-deploy/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-deploy.test.ts'],
