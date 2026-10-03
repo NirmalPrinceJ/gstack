@@ -11,6 +11,13 @@ const correct = (output: string) => {
 };
 
 describe('ship triage label grader', () => {
+  test('grades the two labels the ship triage step itself uses', () => {
+    const triage = fs.readFileSync(path.join(import.meta.dir, '..', 'ship', 'sections', 'tests.md.tmpl'), 'utf8');
+    expect(triage).toMatch(/\bin-branch\b/i);
+    expect(triage).toMatch(/\bpre-existing\b/i);
+    expect(triageLabels('- truncate (string.test.js): in-branch\n- divide (math.test.js): pre-existing'))
+      .toEqual({ string: 'in-branch', math: 'pre-existing' });
+  });
   test.each(['known-good-json.txt', 'known-good-lines.txt'])('accepts %s', (name) => {
     expect(correct(read(name))).toBe(true);
   });

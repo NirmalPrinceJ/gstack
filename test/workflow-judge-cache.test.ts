@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { prepareWorkflowJudgeCache, validWorkflowJudgePanel, validWorkflowJudgeScore, workflowJudgeDependencies, type WorkflowCacheOptions } from './helpers/workflow-judge-cache';
+import { browseJudgeFloorsMet, prepareWorkflowJudgeCache, validWorkflowJudgePanel, validWorkflowJudgeScore, workflowJudgeDependencies, type WorkflowCacheOptions } from './helpers/workflow-judge-cache';
 import { readWorkflowJudgeInput, buildWorkflowJudgePrompt, QA_DISCOVERY_REFERENCES, WORKFLOW_JUDGE_RESPONSE_SCHEMA } from './helpers/workflow-judge-input';
 
 const roots: string[] = [];
@@ -577,3 +577,15 @@ describe('judge panel', () => {
     expect(source).not.toMatch(/\bscores\.reasoning\b|\bresult\.reasoning\b/);
   });
 });
+
+// Stored browse reference panel means against the judge floors.
+{
+  type Scores = { clarity: number; completeness: number; actionability: number };
+  const stored = JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures/browse-judge/panel-means.json'), 'utf8')) as
+    { known_good: Record<string, Scores>; known_bad: Record<string, Scores> };
+
+  describe('browse judge floors', () => {
+    test.each(Object.entries(stored.known_good))('passes %s', (_name, scores) => expect(browseJudgeFloorsMet(scores)).toBe(true));
+    test.each(Object.entries(stored.known_bad))('fails %s', (_name, scores) => expect(browseJudgeFloorsMet(scores)).toBe(false));
+  });
+}
