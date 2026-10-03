@@ -15,7 +15,8 @@ import { generateMakePdfSetup } from '../scripts/resolvers/make-pdf';
 //
 // Each root is built with the real setup shell functions, then the bash block
 // the generator emits for Codex runs in a fresh process (the way Codex runs
-// every shell call).
+// every shell call) with the root named the ways a generated skill may name
+// it: $GSTACK_ROOT, $GSTACK_DESIGN / $GSTACK_MAKE_PDF, or the repo-local path.
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const SETUP_SRC = fs.readFileSync(path.join(ROOT, 'setup'), 'utf-8');
@@ -61,6 +62,15 @@ function run(cmd: string, opts: { cwd: string; env?: Record<string, string> }) {
   return spawnSync('bash', ['-c', cmd], { cwd: opts.cwd, encoding: 'utf-8', timeout: 30000, env });
 }
 
+function rootEnv(sandbox: string, rootDir: string): Record<string, string> {
+  return {
+    HOME: path.join(sandbox, 'home'),
+    GSTACK_ROOT: rootDir,
+    GSTACK_DESIGN: path.join(rootDir, 'design', 'dist'),
+    GSTACK_MAKE_PDF: path.join(rootDir, 'make-pdf', 'dist'),
+  };
+}
+
 interface Built { script: string; rootDir: string; preflight: { cwd: string; env: Record<string, string> } }
 
 const BUILDERS: Record<string, (sandbox: string, src: string) => Built> = {
@@ -71,31 +81,18 @@ const BUILDERS: Record<string, (sandbox: string, src: string) => Built> = {
     return {
       script: `create_codex_runtime_root "${src}" "${rootDir}"`,
       rootDir,
-      preflight: {
-        cwd: outside,
-        env: {
-          HOME: path.join(sandbox, 'home'),
-          GSTACK_DESIGN: path.join(rootDir, 'design', 'dist'),
-          GSTACK_MAKE_PDF: path.join(rootDir, 'make-pdf', 'dist'),
-        },
-      },
+      preflight: { cwd: outside, env: rootEnv(sandbox, rootDir) },
     };
   },
   'agents sidecar': (sandbox, src) => {
     const repo = path.join(sandbox, 'repo');
     fs.mkdirSync(repo, { recursive: true });
     spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30000 });
+    const rootDir = path.join(repo, '.agents', 'skills', 'gstack');
     return {
       script: `SOURCE_GSTACK_DIR="${src}"\ncreate_agents_sidecar "${repo}"`,
-      rootDir: path.join(repo, '.agents', 'skills', 'gstack'),
-      preflight: {
-        cwd: repo,
-        env: {
-          HOME: path.join(sandbox, 'home'),
-          GSTACK_DESIGN: path.join(sandbox, 'missing'),
-          GSTACK_MAKE_PDF: path.join(sandbox, 'missing'),
-        },
-      },
+      rootDir,
+      preflight: { cwd: repo, env: rootEnv(sandbox, rootDir) },
     };
   },
 };
@@ -144,11 +141,7 @@ describe.skipIf(process.platform === 'win32')('setup: Codex roots expose design 
       fs.mkdirSync(path.join(rootDir, 'browse'), { recursive: true });
       const outside = path.join(sandbox, 'not-a-repo');
       fs.mkdirSync(outside, { recursive: true });
-      const env = {
-        HOME: path.join(sandbox, 'home'),
-        GSTACK_DESIGN: path.join(rootDir, 'design', 'dist'),
-        GSTACK_MAKE_PDF: path.join(rootDir, 'make-pdf', 'dist'),
-      };
+      const env = rootEnv(sandbox, rootDir);
       expect(run(DESIGN_PREFLIGHT, { cwd: outside, env }).stdout).toContain('DESIGN_NOT_AVAILABLE');
       expect(run(MAKE_PDF_PREFLIGHT, { cwd: outside, env }).stdout).toContain('MAKE_PDF_NOT_AVAILABLE');
     } finally {
