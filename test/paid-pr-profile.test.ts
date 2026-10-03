@@ -18,7 +18,7 @@ import { resolveModuleSelection } from './helpers/e2e-helpers';
 const ROOT = path.resolve(import.meta.dir, '..');
 const CEO_FILES = [
   'test/skill-e2e-plan.test.ts', 'test/skill-e2e-ask-user-question-format-compliance.test.ts',
-  'test/skill-e2e-retro.test.ts', 'test/skill-llm-eval.test.ts',
+  'test/skill-e2e-retro.test.ts', 'test/skill-llm-eval.test.ts', 'test/skill-e2e-plan-ceo-plan-mode.test.ts',
 ];
 const ceoManifest = () => buildRunManifest({ tier: 'gate', profile: 'pr', sliceCount: 1,
   evalsAll: false, env: {}, changedFiles: ['plan-ceo-review/SKILL.md.tmpl'], discovered: CEO_FILES });
@@ -64,15 +64,16 @@ describe('PR profile paid-runner integration', () => {
     }
   });
 
-  test('planner binds E2E and judge IDs and explicitly defers direct-describe broad probes', () => {
+  test('planner binds E2E and judge IDs and plans the CEO plan-mode probe in the PR lane', () => {
     const manifest = ceoManifest();
     expect(manifest.profile).toBe('pr');
     expect(manifest.selection?.e2e).toContain('auq-format-gate');
-    expect(manifest.selection?.e2e).not.toContain('plan-ceo-review-plan-mode');
+    expect(manifest.selection?.e2e).toContain('plan-ceo-review-plan-mode');
     expect(manifest.selection?.judges).toContain('plan-ceo-review/SKILL.md modes');
     expect(manifest.entries.find(entry => entry.file.includes('skill-e2e-retro'))?.status).toBe('skipped-by-diff');
     expect(manifest.entries.find(entry => entry.file.includes('ask-user-question'))?.status).toBe('planned');
-    expect(manifest.prCoverage?.deferred.some(item => item.id === 'plan-ceo-review-plan-mode')).toBe(true);
+    expect(manifest.prCoverage?.deferred.some(item => item.id === 'plan-ceo-review-plan-mode')).toBe(false);
+    expect(manifest.entries.find(entry => entry.file === 'test/skill-e2e-plan-ceo-plan-mode.test.ts')?.status).toBe('planned');
     expect(parseRunManifest(JSON.stringify(manifest))).toEqual(manifest);
     const env = paidSelectionEnv('pr', manifest.selection!, manifest.selectionReason);
     expect(JSON.parse(env.EVALS_SELECTION_JSON!).selected).toEqual(manifest.selection!.e2e);
