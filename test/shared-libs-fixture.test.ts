@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import {
   createSharedInteractiveToolHandler, createSharedLibsFixture, fixtureGit, fixtureWrite, installSourceShims,
   installHostileGitConfig, isGuardedGitRequest, reviewLifecycleInstructions, standaloneInstructions, SHARED_LIBS_ROOT, readRequests, seedOpportunitySources, sharedReadOnlyViolations, shellQuote, snapshotFixture, type SharedLibsFixture,
-  SharedCaptureAccumulator, type SharedCaptureAttempt, isInternalClaudeGitRequest, SHARED_LIBS_OLDER_OPEN_PRS, incompleteFirstFileView,
+  SharedCaptureAccumulator, type SharedCaptureAttempt, isInternalClaudeGitRequest, SHARED_LIBS_OLDER_OPEN_PRS, incompleteFirstFileView, prCoverageRequestViolations,
 } from './helpers/shared-libs-eval-fixture';
 import { EvalCollector, type EvalTestEntry } from './helpers/eval-store';
 import { collectorOutcomeCounts } from '../scripts/test-paid-shards';
@@ -1075,7 +1075,12 @@ describe('shared-code PR coverage world', () => {
 
   test('the maximum authorized open-metadata scan still leaves older open PRs unchecked', () => {
     const periodic = fs.readFileSync(path.join(import.meta.dir, 'skill-e2e-shared-libs-periodic.test.ts'), 'utf8');
-    expect(periodic).toContain('expect(openPages.length).toBeLessThanOrEqual(5);');
+    expect(periodic).toContain('prCoverageRequestViolations(');
+    const sixth = Array.from({ length: 6 }, (_, i) => `/repos/fixture/shared-libs/pulls?state=open&per_page=100&page=${i + 1}`);
+    expect(prCoverageRequestViolations([...sixth.slice(0, 5), '/repos/fixture/shared-libs/pulls/42/files?page=1',
+      '/repos/fixture/shared-libs/pulls/42/files?page=2'])).toEqual([]);
+    expect(prCoverageRequestViolations([...sixth, '/repos/fixture/shared-libs/pulls/42/files?page=1',
+      '/repos/fixture/shared-libs/pulls/42/files?page=2'])).toEqual(['6 open-PR metadata pages exceed the budget of 5']);
     const f = createSharedLibsFixture('pr-world-budget');
     cleanup.push(f.root);
     seedOpportunitySources(f);
