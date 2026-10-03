@@ -295,7 +295,8 @@ function treeRow(line: string): { depth: number; text: string } | undefined {
       ? { depth: -1, text: line } : undefined;
   }
   // A parallel USER FLOWS column cannot supply CODE PATHS coverage markers.
-  return { depth: match[1]!.length, text: match[2]!.split(/ {3,}(?=[├└+|])/, 1)[0]! };
+  // That column starts at a tree glyph, its wrapped-row rail (│) or a [+] group.
+  return { depth: match[1]!.length, text: match[2]!.split(/ {3,}(?=[├└│|+]|\[\+\])/, 1)[0]! };
 }
 
 const coverageMapCaption = String.raw`[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\.[A-Za-z0-9]+[\t ]+[—–-][\t ]+(?:test[\t ]+)?coverage[\t ]+map`;

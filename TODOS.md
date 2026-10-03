@@ -87,6 +87,18 @@
   by re-running `./setup` from it. Iterate the registry's render column
   instead. **Effort:** S. **Priority:** P3.
 
+- **Judge actionability sits exactly at the 4.0 gate** (P2, from the PR #3014 eval
+  census) — all 24 workflow judges score actionability at 4.0 in nearly every run, so one
+  low sample of three fails the case (qa-only 9/78, qa 6/78, plan-ceo modes 5/78, plan-eng
+  sections 4/78, review 4/70 over 09-27..10-02). The repair is clearer skill text per case
+  (as done for qa in v1.91.14.0), not a lower threshold. Effort M.
+- **`--case` cannot select loop-registered paid cases** (P3) — coverage audits, TPA and
+  plan-mode-no-op register their cases in a loop, so `test-paid-shards.ts --case <id>` runs
+  nothing; teach `fileCaseRegistration` the loop pattern. Effort S.
+- **Mid-response `API Error:` in PTY sessions waits out the whole budget** (P3, policy call) —
+  a dropped connection after the first model turn returns the CLI to an idle prompt and the
+  harness waits 300 s. Decide whether the harness should fail fast and classify it. Effort S.
+
 ### P2/P3: impeccable interop deferrals (filed 2026-09-08, from the CEO + eng reviews of docs/designs/IMPECCABLE_INTEROP.md)
 
 Each item was weighed during the review and deferred with a reason; none blocks

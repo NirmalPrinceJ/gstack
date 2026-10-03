@@ -14,6 +14,7 @@ import fixture_coverage_checkbox_tail_av from './fixtures/coverage-checkbox-tail
 import captured_coverage_diagram_legend_as from './fixtures/coverage-diagram-legend-as.json';
 import fixture_coverage_shell_display_aq from './fixtures/coverage-shell-display-aq.json';
 import billing_coverage_shell_display_aq from './fixtures/coverage-audit-ae.json';
+import captured_parallel_column from './fixtures/coverage-audit-parallel-column.json';
 
 const clone = <T>(v:T):T => structuredClone(v);
 const diagram = '```text\nsrc/billing.ts\n├── processPayment: happy path [TESTED]\n└── refundPayment [UNTESTED]\n```';
@@ -999,4 +1000,22 @@ describe('coverage reads with neighboring display commands', () => {
     }
   });
 });
+});
+
+describe('coverage-audit-parallel-column', () => {
+  const text = captured_parallel_column.output;
+  const diagram = (output: string) => { const s = synthetic(); s.result.output = output; return verdict(s).diagram; };
+  const covered = '[★★  TESTED] Happy path USD — billing.test.ts:6           │          (no test chains the two functions)';
+
+  test('a wrapped USER FLOWS rail beside a covered code path stays in its own column', () => {
+    expect(captured_parallel_column.provenance.recordedPassed).toBe(false);
+    expect(text).toContain(covered);
+    expect(diagram(text)).toBe(true);
+  });
+
+  test('the parallel column still cannot supply or cancel code-path coverage', () => {
+    expect(diagram(text.replace(covered, '[GAP]        Happy path USD — billing.test.ts:6           │          [★★ TESTED] happy USD flow'))).toBe(false);
+    expect(diagram(text.replace(covered, '[GAP]        Happy path USD — billing.test.ts:6           [+] [★★ TESTED] happy USD flow'))).toBe(false);
+    expect(diagram(text.replace(/(refundPayment[\s\S]*?)\n\n/, m => m.replaceAll('[GAP]        ', '[★★ TESTED]  ')))).toBe(false);
+  });
 });
