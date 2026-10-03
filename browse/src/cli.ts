@@ -18,7 +18,7 @@ import { writeSecureFile, mkdirSecure } from './file-permissions';
 import { resolveConfig, ensureStateDir, readVersionHash, isPairAgentEnabled, resolveChromiumProfile } from './config';
 import { parseProxyConfig, computeConfigHash, ProxyConfigError } from './proxy-config';
 import { redactProxyUrl } from './proxy-redact';
-import { spawnTerminalAgent } from './terminal-agent-control';
+import { spawnTerminalAgent, BUN_CHILD_FLAGS } from './terminal-agent-control';
 // Zero side effects on import (documented invariant in token-registry.ts) —
 // safe to pull the shared pairing default into the CLI.
 import { DEFAULT_PAIR_SCOPES } from './token-registry';
@@ -658,7 +658,7 @@ async function startServer(extraEnv?: Record<string, string>): Promise<ServerSta
     // (PPID=1, STAT=Ss) and survives the spawning shell's exit. Mirrors
     // the Windows path's rationale — same root cause, different OS API.
     const daemonLogFd = openDaemonLogSink();
-    const child = nodeSpawn('bun', ['run', SERVER_SCRIPT], {
+    const child = nodeSpawn('bun', [...BUN_CHILD_FLAGS, 'run', SERVER_SCRIPT], {
       detached: true,
       windowsHide: true,
       stdio: ['ignore', daemonLogFd, daemonLogFd],
