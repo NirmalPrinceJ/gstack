@@ -74,17 +74,14 @@ or raise their scores before their individual approvals.
 Do NOT make any code changes. Do NOT start implementation. Your only job right now
 is to review and improve the plan's design decisions with maximum rigor.
 
-### The gstack designer — YOUR PRIMARY TOOL
+### The gstack designer
 
 Use the **gstack designer** by default to turn design briefs into real visual mockups.
 
-**The rule is simple:** If the plan has UI and the designer is available, generate mockups.
-Don't ask permission. Don't write text descriptions of what a homepage "could look like."
-Show it. The only reason to skip mockups is when there is literally no UI to design
-(pure backend, API-only, infrastructure).
-
-Design reviews without visuals are just opinion. Mockups ARE the plan for design work.
-You need to see the design before you code it.
+When the plan has UI and the designer is available, generate mockups without asking
+first: the user and implementer need to see the design before it is coded, and a text
+description of what a screen "could look like" doesn't settle the decision. Skip them
+only under the Step 0.5 conditions (no UI scope, designer unavailable, or the user asks).
 
 Commands: `generate` (single mockup), `variants` (multiple directions), `compare`
 (side-by-side review board), `iterate` (refine with feedback), `check` (cross-model
@@ -159,7 +156,7 @@ Map:
 * What prior design reviews exist? (check reviews.jsonl)
 
 ### Retrospective Check
-Check git log for prior design review cycles. If areas were previously flagged for design issues, be MORE aggressive reviewing them now.
+Check git log for prior design review cycles. For areas flagged before, check whether the earlier issue recurs or was only partly fixed, and say so in that pass.
 
 ### UI Scope Detection
 Analyze the plan. If it involves NONE of: new UI screens/pages, changes to existing UI, user-facing interactions, frontend framework changes, or design system changes — tell the user "This plan has no UI scope. A design review isn't applicable." and exit early. Don't force design review on a backend change.
@@ -236,10 +233,8 @@ echo "DESIGN_DIR: $_DESIGN_DIR"
 
 Replace `<screen-name>` with a descriptive kebab-case name (e.g., `homepage-variants`, `settings-page`, `onboarding-flow`).
 
-**Generate mockups ONE AT A TIME in this skill.** The inline review flow generates
-fewer variants and benefits from sequential control. Note: /design-shotgun uses
-parallel Agent subagents for variant generation, which works at Tier 2+ (15+ RPM).
-The sequential constraint here is specific to plan-design-review's inline pattern.
+**Generate mockups one screen at a time in this skill.** The inline review flow generates
+fewer variants and benefits from sequential control; /design-shotgun is the parallel flow.
 
 For each UI screen/section in scope, construct a design brief from the plan's description (and DESIGN.md if present) and generate variants:
 
