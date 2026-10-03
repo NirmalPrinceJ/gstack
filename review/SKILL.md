@@ -651,6 +651,7 @@ From the installed /review SKILL.md's directory, choose one path:
 - If the caller directory is prefixed `gstack-review`, use `../gstack-qa/sections/exploratory.md` instead and read it in full.
 - If neither layout applies, report an unresolved QA installation as a setup blocker; do not guess another path.
 Use this host's installation, never the product tree. If missing or unreadable, report a QA setup blocker and its affected probes as blocked; continue other safe probes (independent functional/static checks). Missing/unreadable assets block required QA.
+Reading exploratory.md does not complete them: when it returns, Read the scope section and selected surface methods it lists, in order, and await them.
 
 Resolve QA's `sections/...` and `templates/...` paths from that installed QA SKILL.md directory, not the caller or product directory.
 
@@ -788,7 +789,7 @@ Only the parent runs report-only discovery.
 Never overwrite another run's reports. Batch only independent Reads.
 
 **1. Set the charter and isolation.**
-Reuse Step 4's surfaces and completed Reads. Finish missing methods before charters; do not repeat completed Reads.
+Reuse Step 4's surfaces and completed Reads. Finish any missing scope/method Reads before charters, setup or probes; do not repeat completed Reads.
 Write the Charter and complete the shared isolation/permission preflight before setup.
 
 **2. Check readiness and list required checks.**

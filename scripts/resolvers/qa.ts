@@ -231,6 +231,7 @@ export function generateQAReviewPreflight(ctx: TemplateContext): string {
   return `> **STOP.** Before any probe, including plan checks, complete the ordered scope/method Reads below and await them. Templates cannot replace them.
 ${ctx.skillName === 'review' ? 'Step 4 is read-only: defer charters, setup and probes to Step 4.7.\n' : ''}
 {{QA_RESOURCE:exploratory}}
+Reading exploratory.md does not complete them: when it returns, Read the scope section and selected surface methods it lists, in order, and await them.
 
 Resolve QA's \`sections/...\` and \`templates/...\` paths from that installed QA SKILL.md directory, not the caller or product directory.`;
 }
@@ -246,7 +247,7 @@ Never overwrite another run's reports. Batch only independent Reads.
 ${ship ? `**1. Load methods before any QA or explicit-verification probe.**
 
 ${generateQAReviewPreflight(ctx)}` : `**1. Set the charter and isolation.**
-Reuse Step 4's surfaces and completed Reads. Finish missing methods before charters; do not repeat completed Reads.
+Reuse Step 4's surfaces and completed Reads. Finish any missing scope/method Reads before charters, setup or probes; do not repeat completed Reads.
 Write the Charter and complete the shared isolation/permission preflight before setup.`}
 
 **2. ${ship ? 'List required checks.' : 'Check readiness and list required checks.'}**

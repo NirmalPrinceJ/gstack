@@ -780,7 +780,7 @@ const INSTALL_OR_OVERRIDE = /\bnpx\b|gstack-design-detect\.ts install|\b(?:curl|
 /** A quoted-delimiter heredoc body is literal data, so a report that says
  * "no npx" is not an npx run. Unquoted bodies still expand and stay checked;
  * an unterminated body keeps the whole command checked. */
-function commandRunsInstallOrOverride(command: string): boolean {
+function executedShellText(command: string): string {
   const kept: string[] = [];
   let delimiter: string | undefined, tabs = false;
   for (const line of command.split('\n')) {
@@ -792,8 +792,53 @@ function commandRunsInstallOrOverride(command: string): boolean {
     const quoted = /<<(-)?[ \t]*(?:'([^'\n]+)'|"([^"\n]+)"|\\(\w+))/.exec(line);
     if (quoted) { delimiter = quoted[2] ?? quoted[3] ?? quoted[4]; tabs = !!quoted[1]; }
   }
-  return INSTALL_OR_OVERRIDE.test(delimiter === undefined ? kept.join('\n') : command);
+  return delimiter === undefined ? kept.join('\n') : command;
 }
+
+function commandRunsInstallOrOverride(command: string): boolean {
+  return INSTALL_OR_OVERRIDE.test(executedShellText(command));
+}
+
+const SOURCE_SCAN = /gstack-design-detect\.ts scan --changed (?:main|'main'|"main"|"?\$\{?\w+\}?"?)(?=[\s;]|$)/;
+
+/** CI 37111582659 (6fb8ea3d): the model resolved the base through the excerpt's gh fallback and
+ * scanned `--changed "$_BASE"`. The command proves the detector scan ran; the engine's single
+ * invocation over exactly the files changed vs main proves its base resolved to main. */
+function sourceScanAgainstMain(commands: string[], invocations: string[], repoDir: string): boolean {
+  if (!commands.some(command => SOURCE_SCAN.test(executedShellText(command))) || invocations.length !== 1) return false;
+  const argv = (JSON.parse(invocations[0]!) as { argv?: unknown }).argv;
+  if (!Array.isArray(argv) || argv[0] !== 'detect' || argv[1] !== '--json') return false;
+  const root = fs.realpathSync(repoDir);
+  const targets = argv.slice(2).map(target => fs.existsSync(String(target)) ? path.relative(root, fs.realpathSync(String(target))) : '');
+  return targets.join() === 'index.html,styles.css';
+}
+
+if (!evalsEnabled) test('plugin handoff credits an executed source scan whose base resolved to main', () => {
+  const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'plugin-scan-replay-'));
+  try {
+    for (const file of ['index.html', 'styles.css', 'other.css']) fs.writeFileSync(path.join(repoDir, file), '');
+    const engine = (...files: string[]) => JSON.stringify({ argv: ['detect', '--json', ...files.map(file => path.join(repoDir, file))], cwd: repoDir, stdinIsTTY: false });
+    const detect = '/__w/gstack/gstack/bin/gstack-design-detect.ts';
+    // Captured CI 37111582659 command (paths shortened): gh fallback resolved _BASE=main.
+    const captured = `_BASE=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || true); if [ -z "$_BASE" ]; then _BASE=main; fi; git diff --name-only "$_BASE"...HEAD; _DJ=$(mktemp); bun --no-env-file run ${detect} scan --changed "$_BASE" --format gstack --host claude > "$_DJ" 2>/tmp/scan-stderr.txt; echo "DETECT_EXIT_CODE=$?"`;
+    const literal = `_DJ=$(mktemp); bun --no-env-file run ${detect} scan --changed main --format gstack --host claude > "$_DJ"; echo "DETECT_EXIT_CODE=$?"`;
+    const reportOnly = `cat > detector-output.md <<'EOF'\nScan: \`bun --no-env-file run ${detect} scan --changed main --format gstack --host claude\`\nEOF`;
+    expect(sourceScanAgainstMain([captured], [engine('index.html', 'styles.css')], repoDir)).toBe(true);
+    expect(sourceScanAgainstMain([literal, reportOnly], [engine('index.html', 'styles.css')], repoDir)).toBe(true);
+    expect(sourceScanAgainstMain([literal.replace('--changed main', "--changed 'main'")], [engine('index.html', 'styles.css')], repoDir)).toBe(true);
+    // Negative controls: quoted report text, another literal base, a base that resolved elsewhere, no or extra engine runs, a direct engine call.
+    expect(sourceScanAgainstMain([reportOnly], [engine('index.html', 'styles.css')], repoDir)).toBe(false);
+    expect(sourceScanAgainstMain([literal.replace('--changed main', '--changed HEAD~1')], [engine('index.html', 'styles.css')], repoDir)).toBe(false);
+    expect(sourceScanAgainstMain([captured], [engine('styles.css')], repoDir)).toBe(false);
+    expect(sourceScanAgainstMain([captured], [engine('index.html', 'other.css', 'styles.css')], repoDir)).toBe(false);
+    expect(sourceScanAgainstMain([captured], [], repoDir)).toBe(false);
+    expect(sourceScanAgainstMain([captured], [engine('index.html', 'styles.css'), engine('index.html', 'styles.css')], repoDir)).toBe(false);
+    expect(sourceScanAgainstMain(['impeccable detect --json index.html styles.css'], [engine('index.html', 'styles.css')], repoDir)).toBe(false);
+    expect(sourceScanAgainstMain([literal.replace('--changed main', '--changed mainline')], [engine('index.html', 'styles.css')], repoDir)).toBe(false);
+  } finally {
+    fs.rmSync(repoDir, { recursive: true, force: true });
+  }
+});
 
 if (!evalsEnabled) test('plugin handoff counts executed install commands, not quoted report text', () => {
   // PR lane 36794871032: the report heredoc said "no `npx impeccable`" and failed noInstallOrOverride.
@@ -965,7 +1010,7 @@ Write the probe's first line and skill-presence line, then one FINDING-NNN entry
         skillPresent: outputs.includes('IMPECCABLE_SKILL: present'),
         probeReported: report.includes(`IMPECCABLE_READY: ${fixture.engines['4.10.0']}`) && report.includes('IMPECCABLE_SKILL: present'),
         probeExecuted: commands.some(command => /gstack-design-detect\.ts probe/.test(command)),
-        scanExecuted: commands.some(command => /gstack-design-detect\.ts scan --changed main/.test(command)),
+        scanExecuted: sourceScanAgainstMain(commands, invocations, fixture.repoDir),
         noInstallOrOverride: !commands.some(commandRunsInstallOrOverride),
         oneNewEngineInvocation: invocations.length === 1,
         oldEngineNotExecuted: !fs.existsSync(path.join(fixture.dir, '4.3.1.jsonl')),
