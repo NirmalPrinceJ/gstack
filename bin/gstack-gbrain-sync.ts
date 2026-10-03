@@ -45,6 +45,7 @@ import { buildGbrainEnv, spawnGbrain, spawnGbrainAsync, execGbrainJson, NEEDS_SH
 import { repoPolicyTier as sharedRepoPolicyTier } from "../lib/gbrain-repo-policy-client";
 import { checkOwnedStagingDir } from "../lib/staging-guard";
 import { resolveStateRoot } from "../lib/state-root";
+import { normalizeTranscriptConsent, type TranscriptConsent } from "./gstack-memory-ingest";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,16 @@ interface StageResult {
   detail?: CodeStageDetail;
   /** Memory stage: the type selection its ingest staged (resume must match it). */
   memory_sources?: string[];
+  /** Memory stage: transcript consent read at sync start (resume must match it). */
+  transcript_consent?: TranscriptConsentRecord;
+}
+
+interface TranscriptConsentRecord {
+  /** Normalized transcript_ingest_mode: recent | all | off | not-set | legacy | unrecognized. */
+  mode: string;
+  window: "recent" | "all" | null;
+  /** Why transcripts were not ingested; absent when they were. */
+  skip_reason?: string;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -253,6 +264,59 @@ export function selectMemorySources(
   };
 }
 
+export interface ConsentedSelection {
+  /** Value for the ingest's --sources flag; null = let the ingest walk its default. */
+  sources: string[] | null;
+  /** Types this run stages (recorded for resume). */
+  selected: string[];
+  /** Transcripts are ingested only because an explicit list names them. */
+  override: boolean;
+  why: string;
+}
+
+/**
+ * Apply transcript consent to a memory source selection. Without consent
+ * (anything but `recent` or `all`), transcript is removed and the remaining
+ * types are passed as an explicit list, so a config change made while the
+ * sync runs cannot add transcripts to this run. Only an explicit --sources or
+ * GSTACK_MEMORY_INGEST_SOURCES list that names transcript overrides that;
+ * `all`, empty and invalid-only values resolve to null and do not.
+ */
+export function applyTranscriptConsent(selection: MemorySourceSelection, consent: TranscriptConsent): ConsentedSelection {
+  const explicit = selection.why === "--sources" || selection.why === "GSTACK_MEMORY_INGEST_SOURCES";
+  const override = !consent.affirmative && explicit && !!selection.sources?.includes("transcript");
+  if (consent.affirmative || override) {
+    return { sources: selection.sources, selected: selection.sources ?? [...MEMORY_INGEST_TYPES], override, why: selection.why };
+  }
+  const selected = (selection.sources ?? [...MEMORY_INGEST_TYPES]).filter((t) => t !== "transcript");
+  return { sources: selected, selected, override: false, why: `${selection.why}; no transcript consent (${consent.reason})` };
+}
+
+export const TRANSCRIPT_CHOICE_HINT =
+  "To choose: run /sync-gbrain, or gstack-config set transcript_ingest_mode recent|all|off. Details: setup-gbrain/memory.md#transcripts";
+
+/**
+ * The stderr notice for a run that does not ingest transcripts by consent.
+ * Returns null when nothing should print: consent given, or a stored `off`
+ * under --quiet.
+ */
+export function transcriptConsentNotice(consent: TranscriptConsent, quiet: boolean, override: string | null = null): string | null {
+  if (consent.affirmative) return null;
+  const value = consent.value ?? "not set";
+  if (override) {
+    return `gbrain-sync: transcripts ingested because ${override} names transcript (transcript_ingest_mode=${value}). ${TRANSCRIPT_CHOICE_HINT}`;
+  }
+  if (consent.reason === "off") return quiet ? null : "gbrain-sync: transcripts off (your choice)";
+  return `gbrain-sync: transcripts skipped (transcript_ingest_mode=${value}). Other memory still syncs. ${TRANSCRIPT_CHOICE_HINT}`;
+}
+
+/** The consent record a memory stage stores; resume requires mode and window to match. */
+export function transcriptConsentRecord(consent: TranscriptConsent, override: boolean): TranscriptConsentRecord {
+  const record: TranscriptConsentRecord = { mode: consent.reason, window: consent.window };
+  if (!consent.affirmative && !override) record.skip_reason = consent.reason;
+  return record;
+}
+
 /**
  * Parse a stage-timeout env value with bounds validation. Returns the bounded
  * value or the default with a stderr warning if the env was malformed or
@@ -382,7 +446,13 @@ Options:
                        ${MEMORY_INGEST_TYPES.join(",")}.
                        Env: GSTACK_MEMORY_INGEST_SOURCES. Default: every type
                        except ${FEDERATED_CURATED_TYPES.join(",")} when a federated
-                       gstack source already indexes them (#2922).
+                       gstack source already indexes them, and except
+                       transcript unless transcript_ingest_mode is recent
+                       (last 90 days) or all (all history; --full passes
+                       --all-history). Without that consent each run prints a
+                       notice, even with --quiet. A list naming transcript
+                       overrides the mode for that run. See
+                       setup-gbrain/memory.md#transcripts.
   --help               This text.
 
 Stages run in order: code → memory ingest → curated git push, then (lock-free)
@@ -1400,11 +1470,18 @@ export function ensureGbrainSourceGitignored(root: string): void {
   }
 }
 
-function runMemoryIngest(args: CliArgs, previous: SyncState): StageResult {
+function printTranscriptNotice(args: CliArgs, consent: TranscriptConsent, selection: ConsentedSelection, why: string): void {
+  const notice = transcriptConsentNotice(consent, args.quiet, selection.override ? why : null);
+  if (notice) console.error(notice);
+}
+
+function runMemoryIngest(args: CliArgs, previous: SyncState, consent: TranscriptConsent): StageResult {
   const t0 = Date.now();
 
   if (args.mode === "dry-run") {
-    const preview = selectMemorySources(args.memorySources, process.env, false);
+    const raw = selectMemorySources(args.memorySources, process.env, false);
+    const preview = applyTranscriptConsent(raw, consent);
+    printTranscriptNotice(args, consent, preview, raw.why);
     const flag = preview.sources ? ` --sources ${preview.sources.join(",")}` : "";
     return { name: "memory", ran: false, ok: true, duration_ms: 0, summary: `would: gstack-memory-ingest --probe${flag} (${preview.why})` };
   }
@@ -1427,17 +1504,30 @@ function runMemoryIngest(args: CliArgs, previous: SyncState): StageResult {
   // staging dir. If the staging dir is gone (disk pressure cleanup, OS
   // reboot, user manual cleanup), warn and fall through to a fresh restage.
   const childEnv = buildGbrainEnv({ announce: false });
-  const selection = selectMemorySources(args.memorySources, childEnv, true);
-  const selected = selection.sources ?? [...MEMORY_INGEST_TYPES];
+  const raw = selectMemorySources(args.memorySources, childEnv, true);
+  const selection = applyTranscriptConsent(raw, consent);
+  const selected = selection.selected;
+  const consentRecord = transcriptConsentRecord(consent, selection.override);
+  printTranscriptNotice(args, consent, selection, raw.why);
   let resume = decideResume();
   if (resume.kind === "resume") {
-    // The staging dir holds whatever the checkpointed run selected; resuming
-    // it under a different selection would import types the user excluded.
-    // Runs recorded before #2922 walked every type.
-    const staged = previous.last_stages?.find((st) => st.name === "memory")?.memory_sources ?? [...MEMORY_INGEST_TYPES];
+    // The staging dir holds whatever the checkpointed run selected under its
+    // transcript consent; resuming it under a different selection or consent
+    // would import pages the user excluded. Runs recorded before #2922 walked
+    // every type; runs recorded before the consent record walked the 90-day
+    // transcript window.
+    const prevStage = previous.last_stages?.find((st) => st.name === "memory");
+    const staged = prevStage?.memory_sources ?? [...MEMORY_INGEST_TYPES];
+    const prevConsent = prevStage?.transcript_consent ?? { mode: "recent", window: "recent" };
     if ([...staged].sort().join(",") !== [...selected].sort().join(",")) {
       console.error(
         `[sync:memory] memory source selection changed since the checkpointed run (${staged.join(",")} → ${selected.join(",")}); restaging from scratch.`,
+      );
+      resume = { kind: "no-checkpoint" };
+    }
+    if (prevConsent.mode !== consentRecord.mode || prevConsent.window !== consentRecord.window) {
+      console.error(
+        `gbrain-sync: transcript consent changed since the interrupted import (${prevConsent.mode} → ${consentRecord.mode}); restaging memory from scratch once.`,
       );
       resume = { kind: "no-checkpoint" };
     }
@@ -1464,6 +1554,7 @@ function runMemoryIngest(args: CliArgs, previous: SyncState): StageResult {
   const ingestArgs = ["run", ingestPath];
   if (args.mode === "full") ingestArgs.push("--bulk");
   else ingestArgs.push("--incremental");
+  if (args.mode === "full" && consent.window === "all") ingestArgs.push("--all-history");
   if (args.quiet) ingestArgs.push("--quiet");
   if (selection.sources) ingestArgs.push("--sources", selection.sources.join(","));
   if (!args.quiet) console.error(`[sync:memory] sources: ${selected.join(",")} (${selection.why})`);
@@ -1507,6 +1598,7 @@ function runMemoryIngest(args: CliArgs, previous: SyncState): StageResult {
       ? summary
       : `${summary}${result.status === null ? " (killed by signal / timeout)" : ` (exit ${result.status})`}`,
     memory_sources: selected,
+    transcript_consent: consentRecord,
   };
 }
 
@@ -1869,6 +1961,9 @@ export function formatStage(s: StageResult): string {
 
 async function main(): Promise<void> {
   const args = parseArgs();
+  // Read once at sync start: a config change made while the sync runs never
+  // adds transcripts to this run.
+  const consent = args.noMemory ? null : normalizeTranscriptConsent();
 
   if (!args.quiet) {
     const engine = detectEngineTier();
@@ -1904,7 +1999,7 @@ async function main(): Promise<void> {
       stages.push(await withErrorContext("sync:code", () => runCodeImport(args), "gstack-gbrain-sync"));
     }
     if (!args.noMemory) {
-      stages.push(await withErrorContext("sync:memory", () => runMemoryIngest(args, state), "gstack-gbrain-sync"));
+      stages.push(await withErrorContext("sync:memory", () => runMemoryIngest(args, state, consent!), "gstack-gbrain-sync"));
     }
     if (!args.noBrainSync) {
       stages.push(await withErrorContext("sync:brain-sync", () => runBrainSyncPush(args), "gstack-gbrain-sync"));

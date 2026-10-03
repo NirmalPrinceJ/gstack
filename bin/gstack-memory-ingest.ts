@@ -72,7 +72,7 @@ import { execGbrainText, spawnGbrainAsync } from "../lib/gbrain-exec";
 import { writeReceipt } from "../lib/egress-receipt";
 import { checkOwnedStagingDir, STAGING_MARKER } from "../lib/staging-guard";
 import { hasRepoPolicyStore, repoPolicyTierBatch } from "../lib/gbrain-repo-policy-client";
-import { resolveStateRoot } from "../lib/state-root";
+import { resolveStateRoot, readConfigKeyWithRoot, type StateRootEnv } from "../lib/state-root";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -202,6 +202,45 @@ const ALL_TYPES: MemoryType[] = [
   "builder-profile-entry",
 ];
 
+// ── Transcript consent ─────────────────────────────────────────────────────
+
+export interface TranscriptConsent {
+  /** True only for a stored `recent` or `all`. */
+  affirmative: boolean;
+  /** Transcript walk window when affirmative: `recent` = last 90 days, `all` = all history. */
+  window: "recent" | "all" | null;
+  /**
+   * Normalized mode: the window when affirmative; otherwise why transcripts
+   * are skipped. `legacy` covers the old gate letters (A-E) and `incremental`,
+   * which predate the consent rule and need a new choice.
+   */
+  reason: "recent" | "all" | "off" | "not-set" | "legacy" | "unrecognized";
+  /** The stored value as read (null when the key is absent). */
+  value: string | null;
+}
+
+let cachedConsent: TranscriptConsent | null = null;
+
+/**
+ * Read `transcript_ingest_mode` once per process (same parse as
+ * `gstack-config has` + `get`) and decide whether transcripts may be ingested.
+ * Only `recent` and `all` are consent. An absent key, `off`, a legacy value
+ * and anything unrecognized are not. Pass `env` to bypass the per-process cache.
+ */
+export function normalizeTranscriptConsent(env?: StateRootEnv): TranscriptConsent {
+  if (!env && cachedConsent) return cachedConsent;
+  const value = readConfigKeyWithRoot("transcript_ingest_mode", env ?? process.env).value;
+  const v = (value ?? "").trim().toLowerCase();
+  let consent: TranscriptConsent;
+  if (value === null) consent = { affirmative: false, window: null, reason: "not-set", value };
+  else if (v === "recent" || v === "all") consent = { affirmative: true, window: v, reason: v, value };
+  else if (v === "off") consent = { affirmative: false, window: null, reason: "off", value };
+  else if (/^[a-e]$/.test(v) || v === "incremental") consent = { affirmative: false, window: null, reason: "legacy", value };
+  else consent = { affirmative: false, window: null, reason: "unrecognized", value };
+  if (!env) cachedConsent = consent;
+  return consent;
+}
+
 // ── CLI ────────────────────────────────────────────────────────────────────
 
 function printUsage(): void {
@@ -218,6 +257,9 @@ Options:
   --include-unattributed  Ingest sessions with no resolvable git remote.
   --all-history        Walk transcripts older than 90 days too.
   --sources <list>     Comma-separated subset: ${ALL_TYPES.join(",")}
+                       Default: every type, minus transcript unless
+                       transcript_ingest_mode is recent (90 days) or all
+                       (all history). A list naming transcript overrides it.
   --limit <N>          Stop after N pages written (smoke testing).
   --no-write           Skip gbrain put calls (still updates state file).
                        Used by tests + dry runs without actual ingest.
@@ -237,6 +279,7 @@ function parseArgs(): CliArgs {
   let allHistory = false;
   let limit: number | null = null;
   let sources: Set<MemoryType> = new Set(ALL_TYPES);
+  let sourcesExplicit = false;
   let noWrite = process.env.GSTACK_MEMORY_INGEST_NO_WRITE === "1";
   let scanSecrets = process.env.GSTACK_MEMORY_INGEST_SCAN_SECRETS === "1";
 
@@ -266,6 +309,7 @@ function parseArgs(): CliArgs {
           console.error(`--sources must include at least one of: ${ALL_TYPES.join(",")}`);
           process.exit(1);
         }
+        sourcesExplicit = true;
         break;
       }
       case "--help":
@@ -278,6 +322,15 @@ function parseArgs(): CliArgs {
         process.exit(1);
     }
   }
+
+  const consent = normalizeTranscriptConsent();
+  if (!sourcesExplicit && !consent.affirmative) {
+    sources.delete("transcript");
+    if (!quiet) {
+      console.error(`gstack-memory-ingest: transcripts skipped (transcript_ingest_mode=${consent.value ?? "not set"}); set it to recent or all, or pass --sources transcript.`);
+    }
+  }
+  if (consent.window === "all") allHistory = true;
 
   return { mode, quiet, benchmark, includeUnattributed, allHistory, sources, limit, noWrite, scanSecrets };
 }
