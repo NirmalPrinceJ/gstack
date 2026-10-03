@@ -4734,7 +4734,7 @@ describe('scope-gate exceptions drift-guard', () => {
   const normalizeTargetPolicy = (block: string) => block
     .split('\n').filter(line => /^[12]\. /.test(line)).join('\n')
     .replace(/ Announce (?:it|an auto-selected plan) in one line so the user can interrupt: "Scope gate: plan mode — auto-selected B \(reviewing <target>\)\."/g, '')
-    .replace(' Then run the pre-review audit, mockups, and Step 0 against that plan.', '')
+    .replace(/ Then run the pre-review audit, .*? against that plan\./, '')
     .replace('a path, a page, a doc they pasted,', 'a path, a doc they pasted,');
 
   test('eng and design retain the same target-selection policy across distinct startup sequences', () => {

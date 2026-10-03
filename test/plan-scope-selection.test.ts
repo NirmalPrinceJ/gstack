@@ -613,7 +613,10 @@ test('entry binds a current target and delays bootstrap until scope resolves', (
   expect(scope).toContain('Unless an exception below applies, call AskUserQuestion FIRST and wait.');
   expect(scope).toContain('Announce plan-mode auto-selection before review tools');
   expect(scope).toContain('A fresh declaration for this invocation may precede skill loading');
-  expect(scope).toContain('After resolution: preamble → base branch → audit → mockups → Step 0.');
+  // Order after resolution: preamble, base branch, audit, Step 0, then Step 0.5 mockups.
+  const order = scope.slice(scope.indexOf('After resolution:')).split('\n')[0]!;
+  const steps = ['preamble', 'base branch', 'audit', 'Step 0', 'mockups'].map(step => order.indexOf(step));
+  expect(steps.every((offset, i) => offset >= 0 && (i === 0 || offset > steps[i - 1]!))).toBe(true);
   expect(scope).toContain('Preamble “run first” is subordinate to this gate.');
 });
 
