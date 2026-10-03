@@ -22,6 +22,7 @@ import type { Host, TemplateContext } from './resolvers/types';
 import { HOST_PATHS } from './resolvers/types';
 import { RESOLVERS } from './resolvers/index';
 import { usesLazySections } from './resolvers/sections';
+import { insertRuntimePreludes } from './resolvers/runtime-root';
 import { ALL_HOST_NAMES, resolveHostArg, getHostConfig } from '../hosts/index';
 import type { HostConfig } from './host-config';
 
@@ -839,7 +840,7 @@ function processTemplate(tmplPath: string, host: Host, options: RenderOptions): 
 
   // --out-dir: repoint section-base paths to the out-dir (no-op otherwise).
   if (host === 'claude') content = rewriteSectionBase(content, options.contentLinkRoot);
-  content = rewriteInstallRoot(content, currentHostConfig, options.installRoot);
+  content = rewriteInstallRoot(insertRuntimePreludes(content, ctx), currentHostConfig, options.installRoot);
 
   return { outputPath, content, symlinkLoop, metadata };
 }
@@ -885,7 +886,7 @@ function processSectionTemplate(
     // repoint those to the out-dir too (no-op when --out-dir is unset).
     content = rewriteSectionBase(content, options.contentLinkRoot);
   }
-  content = rewriteInstallRoot(content, hostConfig, options.installRoot);
+  content = rewriteInstallRoot(insertRuntimePreludes(content, ctx), hostConfig, options.installRoot);
 
   // Plain generated header (no frontmatter to insert after).
   content = GENERATED_HEADER.replace('{{SOURCE}}', path.basename(sectionTmplPath)) + content;
