@@ -1660,9 +1660,17 @@ if [ "$NEEDS_BUILD" -eq 1 ]; then
   if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
     # CSO artifacts are signed and verified inside build-cso's staged generation;
     # mutating them here would break its launcher-last publication guarantee.
+    # B4 (#1254): every binary is backed up first and restored as built when
+    # re-signing fails, so a failed codesign never leaves a half-signed file.
     for _bin in browse/dist/browse browse/dist/find-browse design/dist/design make-pdf/dist/pdf bin/gstack-global-discover; do
       _bin_path="$SOURCE_GSTACK_DIR/$_bin"
       [ -f "$_bin_path" ] && [ -x "$_bin_path" ] || continue
+      _bin_bak="$_bin_path.gstack-presign.$$"
+      if ! cp -p "$_bin_path" "$_bin_bak" 2>/dev/null; then
+        rm -f "$_bin_bak"
+        log "note: could not back up $_bin before re-signing; left it as built"
+        continue
+      fi
       # Strip any trailing bytes past LC_CODE_SIGNATURE so codesign can re-sign.
       # otool prints the signature's dataoff+datasize; if the file is larger,
       # the extra bytes are Bun padding that breaks strict validation.
@@ -1676,17 +1684,25 @@ if [ "$NEEDS_BUILD" -eq 1 ]; then
         [ -n "$_trunc_tmp" ] && rm -f "$_trunc_tmp"
       fi
       codesign --remove-signature "$_bin_path" 2>/dev/null || true
-      if ! codesign -s - -f "$_bin_path" 2>/dev/null; then
-        # Re-sign failed. Only warn if the binary genuinely cannot execute
-        # (SIGKILL = exit 137). Otherwise Bun's adhoc code-page signature still
-        # runs fine and the codesign --verify miss is cosmetic. set -e safe.
-        _probe_rc=0
-        "$_bin_path" --help >/dev/null 2>&1 || _probe_rc=$?
-        if [ "$_probe_rc" -eq 137 ]; then
-          log "warning: codesign failed for $_bin and it is SIGKILL'd on exec (exit 137) — it may not run on Apple Silicon"
-        else
-          log "note: codesign could not re-sign $_bin, but it executes fine (Bun adhoc signature); continuing"
-        fi
+      _signed=1
+      if codesign -s - -f "$_bin_path" 2>/dev/null; then
+        rm -f "$_bin_bak"
+      else
+        _signed=0
+        mv -f "$_bin_bak" "$_bin_path"
+      fi
+      # Exec probe: after a failed re-sign (the restored binary as built), and
+      # always for design, whose skills trust a binary that starts. Only
+      # SIGKILL (exit 137) means it cannot run; set -e safe.
+      [ "$_signed" -eq 0 ] || [ "$_bin" = design/dist/design ] || continue
+      _probe_rc=0
+      "$_bin_path" --help >/dev/null 2>&1 || _probe_rc=$?
+      if [ "$_probe_rc" -eq 137 ] && [ "$_bin" = design/dist/design ]; then
+        echo "  design unavailable: $_bin_path is killed at launch (exit 137) after re-signing, usually an invalid code signature. Design skills will report DESIGN_NOT_AVAILABLE. Fix: cd $SOURCE_GSTACK_DIR && ./setup" >&2
+      elif [ "$_probe_rc" -eq 137 ]; then
+        log "warning: codesign failed for $_bin and it is SIGKILL'd on exec (exit 137) — it may not run on Apple Silicon"
+      elif [ "$_signed" -eq 0 ]; then
+        log "note: codesign could not re-sign $_bin; restored it as built, and it executes fine (Bun adhoc signature); continuing"
       fi
     done
   fi
