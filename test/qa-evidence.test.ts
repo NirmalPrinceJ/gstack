@@ -436,6 +436,34 @@ test('a superseded row closes only when the same native probe was rerun on the c
   expect(materialize(row('001', 'superseded'), row('002', 'pass'), row('003', 'pass'))).toEqual({ status: 'pass', open: [] });
 });
 
+test('every capture after an input change names the commands still to rerun, until each has run on current inputs', () => {
+  // gate-census-6 of run 37158847998: the fixture locale changed after captures 001 and 002; the agent reran
+  // only input 9, materialized once with capture 001 still open, and the published verdict stayed inconclusive.
+  const f = fixture();
+  const hypothesis = 'The input snapshot changed, so the earlier probes must be rerun on current inputs next.';
+  const program = (input: string) => `console.log(JSON.stringify({ snapshot: require('node:fs').readFileSync('snap', 'utf8'), input: '${input}' }))`;
+  const probe = (id: string, after: string, input: string) => receipt(f.run('capture', f.root, id, '--timeout-ms', '4000', '--after', after, '--hypothesis', hypothesis, '--', process.execPath, '-e', program(input)).stdout);
+  const command = (input: string) => [process.execPath, '-e', program(input)].join(' ');
+  fs.writeFileSync(path.join(f.root, 'snap'), 'C');
+  expect(receipt(f.capture('001', program('3')).stdout).revalidate).toBeUndefined();
+  expect(probe('002', '001', '9').revalidate).toBeUndefined();
+  fs.writeFileSync(path.join(f.root, 'snap'), 'POSIX');
+  const changed = probe('003', '002', '10');
+  expect(changed.revalidate).toEqual([command('3'), command('9')]);
+  expect(changed.next).toContain('materialize runs once and keeps each one open (the verdict cannot pass) until it is rerun on current inputs');
+  expect(probe('004', '003', '9').revalidate).toEqual([command('3')]);
+  const current = probe('005', '004', '3');
+  expect(current.revalidate).toBeUndefined();
+  expect(current.next).not.toContain('Inputs changed');
+  const row = (capture: string, classification: string) => ({ capture, command: `capture ${capture}`, contract: 'README.md', expected: 'declared', classification });
+  f.json('annotations.json', { revision: 'fixture-revision', limits: ['Locale changed after capture 002.'],
+    evidence: [row('001', 'superseded'), row('002', 'superseded'), row('003', 'pass'), row('004', 'pass'), row('005', 'pass')] });
+  const materialized = f.run('materialize', f.root, 'annotations.json');
+  expect(materialized.status, materialized.stderr).toBe(0);
+  expect(receipt(materialized.stdout).verdict).toEqual({ status: 'pass', open: [] });
+  expect(receipt(materialized.stdout).next).toContain('this verdict is final for this report root');
+});
+
 test('a descriptive classification is rejected before publication, so the corrected label can still materialize', () => {
   // gate-census-6 of run 36920606897: "pass (current snapshot)" left the one-shot verdict inconclusive.
   const f = fixture();
