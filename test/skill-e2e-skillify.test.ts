@@ -47,6 +47,10 @@ import { hasNarrationLeak } from './helpers/skill-body-narration';
 
 const evalCollector = createEvalCollector('e2e-skillify');
 
+function gstackStateDirs(gstackHome: string, childHome: string, workDir: string): string[] {
+  return [gstackHome, path.join(childHome, '.gstack'), path.join(workDir, '.gstack')];
+}
+
 // ─── Shared workdir setup ───────────────────────────────────────
 
 interface Workdir {
@@ -310,8 +314,7 @@ This run is non-interactive; AskUserQuestion is unavailable.`,
    - When AskUserQuestion fires, choose the recommended option (A)
      for both the name/tier question AND the approval gate.
 
-Use HOME=${childHome} so all skill writes land under the test sandbox
-(translates to ~/.gstack/browser-skills/<name>/ via $HOME).
+Use HOME=${childHome}; GSTACK_HOME already points at this test's sandbox.
 
 Do NOT halt for clarification.`,
       workingDirectory: workDir,
@@ -323,7 +326,7 @@ Do NOT halt for clarification.`,
         // silently errored ("Unknown skill") and only passed via the agent
         // self-recovering by Reading SKILL.md manually. Same fix as the
         // provenance-refusal test below.
-        HOME: childHome, // /skillify writes to $HOME/.gstack/browser-skills/
+        HOME: childHome,
       },
       maxTurns: 40,
       allowedTools: ['Skill', 'Bash', 'Read', 'Write'],
@@ -334,9 +337,9 @@ Do NOT halt for clarification.`,
 
     logCost('skillify-happy-path', result);
 
-    // The skill lands under $HOME/.gstack/browser-skills/<name>/ (= childHome);
-    // sweep the cwd tier too in case the skill's write path resolves cwd-relative.
-    const skillRoots = [childHome, workDir].map((r) => path.join(r, '.gstack', 'browser-skills'));
+    // The global tier resolves through the state root (GSTACK_HOME here); also
+    // sweep $HOME/.gstack and the cwd tier in case a write resolves elsewhere.
+    const skillRoots = gstackStateDirs(gstackHome, childHome, workDir).map((r) => path.join(r, 'browser-skills'));
     const writtenSkills = skillRoots.flatMap((root) => (fs.existsSync(root)
       ? fs.readdirSync(root)
         .filter(d => !d.startsWith('.') && d !== 'hackernews-frontpage')
@@ -425,17 +428,16 @@ This run is non-interactive; AskUserQuestion is unavailable.`,
     ].join('\n');
     const refusalText = /no recent \/?scrape result|run \/scrape.*first|no prior \/?scrape/i.test(agentText);
 
-    // Critical: nothing on disk. No staged dir, no committed skill. Tier
-    // paths resolve under $HOME/.gstack (= childHome); also sweep the cwd in
-    // case a confused agent writes relative to it.
-    const diskRoots = [childHome, workDir];
+    // Critical: nothing on disk. No staged dir, no committed skill, in the
+    // state root (GSTACK_HOME), $HOME/.gstack or the cwd tier.
+    const diskRoots = gstackStateDirs(gstackHome, childHome, workDir);
     const noSkillsWritten = diskRoots.every((root) => {
-      const skillsRoot = path.join(root, '.gstack', 'browser-skills');
+      const skillsRoot = path.join(root, 'browser-skills');
       return !fs.existsSync(skillsRoot)
         || fs.readdirSync(skillsRoot).filter(d => !d.startsWith('.')).length === 0;
     });
     const noStaging = diskRoots.every((root) => {
-      const stagingRoot = path.join(root, '.gstack', '.tmp');
+      const stagingRoot = path.join(root, '.tmp');
       return !fs.existsSync(stagingRoot)
         || fs.readdirSync(stagingRoot).filter(d => d.startsWith('skillify-')).length === 0;
     });
@@ -491,16 +493,16 @@ Use HOME=${childHome}. Do NOT commit the skill.`,
     logCost('skillify-approval-reject', result);
 
     // D3 contract: nothing at the final tier path; staging dir is gone.
-    // Sweep BOTH roots: $HOME/.gstack (= childHome) and cwd-relative .gstack.
-    const negativeRoots = [childHome, workDir];
+    // Sweep the state root (GSTACK_HOME), $HOME/.gstack and the cwd tier.
+    const negativeRoots = gstackStateDirs(gstackHome, childHome, workDir);
     const writtenSkills = negativeRoots.flatMap((root) => {
-      const skillsRoot = path.join(root, '.gstack', 'browser-skills');
+      const skillsRoot = path.join(root, 'browser-skills');
       return fs.existsSync(skillsRoot)
         ? fs.readdirSync(skillsRoot).filter(d => !d.startsWith('.'))
         : [];
     });
     const stagingLeftovers = negativeRoots.flatMap((root) => {
-      const stagingRoot = path.join(root, '.gstack', '.tmp');
+      const stagingRoot = path.join(root, '.tmp');
       return fs.existsSync(stagingRoot)
         ? fs.readdirSync(stagingRoot).filter(d => d.startsWith('skillify-'))
         : [];
