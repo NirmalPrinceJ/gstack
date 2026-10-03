@@ -128,6 +128,35 @@ describe('tier lane skip (B5)', () => {
     expect(tierSkipReason(file, "testIfSelected('sample-gate', async () => {});", 'gate', touchfiles, tiers)).toBeNull();
   });
 
+  test('a computed registration is skipped only when every id of the lane tier is registered to another test file', () => {
+    const other = 'test/skill-e2e-other.test.ts';
+    const owned = { 'sample-periodic': [file], 'gate-elsewhere': [other, 'x/**'] };
+    const ownedTiers = { 'sample-periodic': 'periodic', 'gate-elsewhere': 'gate' };
+    for (const source of [
+      "testConcurrentIfSelected(`sample-${label}`, async () => {});",
+      "runSkillTest({ testName: `sample-${label}` });",
+      "for (const entry of CASES) describeIfSelected(entry.suite, [entry.id], () => { testIfSelected(entry.id, async () => {}); });",
+    ]) {
+      expect(tierSkipReason(file, source, 'gate', owned, ownedTiers)).toBe(
+        'skipped: no E2E_TIERS id has tier gate (its computed names can only produce gate ids other test files register)');
+      expect(tierSkipReason(file, source, 'periodic', owned, ownedTiers)).toBeNull();
+      expect(tierSkipReason(file, source, 'gate', owned, { ...ownedTiers, 'gate-orphan': 'gate' })).toBeNull();
+      expect(tierSkipReason(file, `${source}\ntestIfSelected('gate-elsewhere', async () => {});`, 'gate', owned, ownedTiers)).toBeNull();
+    }
+  });
+
+  test('census files whose computed names hold only other-tier cases never take a runner (2026-10-03 census)', () => {
+    const lanes = { gate: ['test/skill-e2e-plan-decision-classification.test.ts', 'test/skill-e2e-plan-devex-peer-comparison-classification.test.ts',
+      'test/skill-e2e-qa-bugs.test.ts', 'test/skill-routing-e2e.test.ts'], periodic: ['test/skill-e2e-coverage-audit.test.ts', 'test/skill-e2e-test-value.test.ts'] };
+    for (const [tier, files] of Object.entries(lanes) as Array<['gate' | 'periodic', string[]]>) {
+      const { selected, excluded } = selectPaidTestFiles(collectPaidTestFiles(), tier, ROOT, {});
+      for (const hollow of files) {
+        expect(selected, hollow).not.toContain(hollow);
+        expect(excluded.find(entry => entry.file === hollow)?.reason, hollow).toStartWith(`skipped: no E2E_TIERS id has tier ${tier}`);
+      }
+    }
+  });
+
   test('the real constructed-name diagram file stays scheduled in both lanes', () => {
     const source = fs.readFileSync(path.join(ROOT, 'test/skill-e2e-diagram.test.ts'), 'utf8');
     for (const tier of ['gate', 'periodic'] as const) expect(tierSkipReason('test/skill-e2e-diagram.test.ts', source, tier)).toBeNull();
