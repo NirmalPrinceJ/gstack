@@ -15,6 +15,7 @@ import { CAPTURE_MS } from './helpers/eval-budgets';
 import { readQACheckpointFiles } from './helpers/qa-checkpoint-evidence';
 import { generateQAExploratory, generateQAResource, generateQAReview, generateQAReviewPreflight } from '../scripts/resolvers/qa';
 import { HOST_PATHS } from '../scripts/resolvers/types';
+import { qaProbeNames } from './helpers/qa-probe-names';
 
 function nativeCall(id: string, name: string, input: object, output: string, parent: string | null = null, failed = false) {
   return [
@@ -673,10 +674,12 @@ describe('generated actual parent paths', () => {
     expect(text).not.toContain('nest unchanged child JSON');
   });
   test('the shared smoke has explicit limits without waiving required plan checks', () => {
-    const body = fs.readFileSync(path.join(import.meta.dir, '../qa/sections/exploratory.md'), 'utf8').replace(/\s+/g, ' ');
+    const raw = fs.readFileSync(path.join(import.meta.dir, '../qa/sections/exploratory.md'), 'utf8');
+    const body = raw.replace(/\s+/g, ' ');
     expect(body).toMatch(/stop after 5 minutes or 12 probes/i);
-    expect(body).toContain('G enforces the deadline');
-    expect(body).toMatch(/never reset D\/bypass G/i);
+    const n = qaProbeNames(raw);
+    expect(body).toContain(`${n.guard} enforces the deadline`);
+    expect(body).toMatch(new RegExp(`never reset ${n.deadline}\\W+bypass ${n.guard}`, 'i'));
     expect(body).toMatch(/plan checks and revalidation remain required beyond this smoke budget/i);
     expect(body).toContain('leaves /review incomplete');
     expect(body).toMatch(/\/ship blocked unless the user explicitly accepts that named risk/i);

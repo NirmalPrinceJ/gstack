@@ -8,6 +8,7 @@ import { generateQAExploratory } from '../scripts/resolvers/qa';
 import { generateTestBootstrap } from '../scripts/resolvers/testing';
 import { HOST_PATHS } from '../scripts/resolvers/types';
 import { runBashScript } from './helpers/bash-script';
+import { qaProbeNames } from './helpers/qa-probe-names';
 
 const ctx = { host: 'claude', skillName: 'qa', tmplPath: '', paths: HOST_PATHS.claude };
 const method = generateQAMethodology(ctx);
@@ -149,16 +150,17 @@ describe('compact QA browser recipes retain native operations', () => {
   test('bounded exploration rechecks the clock around checkpoints without replacing probe evidence', () => {
     for (const skillName of ['qa', 'qa-only', 'review', 'ship']) {
       const loop = generateQAExploratory({ ...ctx, skillName });
+      const n = qaProbeNames(loop);
       for (const contract of [
-        'bun G start D SECONDS [EARLIER_UTC]',
+        `bun ${n.guard} start ${n.deadline} SECONDS [EARLIER_UTC]`,
         'Set SECONDS to the shorter mode/caller limit',
-        'G enforces the deadline',
+        `${n.guard} enforces the deadline`,
         'QA_DEADLINE receipts are not observations',
-        'Never reset D/bypass G',
         'Report refusals as not-run',
-        'Bounded browsers: `bun G run D -- COMMAND ARGS`',
+        `\`bun ${n.guard} run ${n.deadline} -- COMMAND ARGS\``,
         'announce finite command timeouts',
       ]) expect(loop).toContain(contract);
+      expect(loop).toMatch(new RegExp(`never reset ${n.deadline}\\W+bypass ${n.guard}`, 'i'));
       for (const field of ['observationCommand', 'observed', 'hypothesis', 'nextCommand']) expect(loop).toContain(`${field}:`);
       expect(loop).toContain('Functional Full, Quick and Regression have no default total timer');
       if (skillName !== 'qa-only') expect(loop).toContain('Explicit plan checks and revalidation remain required beyond this smoke budget');
