@@ -464,12 +464,13 @@ branch name wherever the instructions say "the base branch" or `<default>`.
 
 ```bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
+eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
-_LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
-[ -z "$_LOCALDOC" ] && _LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
+_LOCALDOC=$(ls -t "$GSTACK_STATE_ROOT"/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+[ -z "$_LOCALDOC" ] && _LOCALDOC=$(ls -t "$GSTACK_STATE_ROOT"/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
 # Repo-local docs win when at least as fresh (#703): office-hours dual-writes
-# docs/designs/ alongside ~/.gstack, and the committed copy is what teammates
+# docs/designs/ alongside the state root, and the committed copy is what teammates
 # see. A stale old repo doc never shadows a newer private session.
 _REPOTOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _REPODOC=""
@@ -533,12 +534,13 @@ Execute every other section at full depth. When the loaded skill's instructions 
 After /office-hours completes, re-run the design doc check:
 ```bash
 setopt +o nomatch 2>/dev/null || true  # zsh compat
+eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
 SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
-_LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
-[ -z "$_LOCALDOC" ] && _LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
+_LOCALDOC=$(ls -t "$GSTACK_STATE_ROOT"/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
+[ -z "$_LOCALDOC" ] && _LOCALDOC=$(ls -t "$GSTACK_STATE_ROOT"/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
 # Repo-local docs win when at least as fresh (#703): office-hours dual-writes
-# docs/designs/ alongside ~/.gstack, and the committed copy is what teammates
+# docs/designs/ alongside the state root, and the committed copy is what teammates
 # see. A stale old repo doc never shadows a newer private session.
 _REPOTOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
 _REPODOC=""
@@ -747,7 +749,7 @@ Re-run: copy RESTORE_PATH's bytes to SOURCE_PLAN, then /autoplan.
 ### Step 2: Read context
 
 - Read CLAUDE.md, TODOS.md, git log -30, git diff against the base branch --stat
-- Discover design docs: `ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1`
+- Discover design docs: `ls -t "$GSTACK_STATE_ROOT"/projects/$SLUG/*-design-*.md 2>/dev/null | head -1`, resolving the state root and slug as the Design Doc Check block does
 - Detect UI scope: grep the plan for view/rendering terms (component, screen, form,
   button, modal, layout, dashboard, sidebar, nav, dialog). Require 2+ matches. Exclude
   false positives ("page" alone, "UI" in acronyms).
