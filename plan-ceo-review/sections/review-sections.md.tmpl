@@ -28,7 +28,7 @@ explicit authority; until then, keep both the proposal and original gap unresolv
 Carry prior approvals into findings, tasks and the report. Routine auto-decide
 cannot override user constraints or non-goals.
 
-## CRITICAL RULE — How to ask questions
+## How to ask questions
 Use 0D's decision procedure and the preamble's AskUserQuestion format:
 * **One decision unit = one AskUserQuestion call.** Use Step 0D boundaries, not topic labels.
 * Describe the concrete problem with file/line references. Offer 2-3 options,
@@ -139,7 +139,7 @@ Required ASCII diagram: full system architecture showing new components and thei
 **Decision gate.** Complete Analyze → Resolve → Apply above for this section before continuing.
 
 ### Section 2: Error & Rescue Map
-This is the section that catches silent failures. It is not optional.
+This is the section that catches silent failures.
 For strategy-only depth, map each retained capability, integration or data
 boundary that can fail. For implementation-ready depth, map every new method,
 service or codepath that can fail. Use the same table shape for both:
@@ -158,7 +158,7 @@ service or codepath that can fail. Use the same table shape for both:
   JSONParseError               | N ← GAP   | —                      | 500 error ← BAD
 ```
 Rules for this section:
-* Catch-all error handling (`rescue StandardError`, `catch (Exception e)`, `except Exception`) is ALWAYS a smell. Name the specific exceptions.
+* Catch-all error handling (`rescue StandardError`, `catch (Exception e)`, `except Exception`) is a smell. Name the specific exceptions.
 * Generic-only logging is insufficient. Log what was attempted, with what args and for what user/request.
 * Every rescued error must retry with backoff, degrade gracefully with a user-visible message, or re-raise with added context. "Swallow and continue" is almost never acceptable.
 * For each GAP (unrescued error that should be rescued): specify the rescue action and what the user should see.
@@ -204,7 +204,7 @@ Flag any unhandled edge case as a gap. For each gap, specify the fix.
 ### Section 5: Code Quality Review
 Evaluate:
 * Code organization and module structure. Does new code fit existing patterns?
-* DRY violations. Be aggressive. If the same logic exists elsewhere, flag it and reference the file and line.
+* Duplicated behavior. If the same logic exists elsewhere, flag it with the file and line; similar-looking code alone is not a reason to extract.
 * Naming quality. Are new classes, methods, and variables named for what they do, not how they do it?
 * Error handling patterns. (Cross-reference with Section 2 — this section reviews the patterns; Section 2 maps the specifics.)
 * Missing edge cases: nil, empty, 429/timeouts and boundary values.
@@ -519,18 +519,6 @@ after the report in the file. If no plan/report write is permitted, show the
 complete plan, report and summary as not persisted, then use **Gate outcome:
 Blocked**. This delivers the review content without claiming saved completion;
 skip Review Log, success telemetry and the next-skill handoff.
-
-## Handoff Note Cleanup
-
-After producing the Completion Summary, remove this branch's handoff notes only if the storage policy permits cleanup. Otherwise retain them and report that cleanup was not performed.
-
-```bash
-eval "$(~/.claude/skills/gstack/bin/gstack-paths)"; : "${GSTACK_STATE_ROOT:?gstack-paths failed; reinstall with ./setup or /gstack-upgrade}"
-setopt +o nomatch 2>/dev/null || true  # zsh compat
-# gstack-slug prints both SLUG and BRANCH; eval sets them in this shell.
-{{SLUG_EVAL}}
-rm -f "$GSTACK_STATE_ROOT"/projects/$SLUG/*-$BRANCH-ceo-handoff-*.md 2>/dev/null || true
-```
 
 ## Review Log
 

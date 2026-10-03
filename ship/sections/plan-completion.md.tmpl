@@ -43,8 +43,8 @@ Counts map one-to-one to the classifications above and sum to total_items. No pl
 minutes, stop any live child and confirm it stopped before an inline audit with the same
 extraction/classification logic; never race a late result. If that also fails,
 AskUserQuestion: A) Skip audit and ship, recording the reason in the PR body and
-Step 20 metrics; B) Stop and fix the audit (recommended/default). Silent fail-open
-is the failure shape that VAS-449 surfaced.
+Step 20 metrics; B) Stop and fix the audit (recommended/default). Never fail open
+silently: a skipped audit would let unverified plan items ship as done.
 
 ---
 

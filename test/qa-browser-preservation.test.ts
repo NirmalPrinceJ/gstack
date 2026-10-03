@@ -78,6 +78,18 @@ describe('compact QA bootstrap preserves native detection', () => {
     expect(bootstrap).not.toContain('git checkout --');
     expect(bootstrap).not.toContain('delete silently');
   });
+
+  test('shared {{TEST_BOOTSTRAP}} copy undoes only owned changes, like the QA copy', () => {
+    for (const skillName of ['ship', 'design-review']) {
+      const shared = generateTestBootstrap({ ...ctx, skillName });
+      expect(shared).not.toContain('git checkout --');
+      expect(shared).not.toMatch(/delete silently/i);
+      expect(shared).not.toMatch(/revert all bootstrap changes/i);
+      expect(shared).toMatch(/undo only/i);
+      expect(shared).toMatch(/preserve the user's edits/i);
+      expect(shared).toMatch(/unrelated edits are already staged, stop/i);
+    }
+  });
 });
 
 async function runRecipe(marker: string, options: { flow?: boolean; hostname?: string; response?: string } = {}) {

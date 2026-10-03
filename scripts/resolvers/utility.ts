@@ -347,7 +347,7 @@ Use \`[REDACTED]\` for credentials. Follow BROWSER SETUP safety/sentinel rules: 
 export function generateCoAuthorTrailer(ctx: TemplateContext): string {
   const { getHostConfig } = require('../../hosts/index');
   const hostConfig = getHostConfig(ctx.host);
-  return hostConfig.coAuthorTrailer || 'Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>';
+  return hostConfig.coAuthorTrailer || 'Co-Authored-By: Claude <noreply@anthropic.com>';
 }
 
 export function generateSetupCommand(ctx: TemplateContext): string {
@@ -393,9 +393,9 @@ export function generateChangelogWorkflow(ctx: TemplateContext): string {
    - **Voice:** Lead with what the user can now **do** that they couldn't before. Use plain language, not implementation details. Never mention TODOS.md, internal tracking, or contributor-facing details.
 
 6. **Cross-check:** Compare your CHANGELOG entry against the commit list from step 2.
-   Every commit must map to at least one bullet point. If any commit is unrepresented,
-   add it now. If the branch has N commits spanning K themes, the CHANGELOG must
-   reflect all K themes.
+   Every user-facing change in that list must be represented; add any that is missing.
+   Commits with no user-facing effect (merges, version bumps, fixes to work introduced
+   earlier on this branch) need no bullet. The entry must reflect every user-facing theme.
 
 **Do NOT ask the user to describe changes.** Infer from the diff and commit history.`;
 }

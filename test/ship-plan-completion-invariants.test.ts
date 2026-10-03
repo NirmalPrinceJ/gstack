@@ -119,12 +119,13 @@ describe('ship/SKILL.md — Plan Completion gate invariants (VAS-449 remediation
   test('Per-item UNVERIFIABLE confirmation: blanket-confirm is forbidden', () => {
     expect(skill).toContain('**Per-item confirmation is mandatory.**');
     expect(skill).toMatch(/Do NOT use a single AskUserQuestion to blanket-confirm/);
-    expect(skill).toMatch(/VAS-449/);
   });
 
   test('Subagent failure: fail-closed, not silent fail-open', () => {
     expect(skill).not.toMatch(/Never block \/ship on subagent failure\.\s*$/m);
-    expect(skill.replace(/\s+/g, ' ')).toContain('Silent fail-open is the failure shape that VAS-449 surfaced');
+    // The audit-failure fallback still forbids a silent fail-open (meaning, not the old incident ID).
+    const fallback = skill.slice(skill.indexOf('**Audit-failure fallback:**'), skill.indexOf('**Audit-failure fallback:**') + 800);
+    expect(fallback).toMatch(/fail[- ]open/i);
     expect(skill).toMatch(/Stop and fix the audit/);
   });
 

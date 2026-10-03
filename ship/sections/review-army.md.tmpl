@@ -19,7 +19,7 @@ This pass is static; defer product probes to Step 9.2.1.
 2. Before reading the diff, run `~/.claude/skills/gstack/bin/gstack-review-log --start review` and save its token as REVIEW_START. Then run `git diff origin/<base>`. Read non-ignored untracked source files too (`git ls-files --others --exclude-standard`); the snapshot includes them.
 
 3. Apply the review checklist in two passes:
-   - **Pass 1 (CRITICAL):** SQL & Data Safety, LLM Output Trust Boundary
+   - **Pass 1 (CRITICAL):** the checklist's Pass 1 categories
    - **Pass 2 (INFORMATIONAL):** All remaining categories
 
 ### Design-lite checklist

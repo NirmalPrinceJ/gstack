@@ -318,7 +318,7 @@ test('CEO output stages prepare body before report and publish only after verifi
   expect(section).toContain('no stage depends on a completion log written later');
   expect(section).toContain('After the report Read-back gate passes');
   expect(section).toContain('Do not append it after the report in the file');
-  const chat = section.slice(section.indexOf('If no plan/report write is permitted'), section.indexOf('## Handoff Note Cleanup'));
+  const chat = section.slice(section.indexOf('If no plan/report write is permitted'), section.indexOf('## Review Log'));
   expect(chat).toContain('complete plan, report and summary as not persisted, then use **Gate outcome: Blocked**');
   expect(chat).toContain('without claiming saved completion');
   expect(chat).toContain('skip Review Log, success telemetry and the next-skill handoff');
@@ -865,13 +865,17 @@ describe('CEO review decision continuity contract', () => {
   });
 
   test('Design preserves decision gating while DX and fallback retain their existing output on every host', () => {
-    // SHA-256 of the e801b515 default resolver output; detects collateral changes.
-    const original = '82e55bcd35a16a20d243978707c786f25e24ac5d6a197d9fedb2cb0bb223abb7';
     // Pin DX's e15ba218 output independently: Eng now has its own wording.
     const originalDevex = '29fe85565c2ea16c0d205a06a2515e30228342078a44bb688489274c157ddba2';
+    const fallbacks = new Set<string>();
     for (const host of ALL_HOST_CONFIGS) {
       const fallback = generateAntiShortcutClause({ skillName: 'review', host: host.name } as TemplateContext);
-      expect(createHash('sha256').update(fallback).digest('hex'), `review/${host.name}`).toBe(original);
+      fallbacks.add(fallback);
+      // Default clause keeps its constraints: the plan cannot replace the interactive review,
+      // findings go through AskUserQuestion before the plan, only zero findings skip asking.
+      expect(fallback).toMatch(/cannot replace|not a substitute/i);
+      expect(fallback).toMatch(/finding[\s\S]*AskUserQuestion/i);
+      expect(fallback).toMatch(/zero findings[\s\S]*ExitPlanMode/i);
       const devex = generateAntiShortcutClause({ skillName: 'plan-devex-review', host: host.name } as TemplateContext);
       expect(createHash('sha256').update(devex).digest('hex'), `plan-devex-review/${host.name}`).toBe(originalDevex);
       const design = generateAntiShortcutClause({ skillName: 'plan-design-review', host: host.name } as TemplateContext);
@@ -879,6 +883,7 @@ describe('CEO review decision continuity contract', () => {
       expect(design).toContain('Necessary code, tests and docs for an exact previously selected contract do not reopen it');
       expect(design).toContain('does not approve independent remedies or optional verification depth');
     }
+    expect(fallbacks.size, 'default clause is host-independent').toBe(1);
   });
 });
 

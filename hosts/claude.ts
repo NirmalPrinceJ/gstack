@@ -31,7 +31,7 @@ const claude = defineHost({
     linkingStrategy: 'real-dir-symlink',
   },
 
-  coAuthorTrailer: 'Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>',
+  coAuthorTrailer: 'Co-Authored-By: Claude <noreply@anthropic.com>',
   learningsMode: 'full',
 });
 

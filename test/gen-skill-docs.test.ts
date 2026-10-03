@@ -2035,7 +2035,9 @@ describe('CHANGELOG_WORKFLOW resolver', () => {
 
   test('changelog workflow includes cross-check step', () => {
     expect(shipContent).toContain('Cross-check');
-    expect(shipContent).toContain('Every commit must map to at least one bullet point');
+    const crossCheck = shipContent.slice(shipContent.indexOf('**Cross-check:**'), shipContent.indexOf('**Do NOT ask the user to describe changes.**'));
+    expect(crossCheck).toContain('commit list from step 2');
+    expect(crossCheck).toMatch(/user-facing/i);
   });
 
   test('changelog workflow includes voice guidance', () => {
@@ -4732,7 +4734,7 @@ describe('scope-gate exceptions drift-guard', () => {
   const normalizeTargetPolicy = (block: string) => block
     .split('\n').filter(line => /^[12]\. /.test(line)).join('\n')
     .replace(/ Announce (?:it|an auto-selected plan) in one line so the user can interrupt: "Scope gate: plan mode — auto-selected B \(reviewing <target>\)\."/g, '')
-    .replace(' Then run the pre-review audit, mockups, and Step 0 against that plan.', '')
+    .replace(/ Then run the pre-review audit, .*? against that plan\./, '')
     .replace('a path, a page, a doc they pasted,', 'a path, a doc they pasted,');
 
   test('eng and design retain the same target-selection policy across distinct startup sequences', () => {
