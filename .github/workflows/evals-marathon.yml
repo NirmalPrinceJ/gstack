@@ -129,9 +129,7 @@ jobs:
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-      # Docker's default seccomp profile blocks the user namespaces Codex's
-      # bubblewrap sandbox needs; without them every Codex command fails.
-      options: --user runner --security-opt seccomp=unconfined
+      options: --user runner
     strategy:
       fail-fast: false
       max-parallel: 8
