@@ -482,7 +482,7 @@ Proceed directly to the full review. Skip any AskUserQuestion calls — this is 
 
 In this fixture the gstack state root is GSTACK_HOME=${gstackHome} and the project slug is ${slug}.
 
-Write your review to ${planDir}/review-output.md`,
+Use ${planDir}/review-output.md as the selected report file. Every other output keeps the destination the skill gives it.`,
       workingDirectory: planDir,
       env: { GSTACK_HOME: gstackHome },
       maxTurns: 25,
