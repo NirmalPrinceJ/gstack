@@ -63,7 +63,9 @@ await import(${JSON.stringify(path.join(ROOT, PAID_FILE))});
         expect(opts.timeoutMs).toBe(CAPTURE_MS);
         const keys = ['skillName', 'inPlanMode', 'timeoutMs'];
         if (opts.initialPlanContent) {
-          keys.push('initialPlanContent');
+          keys.push('initialPlanContent', 'trackTokens');
+          expect(opts.trackTokens.length).toBeGreaterThan(0);
+          for (const token of opts.trackTokens) expect(opts.initialPlanContent).toContain(token);
           if (skill === 'eng') {
             keys.push('extraArgs');
             expect(opts.extraArgs).toEqual(['--disallowedTools', 'AskUserQuestion']);
@@ -105,7 +107,7 @@ await import(${JSON.stringify(path.join(ROOT, PAID_FILE))});
       if (scenario === 'bad-report') expect(output).toContain('GSTACK REVIEW REPORT contract violation');
       if (scenario === 'missing-auto-select') expect(output).toContain('scopeGateAutoSelectObserved');
       if (scenario === 'scope-question') expect(output).toContain('scopeGateQuestionObserved');
-      if (scenario === 'missing-decisions') expect(output).toContain('plan_ready without ## Decisions section');
+      if (scenario === 'missing-decisions') expect(output).toContain('without a question');
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   });
 }
