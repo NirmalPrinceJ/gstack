@@ -151,10 +151,10 @@ Install it:
 
 Then restart your AI coding tool.
 MSG
-  # Claude Code reads hookSpecificOutput; Copilot CLI reads the top-level
-  # fields (#2229). Exit 0 so both parse the decision instead of an error.
-  echo '{"permissionDecision":"deny","permissionDecisionReason":"gstack is required but not installed. See stderr for install instructions.","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"gstack is required but not installed. See stderr for install instructions."}}'
-  exit 0
+  # Exit 2 denies on Claude Code (#2413) and on Copilot CLI, which treats a
+  # preToolUse exit 2 as deny (#2229).
+  echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"gstack is required but not installed. See stderr for install instructions."}}'
+  exit 2
 fi
 
 echo '{}'

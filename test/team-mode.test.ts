@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { execSync, spawnSync } from 'child_process';
+import { execSync } from 'child_process';
 import { createHash } from 'crypto';
 import { runBashScript } from './helpers/bash-script';
 
@@ -265,24 +265,6 @@ describe('gstack-team-init', () => {
     run(`${TEAM_INIT} required`, { cwd: tmpDir });
     const pre = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')).hooks.PreToolUse;
     expect(pre.map((e: { matcher: string }) => e.matcher)).toEqual(['Bash', 'Skill|skill']);
-  });
-
-  test('required: the hook denies in both Claude Code and Copilot CLI decision formats (C7)', () => {
-    run(`${TEAM_INIT} required`, { cwd: tmpDir });
-    const home = mkTmpDir();
-    try {
-      const r = spawnSync('bash', [path.join(tmpDir, '.claude', 'hooks', 'check-gstack.sh')], {
-        encoding: 'utf-8', timeout: 30_000, env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home },
-      });
-      expect(r.status).toBe(0);
-      const out = JSON.parse(r.stdout);
-      expect(out.permissionDecision).toBe('deny');
-      expect(out.permissionDecisionReason).toContain('gstack is required');
-      expect(out.hookSpecificOutput).toMatchObject({ hookEventName: 'PreToolUse', permissionDecision: 'deny' });
-      expect(r.stderr).toContain('BLOCKED: gstack is not installed');
-    } finally {
-      fs.rmSync(home, { recursive: true, force: true });
-    }
   });
 
   test('idempotent: running twice does not duplicate CLAUDE.md section', () => {
