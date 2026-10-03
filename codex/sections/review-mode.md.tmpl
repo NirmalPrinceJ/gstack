@@ -96,7 +96,7 @@ _PROMPT_FILE=$(mktemp "$TMP_ROOT/codex-prompt-XXXXXX") || { echo "ERROR: mktemp 
   git diff "<base>...HEAD" 2>/dev/null
   printf '\nDIFF_END\n'
 } > "$_PROMPT_FILE"
-_gstack_codex_timeout_wrapper 330 codex exec -s "${_GSTACK_CODEX_SANDBOX:?}" "$(cat "$_PROMPT_FILE")" {{CODEX_MODEL_CONFIG_FLAG}} -c 'model_reasoning_effort="high"' {{CODEX_WEB_SEARCH_FLAG}} --json -o "$TMPOUT" < /dev/null >"$TMPOUT.events" 2>"$TMPERR"
+_gstack_codex_timeout_wrapper 330 codex exec - -s "${_GSTACK_CODEX_SANDBOX:?}" {{CODEX_MODEL_CONFIG_FLAG}} -c 'model_reasoning_effort="high"' {{CODEX_WEB_SEARCH_FLAG}} --json -o "$TMPOUT" < "$_PROMPT_FILE" >"$TMPOUT.events" 2>"$TMPERR"
 _CODEX_EXIT=$?
 rm -f "$_PROMPT_FILE"
 cat "$TMPOUT"

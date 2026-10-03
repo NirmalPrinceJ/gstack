@@ -27,7 +27,7 @@ const args = process.argv.slice(2);
 // The free sandbox preflight (\`codex sandbox ... true\`) succeeds unless a test plants its failure.
 if (args[0] === 'sandbox') { if (process.env.FAKE_SANDBOX_STDERR) { console.error(process.env.FAKE_SANDBOX_STDERR); process.exit(1); } process.exit(0); }
 const claude = process.env.FAKE_PROVIDER === 'claude-code';
-const prompt = claude ? await Bun.stdin.text() : args[0] === 'exec' ? args[1] : '';
+const prompt = claude || (args[0] === 'exec' && args[1] === '-') ? await Bun.stdin.text() : args[0] === 'exec' ? args[1] : '';
 writeFileSync(process.env.CAPTURE!, JSON.stringify({args,prompt,cwd:process.cwd()}));
 if (process.env.FAKE_MODE === 'timeout') {
   if (!claude) console.log('Partial finding before timeout');
@@ -104,10 +104,9 @@ describe('generated outside-review dispatch', () => {
     test(`${host} dispatches the other CLI and keeps hostile prompt/path text literal`, () => {
       const result = invoke(host);
       expect(result.status).toBe(0);
-      // Codex keeps its existing command-substitution argv contract, which
-      // removes trailing LF; shell metacharacters within that value stay data.
-      const expectedPrompt = host === 'codex' ? PROMPT_TEXT : PROMPT_TEXT.replace(/\n+$/,'');
-      expect(capture().prompt).toBe(expectedPrompt);
+      // Both CLIs read the prepared prompt on stdin, byte for byte (E5: no argv
+      // size limit, no quoting); shell metacharacters stay data.
+      expect(capture().prompt).toBe(PROMPT_TEXT);
       expect(capture().cwd).toBe(DIR);
       expect(fs.existsSync(path.join(DIR,'NEVER'))).toBe(false);
       expect(result.stdout).toContain(`OUTSIDE_STATUS: completed provider=${host === 'codex' ? 'claude-code' : 'codex'} host=${host}`);
@@ -116,7 +115,7 @@ describe('generated outside-review dispatch', () => {
         expect(capture().args).not.toContain('--resume');
         expect(result.stdout).toContain('model-a');
         expect(result.stdout).toContain('model-b');
-      } else expect(capture().args.slice(0,2)).toEqual(['exec',expectedPrompt]);
+      } else expect(capture().args.slice(0,2)).toEqual(['exec','-']);
     });
 
     test(`${host} rejects its own reviewer markers before any process starts`, () => {
@@ -266,6 +265,17 @@ describe('generated outside-review dispatch', () => {
       expect(invoke('claude', {}, { GSTACK_CODEX_NO_SANDBOX: 'true' }).status).toBe(0);
       expect(capture().args.slice(capture().args.indexOf('-s'), capture().args.indexOf('-s') + 2)).toEqual(['-s', 'read-only']);
     });
+  });
+
+  test('E5: a prompt larger than one argv string reaches Codex intact on stdin', () => {
+    const big = path.join(TMP, 'big-prompt.txt');
+    const text = `${'x'.repeat(200_000)}\n"quotes" 'single' $(touch NEVER) \\ end\n`;
+    fs.writeFileSync(big, text);
+    const ctx: TemplateContext = { skillName: 'review', tmplPath: 'review/SKILL.md.tmpl', host: 'claude', paths: HOST_PATHS.codex };
+    const result = spawnSync('bash', ['-c', outsideVoiceCommand(ctx, { promptFile: big, timeoutMs: 5000 })], { cwd: DIR, env: environment('claude'), encoding: 'utf8', timeout: 15000 });
+    expect(result.status).toBe(0);
+    expect(capture().prompt).toBe(text);
+    expect(fs.existsSync(path.join(DIR, 'NEVER'))).toBe(false);
   });
 
   test('malformed Claude JSON cannot reach completion evaluation', () => {

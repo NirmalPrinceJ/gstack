@@ -335,7 +335,9 @@ _gstack_codex_timeout_wrapper() {
     # mirror timeout(1)'s exit-124 contract. The watchdog's stdout is
     # detached so an early finish never blocks a caller's $(...) capture on
     # the orphaned sleep.
-    "$@" &
+    # Without job control a background command's stdin is /dev/null; keep the
+    # caller's stdin so prompts fed with `codex exec -` arrive (#1674).
+    "$@" <&0 &
     local _cmd_pid=$!
     (
       sleep "$_duration" && trap '' TERM && kill -TERM "$_cmd_pid" 2>/dev/null || exit 0  # best-effort: the command already exited, nothing to stop

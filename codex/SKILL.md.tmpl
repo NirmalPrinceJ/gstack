@@ -184,8 +184,8 @@ Every prompt sent to Codex MUST be prefixed with this boundary instruction:
 
 This applies to Challenge mode (prompt) and Consult mode (persona prompt), and to the
 custom-instructions path of Review mode — all three use `codex exec`, which still takes
-a free-form prompt argument. It does **not** apply to the default scoped `codex review`
-call in Step 2A: that command is invoked with **no prompt argument at all** (see "Scope
+a free-form prompt (fed on stdin with `codex exec -`, so size and quoting never break it). It does **not** apply to the default scoped `codex review`
+call in Step 2A: that command is invoked with **no prompt at all** (see "Scope
 flags exclude the prompt argument" in the Review mode section), so there is nowhere to put the preamble. That
 is acceptable — `codex review --base` hands the model a pre-computed diff rather than
 turning it loose on the filesystem, so the rabbit-hole risk the boundary guards against

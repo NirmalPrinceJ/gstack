@@ -2,7 +2,8 @@
  * B1 static coverage: every rendered fence that runs `codex exec` or
  * `codex review` as a command routes the result through the shared validator
  * (lib/outside-review-result.ts) later in the same fence, and takes its
- * sandbox from `_GSTACK_CODEX_SANDBOX` (read-only unless GSTACK_CODEX_NO_SANDBOX=1).
+ * sandbox from `_GSTACK_CODEX_SANDBOX` (read-only unless GSTACK_CODEX_NO_SANDBOX=1);
+ * every `codex exec` reads its prompt on stdin (E5).
  * Prose mentions of the commands are ignored: only command positions count.
  */
 import { afterAll, describe, expect, test } from 'bun:test';
@@ -64,6 +65,13 @@ describe('every rendered Codex invocation is classified by the shared validator'
     test(`${host}: each codex exec/review command is followed by the validator in its fence`, () => {
       const missing = rendered[host]!.filter(site => !VALIDATOR.test(site.after)).map(s => `${s.file}: ${s.line}`);
       expect(missing).toEqual([]);
+    });
+
+    test(`${host}: E5 every codex exec reads its prompt on stdin, never argv`, () => {
+      const argv = rendered[host]!.filter(site => /codex\s+exec\b/.test(site.line))
+        .filter(site => !/codex\s+exec\s+(?:resume\s+\S+\s+)?-\s/.test(site.line) || /<\s*\/dev\/null/.test(site.line))
+        .map(s => `${s.file}: ${s.line}`);
+      expect(argv).toEqual([]);
     });
 
     test(`${host}: each codex exec/review command takes its sandbox from _GSTACK_CODEX_SANDBOX`, () => {

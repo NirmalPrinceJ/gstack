@@ -265,7 +265,7 @@ test.each(['assignment-only','set-config','other-config','foreign-reader','or-co
  if(kind==='changed-harness')input.command=input.command.replace('exit 78','exit 0');
  if(kind==='changed-timeout')input.command=input.command.replace('_gstack_codex_timeout_wrapper 540','_gstack_codex_timeout_wrapper 1');
  if(kind==='changed-sandbox')input.command=input.command.replace('-s "${_GSTACK_CODEX_SANDBOX:?}"','-s danger-full-access');
- if(kind==='changed-prompt')input.command=input.command.replace('codex exec "$_OUTSIDE_PROMPT"','codex exec "Different plan"');
+ if(kind==='changed-prompt')input.command=input.command.replace('codex exec - ','codex exec "Different plan" ');
  if(kind==='skipped-validator')input.command=input.command.replace(/^bun .*outside-review-result.*\n/m,'');
  if(kind==='suffix')input.command+='\ntrue';
  expect(f.read().codexVoiceFired,kind).toBe(false);

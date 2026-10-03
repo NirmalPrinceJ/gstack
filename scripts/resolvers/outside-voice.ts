@@ -129,11 +129,11 @@ export function outsideVoiceCommand(ctx: TemplateContext, opts: OutsideCommandOp
   const prompt = sh(opts.promptFile ?? '<prepared-prompt-file>');
   const codex = opts.structuredBase
     ? `codex review --base ${sh(opts.structuredBase)} -c "sandbox_mode=\\"\${_GSTACK_CODEX_SANDBOX:?}\\"" ${CODEX_REVIEW_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} < /dev/null`
-    : `codex exec "$_OUTSIDE_PROMPT" -C "$_REPO_ROOT" -s "\${_GSTACK_CODEX_SANDBOX:?}" ${CODEX_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} --json -o "$_OUTSIDE_TMP/text" < /dev/null`;
+    : `codex exec - -C "$_REPO_ROOT" -s "\${_GSTACK_CODEX_SANDBOX:?}" ${CODEX_MODEL_CONFIG_FLAG} -c 'model_reasoning_effort="${opts.reasoningEffort ?? 'high'}"' ${CODEX_WEB_SEARCH_FLAG} --json -o "$_OUTSIDE_TMP/text" <"$_OUTSIDE_INPUT"`;
   const invocation = v.id === 'codex'
     ? `source "${bin}/gstack-codex-probe" && _gstack_codex_select_model ${opts.structuredBase ? 'review' : 'exec'} || exit 1
 _gstack_codex_sandbox_preflight >/dev/null || exit 1
-${opts.structuredBase ? '' : '_OUTSIDE_PROMPT=$(cat "$_OUTSIDE_INPUT") || exit 1\n'}_OUTSIDE_EXIT=0
+_OUTSIDE_EXIT=0
 _gstack_codex_timeout_wrapper ${Math.ceil(opts.timeoutMs / 1000)} ${codex} >"$_OUTSIDE_TMP/${opts.structuredBase ? 'text' : 'events'}" 2>"$_OUTSIDE_TMP/stderr" || _OUTSIDE_EXIT=$?
 ${opts.structuredBase ? 'cat "$_OUTSIDE_TMP/text"' : 'cat "$_OUTSIDE_TMP/text" 2>/dev/null || tail -n 20 "$_OUTSIDE_TMP/events"'}`
     : `_OUTSIDE_EXIT=0

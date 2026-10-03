@@ -375,6 +375,21 @@ describe('gstack-codex-probe: timeout wrapper + namespace hygiene', () => {
     }
   });
 
+  for (const native of [false, true]) test(`E5: ${native ? 'bash-native watchdog' : 'timeout(1)'} passes the caller's stdin to the command (#1674)`, () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-watchdog-stdin-'));
+    try {
+      for (const tool of native ? ['bash', 'sleep', 'cat', 'printf'] : []) {
+        const resolved = spawnSync('bash', ['-c', `command -v ${tool}`], { timeout: 5000 });
+        const target = resolved.stdout.toString().trim();
+        if (target.startsWith('/')) fs.symlinkSync(target, path.join(dir, tool));
+      }
+      const r = runProbe({ snippet: `printf 'prompt on stdin' | _gstack_codex_timeout_wrapper 5 cat; echo " rc=$?"`, env: native ? { PATH: dir } : {} });
+      expect(r.stdout).toBe('prompt on stdin rc=0\n');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('bash-native watchdog reports its timeout while still retiring after TERM', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-watchdog-race-'));
     try {
