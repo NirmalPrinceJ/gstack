@@ -580,6 +580,20 @@ describe('Interaction', () => {
     expect(await handleReadCommand('js', ['document.querySelector("#name").value'], bm)).toBe('');
   });
 
+  test('prettyscreenshot --hide keeps a trailing image path as the output path (#1419)', async () => {
+    await handleWriteCommand('goto', [baseUrl + '/basic.html'], bm);
+    const out = path.join(os.tmpdir(), `pretty-hide-${process.pid}.png`);
+    fs.rmSync(out, { force: true });
+    try {
+      const result = await handleWriteCommand('prettyscreenshot', ['--hide', '#title', '#content', out], bm);
+      expect(result).toContain(out);
+      expect(fs.existsSync(out)).toBe(true);
+      expect(await handleReadCommand('js', ['getComputedStyle(document.querySelector("#content")).display'], bm)).toBe('none');
+    } finally {
+      fs.rmSync(out, { force: true });
+    }
+  });
+
   test('type -- types text that starts with -- literally; plain text gets no hint', async () => {
     await handleWriteCommand('goto', [baseUrl + '/forms.html'], bm);
     await handleWriteCommand('click', ['#bio'], bm);
