@@ -15,6 +15,12 @@ const ROOT = path.resolve(import.meta.dir, '..');
 let tmp: string;
 let binDir: string;
 let home: string;
+const writeDetect = (status: string) => fs.writeFileSync(path.join(binDir, 'gstack-gbrain-detect'),
+  `#!/usr/bin/env bash\nprintf '%s\\n' '{"gbrain_on_path":true,"gbrain_local_status":"${status}","gbrain_version":"0.35.8.0"}'\n`, { mode: 0o755 });
+const refresh = () => spawnSync('bash', [path.join(binDir, 'gstack-config'), 'gbrain-refresh'], {
+  encoding: 'utf8', timeout: 30_000,
+  env: { PATH: `${binDir}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: home, GSTACK_HOME: home, GSTACK_STATE_ROOT: home },
+});
 
 beforeEach(() => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gbrain-refresh-'));
@@ -26,8 +32,7 @@ beforeEach(() => {
     fs.copyFileSync(path.join(ROOT, 'bin', f), path.join(binDir, f));
     fs.chmodSync(path.join(binDir, f), 0o755);
   }
-  fs.writeFileSync(path.join(binDir, 'gstack-gbrain-detect'),
-    `#!/usr/bin/env bash\nprintf '%s\\n' '{"gbrain_on_path":true,"gbrain_local_status":"no-config","gbrain_version":"0.35.8.0"}'\n`, { mode: 0o755 });
+  writeDetect('no-config');
   // A Python that cannot open() the state path but reads stdin, like native
   // Windows Python handed an MSYS path. Bun stands in for its JSON parse.
   fs.writeFileSync(path.join(binDir, 'python3'), `#!/usr/bin/env bash
@@ -39,12 +44,21 @@ afterEach(() => { fs.rmSync(tmp, { recursive: true, force: true }); });
 
 describe('gstack-config gbrain-refresh (E6)', () => {
   test('reads the detection file through stdin, so the status is not masked as unknown', () => {
-    const r = spawnSync('bash', [path.join(binDir, 'gstack-config'), 'gbrain-refresh'], {
-      encoding: 'utf8', timeout: 30_000,
-      env: { PATH: `${binDir}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: home, GSTACK_HOME: home, GSTACK_STATE_ROOT: home },
-    });
+    const r = refresh();
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('local-status: no-config');
     expect(r.stdout).not.toContain('local-status: unknown');
+  });
+
+  // A2: a network/DNS failure with an intact config is transient, like
+  // timeout, so brain-aware blocks are kept rather than stripped.
+  test('db-unreachable counts as a configured gbrain, like timeout', () => {
+    for (const status of ['timeout', 'db-unreachable']) {
+      writeDetect(status);
+      const r = refresh();
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toContain(`Detected gbrain v0.35.8.0 (local-status: ${status}).`);
+      expect(r.stdout).not.toContain('brain-aware blocks will be suppressed');
+    }
   });
 });

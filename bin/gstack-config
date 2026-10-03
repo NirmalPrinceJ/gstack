@@ -707,8 +707,10 @@ case "${1:-}" in
     fi
 
     case "$STATUS" in
-      ok|timeout|thin-client|engine-locked)
-        # "timeout" = slow-but-healthy engine (#1964); "thin-client" =
+      ok|timeout|db-unreachable|thin-client|engine-locked)
+        # "timeout" = slow-but-healthy engine (#1964); "db-unreachable" =
+        # network/DNS failure with an intact config, transient like timeout
+        # (A2); "thin-client" =
         # remote-HTTP MCP brain, no local engine by design (#2051);
         # "engine-locked" = same class (#2456): PGLite is single-writer, so a
         # live `gbrain serve` (typically an MCP server) holds the embedded DB.
