@@ -642,6 +642,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // Learnings
   'learnings-show': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'learn/**', 'bin/gstack-learnings-search', 'bin/gstack-learnings-log', 'scripts/resolvers/learnings.ts', 'test/skill-e2e-learnings.test.ts'],
   // W1 safety-rule evals (test/helpers/safety-rules.ts registry; E3).
+  'safety-codex-consult-embed': ['codex/**', 'bin/gstack-codex-probe', 'bin/gstack-paths', 'scripts/resolve-codex-generation-model.ts', 'test/skill-e2e-safety-codex-consult.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
   'safety-pair-agent-block': ['pair-agent/**', 'browse/src/cli.ts', 'test/skill-e2e-safety-pair-agent.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
 
   // Session Intelligence (timeline, context recovery, /context-save + /context-restore)
@@ -1333,6 +1334,7 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   // Learnings — gate (functional guardrail: seeded learnings must appear)
   'learnings-show': 'gate',
   // W1 safety-rule evals.
+  'safety-codex-consult-embed': 'gate',
   'safety-pair-agent-block': 'gate',
 
   // Document-release — gate (CHANGELOG guardrail)
@@ -1700,6 +1702,7 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'cso-infra-scope': 'rule',
   'learnings-show': 'rule',
   // W1 safety-rule evals.
+  'safety-codex-consult-embed': 'rule',
   'safety-pair-agent-block': 'rule',
   'document-release': 'rule',
   'codex-review': 'rule',
