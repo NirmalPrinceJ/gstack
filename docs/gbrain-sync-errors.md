@@ -472,6 +472,24 @@ Or run the full cycle yourself when you have the time: `gbrain dream --source <i
 
 ---
 
+## `call graph for <source>: unknown: installed gbrain does not expose cycle_freshness`
+
+**Problem.** `/sync-gbrain` cannot tell whether this repo's call graph was
+ever built, so it does not offer to build it.
+
+**Cause.** The answer comes from `gbrain doctor`'s `cycle_freshness` check.
+gstack now reads it from `gbrain doctor --json --scope=brain` (the `--fast`
+mode it used before skips that check, so it always said "unknown"). Your
+installed gbrain does not report the check at all.
+
+**Fix.**
+```bash
+gstack-gbrain-install          # upgrade gbrain
+/sync-gbrain --dream           # or build the call graph now regardless
+```
+
+---
+
 ## Nothing is syncing but I expect it to
 
 **Not an error, but a common gotcha.** Check in order:

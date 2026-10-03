@@ -67,7 +67,7 @@ describe("gstack-gbrain-sync CLI", () => {
 
     expect(source).not.toContain("resolveCodeSourceId(root, process.env)");
     expect(source).toContain("resolveCodeSourceId(root, gbrainEnv)");
-    expect(source).toContain("cycleCompleted(resolveCodeSourceId(root, gbrainEnv), gbrainEnv)");
+    expect(source).toContain("readCycleStatus(resolveCodeSourceId(root, gbrainEnv), gbrainEnv)");
   });
 
   it("--dry-run with --code-only reports the code import preview only", () => {

@@ -42,7 +42,7 @@ import {
   ensureSourceRegistered,
   sourcePageCount,
   parseSourcesList,
-  cycleCompleted,
+  readCycleStatus,
   decidePrune,
   trackUnavailableSources,
   type CodeSourceRecord,
@@ -2192,10 +2192,13 @@ async function main(): Promise<void> {
     // Resolve cycle state only on the --full auto path (perf: the steady-state
     // incremental sync never pays a doctor subprocess). Explicit --dream forces.
     let cycle: CycleStatus | null = null;
+    let cycleWhy = "not in a git repo";
     if (!args.dream && args.mode === "full" && !args.noDream && !args.noCode) {
       const root = repoRoot();
       const gbrainEnv = buildGbrainEnv({ announce: !args.quiet });
-      cycle = root ? cycleCompleted(resolveCodeSourceId(root, gbrainEnv), gbrainEnv) : "unknown";
+      const read = root ? readCycleStatus(resolveCodeSourceId(root, gbrainEnv), gbrainEnv) : { status: "unknown" as const };
+      cycle = read.status;
+      cycleWhy = read.why ?? "gbrain doctor did not say whether this source cycled";
     }
     if (shouldRunDream(args, cycle)) {
       dreamStage = await runDream(args);
@@ -2211,7 +2214,7 @@ async function main(): Promise<void> {
         ran: false,
         ok: true,
         duration_ms: 0,
-        summary: "call-graph state unknown (doctor unavailable) — run /sync-gbrain --dream if code-callers returns 0",
+        summary: `call-graph state unknown (${cycleWhy}) — run /sync-gbrain --dream if code-callers returns 0`,
       };
     }
   }

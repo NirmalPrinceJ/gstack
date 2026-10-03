@@ -14,7 +14,7 @@ import { createHash } from "crypto";
 import { realpathSync } from "fs";
 import { dirname } from "path";
 import { withErrorContext } from "./gstack-memory-helpers";
-import { execGbrainJson, gbrainChildCwd, gbrainInvocation } from "./gbrain-exec";
+import { execGbrainJson, gbrainChildCwd, gbrainInvocation, spawnGbrain } from "./gbrain-exec";
 import {
   detectAutopilot,
   decideSourceRemove,
@@ -321,35 +321,44 @@ interface DoctorReport {
 }
 
 /**
- * Read `gbrain doctor --json --fast` and decide whether <sourceId>'s call
- * graph is built, by inspecting the `cycle_freshness` check.
+ * Read `gbrain doctor --json --scope=brain` and decide whether <sourceId>'s
+ * call graph is built, by inspecting the `cycle_freshness` check.
  *
- * Decision table (cycle_freshness.status / message):
- *   - ok                                        → "completed"
- *   - fail|warn AND message names <sourceId>    → "never"
- *   - fail|warn AND message omits <sourceId>    → "unknown"  (a real failure
- *       about OTHER sources must not be silently read as completed for us)
- *   - check absent / doctor null / other status → "unknown"
+ * B9 (#2918): `doctor --fast` skips every DB check, cycle_freshness
+ * included, so the old --fast read was always "unknown". `--scope=brain`
+ * keeps the DB checks and skips only the skill-file walk. doctor exits 1
+ * when any check fails, so the JSON is read whatever the exit code.
  *
- * `sourceId` is matched as a LITERAL substring (not a regex) so an id with
- * regex metacharacters can never misfire. Routes through `execGbrainJson` so
- * DATABASE_URL is seeded from gbrain's config (consistent with every other
- * gstack-side gbrain call). `env` is the caller's base env (tests inject a
- * shim on PATH).
+ * Decision table (cycle_freshness.status / the issue naming <sourceId>):
+ *   - ok                                         → "completed"
+ *   - names <sourceId>: "never completed"         → "never"
+ *   - names <sourceId>: "last cycled Nh ago"      → "completed" (it cycled; just stale)
+ *   - fail|warn that omits <sourceId>             → "unknown" (never mask other sources)
+ *   - check absent                                → "unknown", why: not exposed
+ *   - no report                                   → "unknown", why: doctor unavailable
+ *
+ * `sourceId` is matched as a LITERAL substring (not a regex).
  */
-export function cycleCompleted(sourceId: string, env?: NodeJS.ProcessEnv): CycleStatus {
-  const report = execGbrainJson<DoctorReport>(["doctor", "--json", "--fast"], { baseEnv: env });
-  if (!report || !Array.isArray(report.checks)) return "unknown";
+export function readCycleStatus(sourceId: string, env?: NodeJS.ProcessEnv): { status: CycleStatus; why?: string } {
+  const r = spawnGbrain(["doctor", "--json", "--scope=brain"], { baseEnv: env, timeout: 120_000 });
+  let report: DoctorReport | null = null;
+  try {
+    report = JSON.parse(r.stdout || "null") as DoctorReport;
+  } catch {}
+  if (!report || !Array.isArray(report.checks)) return { status: "unknown", why: "gbrain doctor returned no report" };
 
   const check = report.checks.find((c) => c.name === "cycle_freshness");
-  if (!check) return "unknown";
+  if (!check) return { status: "unknown", why: "installed gbrain does not expose cycle_freshness" };
+  if (check.status === "ok") return { status: "completed" };
+  if (check.status !== "fail" && check.status !== "warn") return { status: "unknown" };
+  const issue = (check.message || "").split("; ").find((m) => m.includes(`'${sourceId}'`)) ?? "";
+  if (issue.includes("never completed")) return { status: "never" };
+  if (issue.includes("last cycled")) return { status: "completed" };
+  return { status: "unknown" };
+}
 
-  if (check.status === "ok") return "completed";
-  if (check.status === "fail" || check.status === "warn") {
-    const msg = check.message || "";
-    return msg.includes(sourceId) ? "never" : "unknown";
-  }
-  return "unknown";
+export function cycleCompleted(sourceId: string, env?: NodeJS.ProcessEnv): CycleStatus {
+  return readCycleStatus(sourceId, env).status;
 }
 
 /**
