@@ -15,6 +15,7 @@ import {
   RETENTION_ONE_LINER, RETIREMENT_FIELDS, REVIEW_EVIDENCE_FIELDS, SWEEP_POINTER, TEST_VALUE_BAR_MAX_BYTES, TEST_VALUE_BAR_MODES,
   WEAK_REASONS, clampCardField, generateTestValueBar, renderValueCard, type TestValueBarMode,
 } from '../scripts/resolvers/test-value';
+import { recordsNonTestCallerSearch } from './helpers/test-value-fixture';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const FIX = 'Fix: bun run gen:skill-docs && bun test test/test-value-bar.test.ts';
@@ -239,3 +240,18 @@ describe('docs and registration', () => {
     expect(read('README.md').split('/deslop-shared-libs, /test-audit, /ship').length - 1).toBe(2);
   });
 });
+
+// Stored test-only-export evidence for the review test-value caller-search grader.
+{
+  const stored = JSON.parse(fs.readFileSync(path.join(import.meta.dir, 'fixtures/test-value-seam-evidence.json'), 'utf8')) as
+    { known_good: Record<string, unknown>; known_bad: Record<string, unknown> };
+
+  describe('test-only export caller-search evidence', () => {
+    test.each(Object.entries(stored.known_good))('accepts %s', (_name, evidence) => {
+      expect(recordsNonTestCallerSearch({ evidence })).toBe(true);
+    });
+    test.each(Object.entries(stored.known_bad))('rejects %s', (_name, evidence) => {
+      expect(recordsNonTestCallerSearch({ evidence })).toBe(false);
+    });
+  });
+}
