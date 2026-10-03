@@ -33,6 +33,7 @@ This release closes the follow-ups filed by the v1.91.15.0 prompt cleanup. The c
 - /review's specialist header counted advisory findings in its total; the header's N is now defined as critical plus informational.
 - Free-lane shards failed with "browser ownership deadline exceeded" when a browse daemon took more than 5 seconds to exit after SIGINT. Reaching the force-kill point now ends the graceful phase instead of recording a cleanup failure; a probe cut off at that point still fails the shard.
 - `bun run audit:manifest` printed backslash paths on Windows.
+- /review and /ship's design-review scope check sourced `gstack-diff-scope` without printing `SCOPE_FRONTEND`, so the agent could not see the value and reran the helper by hand. The block now prints it.
 - Exploratory QA could publish its evidence before listing captures taken before an input change, which left the verdict inconclusive (materialize runs once). The probe loop now says to annotate every capture and mark older-snapshot ones `superseded`.
 
 #### For contributors

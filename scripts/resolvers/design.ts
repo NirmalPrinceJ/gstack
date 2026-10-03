@@ -33,6 +33,7 @@ Check if the diff touches frontend files using \`gstack-diff-scope\`:
 
 \`\`\`bash
 source <(${ctx.paths.binDir}/gstack-diff-scope <base> 2>/dev/null)
+echo "SCOPE_FRONTEND=$SCOPE_FRONTEND"
 \`\`\`
 
 **If \`SCOPE_FRONTEND=false\`:** Skip design review silently. No output.
