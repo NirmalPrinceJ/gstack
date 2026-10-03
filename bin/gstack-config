@@ -135,6 +135,14 @@ CONFIG_HEADER='# gstack configuration — edit freely, changes take effect on ne
 #                           # The vendor capture consent (`memorable enable`)
 #                           # is separate; gstack never sets it.
 #
+# ─── Claude skill overlay ────────────────────────────────────────────
+# claude_overlay_model: claude  # Claude model ID whose skill overlay ./setup
+#                           #   renders (e.g. claude-opus-4-8). Absent = the
+#                           #   generic claude overlay. Set it with
+#                           #   ./setup --claude-model <id>, which validates the
+#                           #   ID and re-renders; ./setup --claude-model claude
+#                           #   returns to the generic overlay.
+#
 # ─── Advanced ────────────────────────────────────────────────────────
 # codex_reviews: enabled    # Workflow outside review (Codex or Claude Code by harness).
 #                           #   enabled: /review, /ship, /document-release, plan reviews,
@@ -195,6 +203,7 @@ lookup_default() {
     pair_agent) echo "off" ;; # remote tunnel consent — fail-closed until /pair-agent asks
     memorable_recall) echo "off" ;; # on | off — Memorable bridge gate, fail-closed until `gstack-memorable enable`
     founder_resources) echo "true" ;; # office-hours resource pitch — #538 permanent opt-out sets false
+    claude_overlay_model) echo "claude" ;; # set only by ./setup --claude-model; presence via `has`
     # Brain-aware planning (v1.48 / T5+T10+T16). Defaults documented inline:
     #   brain_trust_policy@<endpoint-id>  — unset on fresh install; setup-gbrain
     #                                writes 'personal' for local engines,
@@ -660,6 +669,7 @@ case "${1:-}" in
     # Run this after installing or uninstalling gbrain so your locally
     # generated SKILL.md files match your installation state.
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    . "$SCRIPT_DIR/gstack-render-claude.sh" 2>/dev/null || { echo "$0: $SCRIPT_DIR/gstack-render-claude.sh is missing. fix: reinstall with ./setup or /gstack-upgrade" >&2; exit 1; }
     DETECT_BIN="$SCRIPT_DIR/gstack-gbrain-detect"
     DETECTION_FILE="$STATE_DIR/gbrain-detection.json"
     mkdir -p "$STATE_DIR"
@@ -667,10 +677,10 @@ case "${1:-}" in
       echo "gstack-gbrain-detect not found at $DETECT_BIN" >&2
       exit 1
     fi
-    if ! "$DETECT_BIN" > "$DETECTION_FILE.tmp" 2>/dev/null; then
-      printf '{"gbrain_on_path":false,"gbrain_local_status":"no-cli"}\n' > "$DETECTION_FILE.tmp"
+    if ! "$DETECT_BIN" > "$DETECTION_FILE.tmp.$$" 2>/dev/null; then
+      printf '{"gbrain_on_path":false,"gbrain_local_status":"no-cli"}\n' > "$DETECTION_FILE.tmp.$$"
     fi
-    mv "$DETECTION_FILE.tmp" "$DETECTION_FILE"
+    mv "$DETECTION_FILE.tmp.$$" "$DETECTION_FILE"
 
     # Summarize for the user. Use python (already required elsewhere) to
     # parse the JSON portably; fall back to grep if python is unavailable.
@@ -721,10 +731,14 @@ case "${1:-}" in
           # SKILL.md link dangling — the whole skill set vanished from
           # Claude Code until a successful re-render. A failed render now
           # leaves the previous render fully intact.
+          gstack_claude_overlay "$INSTALL_DIR" "$0"
           RENDER_TMP="$RENDER_DIR.tmp.$$"
           rm -rf "$RENDER_TMP"
-          if ( cd "$INSTALL_DIR" && bun run gen:skill-docs:user --host claude --out-dir "$RENDER_TMP" --link-root "$RENDER_DIR" >/dev/null 2>&1 ); then
+          if ( cd "$INSTALL_DIR" && bun run gen:skill-docs:user --host claude --out-dir "$RENDER_TMP" --link-root "$RENDER_DIR" --model "$_GSTACK_OVERLAY" >/dev/null 2>&1 ); then
+            gstack_render_lock "$RENDER_DIR"
             _swap_in_render "$RENDER_DIR" "$RENDER_TMP"
+            gstack_render_unlock "$RENDER_DIR"
+            gstack_claude_render_settle "$INSTALL_DIR" "$RENDER_DIR" ok rendered
             # Repoint installed skills at the render — gstack-relink prefers
             # the render dir when present.
             "$INSTALL_DIR/bin/gstack-relink" >/dev/null 2>&1 || true
@@ -734,12 +748,41 @@ case "${1:-}" in
             rm -rf "$RENDER_TMP"
             echo "Warning: render failed — previous render (if any) left in place, links stay valid."
             echo "Run 'cd $INSTALL_DIR && bun run gen:skill-docs:user --host claude --out-dir $RENDER_DIR' manually to see the error."
+            gstack_claude_render_settle "$INSTALL_DIR" "$RENDER_DIR" ok failed
+            "$INSTALL_DIR/bin/gstack-relink" >/dev/null 2>&1 || true
           fi
         fi
         ;;
       *)
         echo "gbrain not detected (local-status: $STATUS) → brain-aware blocks will be suppressed in planning-skill SKILL.md files."
         echo "Install gbrain (see /setup-gbrain) and re-run 'gstack-config gbrain-refresh' once it's configured."
+        # Drop a brain-aware render, or re-render a pinned overlay without
+        # brain blocks, so removing gbrain keeps the chosen overlay.
+        INSTALL_DIR="$HOME/.claude/skills/gstack"
+        RENDER_DIR="${GSTACK_USER_RENDER_DIR:-$STATE_DIR/render/claude}"
+        if { [ -d "$RENDER_DIR" ] || "$0" has claude_overlay_model; } \
+          && [ -d "$INSTALL_DIR" ] && [ ! -L "$INSTALL_DIR" ] && [ -f "$INSTALL_DIR/VERSION" ] && [ -f "$INSTALL_DIR/package.json" ]; then
+          if ! command -v bun >/dev/null 2>&1; then
+            echo "Skip: bun not on PATH — the Claude render at $RENDER_DIR was not refreshed. Install bun, then re-run 'gstack-config gbrain-refresh'."
+          else
+            gstack_claude_overlay "$INSTALL_DIR" "$0"
+            gstack_claude_render_action "$RENDER_DIR" absent
+            if [ "$_GSTACK_RENDER_ACTION" = plain ]; then
+              if gstack_claude_render_plain "$INSTALL_DIR" "$RENDER_DIR"; then
+                gstack_claude_render_settle "$INSTALL_DIR" "$RENDER_DIR" absent rendered
+              else
+                gstack_claude_render_settle "$INSTALL_DIR" "$RENDER_DIR" absent failed
+              fi
+            else
+              if [ -d "$RENDER_DIR" ]; then
+                rm -rf "$RENDER_DIR"
+                echo "Removed the brain-aware render at $RENDER_DIR; Claude skills serve the committed files."
+              fi
+              gstack_claude_render_settle "$INSTALL_DIR" "$RENDER_DIR" absent removed
+            fi
+            "$INSTALL_DIR/bin/gstack-relink" >/dev/null 2>&1 || true
+          fi
+        fi
         ;;
     esac
     ;;

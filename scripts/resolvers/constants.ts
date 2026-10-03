@@ -165,7 +165,7 @@ Branch on the echoed \`CODEX_MODE\`:
 - **\`under_codex\`** — stale artifact selected its own harness. Print: "Codex outside review unavailable: harness mismatch; no outside process started. Missing coverage. Repair: setup --host codex." Skip the outside invocation and follow the workflow's native-review instructions below. Conflicting inherited harness markers are not grounds to guess another provider.
 - **\`not_authed\`** — installed but no credentials. Print: "Codex not authenticated; outside coverage unavailable. Run \`codex login\` or set \`$CODEX_API_KEY\`." ${nativeRoute}
 - **\`broken_install\`** — the CLI is on PATH but cannot execute (spawn ENOENT, non-executable binary, missing vendor payload). Print: "Codex is installed but its binary cannot run — Codex passes skipped. Reinstall: \`npm install -g @openai/codex\`." Relay the probe's HINT lines. ${nativeRoute}
-- **\`model_unusable\`** — the selected model (see \`CODEX_MODEL:\`) is invalid or unavailable to the account (#2477: HTTP 400 on every call). Relay the probe's HINT lines and the fix (\`GSTACK_CODEX_MODEL=<supported-model>\` or config.toml \`model\`); never substitute a model. ${nativeRoute} The ~10s round trip is cached for 1h; timeouts fail open to \`ready\`.
+- **\`model_unusable\`** — the selected model (see \`CODEX_MODEL:\`) is invalid or unavailable to the account (HTTP 400 on every call). Relay the probe's HINT lines and the fix (\`GSTACK_CODEX_MODEL=<supported-model>\` or config.toml \`model\`); never substitute a model. ${nativeRoute} The ~10s round trip is cached for 1h; timeouts fail open to \`ready\`.
 - **\`ready\`** — run the Codex pass below.`;
 }
 

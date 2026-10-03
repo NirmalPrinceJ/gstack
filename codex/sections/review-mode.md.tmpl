@@ -37,7 +37,7 @@ Use only one command path below. Remember its printed start token as CODEX_REVIE
 read-only sandbox is set with `-c 'sandbox_mode="read-only"'` — the same form the
 consult resume path uses. Without it the call inherits the user's
 `~/.codex/config.toml` default, which on a trusted project can be WRITE access —
-contradicting this skill's read-only contract (#2496, #2524):
+contradicting this skill's read-only contract:
 
 ```bash
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo "ERROR: not in a git repo" >&2; exit 1; }
@@ -57,7 +57,7 @@ if [ "$_CODEX_EXIT" = "124" ]; then
 elif [ "$_CODEX_EXIT" != "0" ]; then
   # Surface non-zero exits (parse errors, arg-shape breaks, etc.) so the
   # calling agent doesn't read "no output" as a silent model/API stall and
-  # burn 30-60min misdiagnosing it. See #1327.
+  # burn 30-60min misdiagnosing it.
   echo "[codex exit $_CODEX_EXIT] $(head -1 "$TMPERR" 2>/dev/null || echo "no stderr captured")"
   head -20 "$TMPERR" 2>/dev/null | sed 's/^/  /' || true
   _gstack_codex_log_event "codex_nonzero_exit" "review:$_CODEX_EXIT"
