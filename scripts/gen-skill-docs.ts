@@ -29,6 +29,7 @@ import type { HostConfig } from './host-config';
 const ROOT = path.resolve(import.meta.dir, '..');
 import { ALL_MODEL_NAMES, resolveModel, type Model } from './models';
 import { resolveStateRoot } from '../lib/state-root';
+import { mkdirpSync } from '../lib/fs-utils';
 
 type HostArg = Host | 'all';
 
@@ -967,7 +968,7 @@ export async function runGeneration(settings: GenerationOptions = {}): Promise<G
           log(`FRESH: ${relativePath}`);
         }
       } else {
-        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+        mkdirpSync(path.dirname(outputPath));
         fs.writeFileSync(outputPath, content);
         log(`GENERATED: ${relativePath}`);
       }
