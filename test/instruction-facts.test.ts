@@ -169,7 +169,7 @@ const RATCHET_ALLOWLIST = JSON.parse(read('test/state-root-ratchet.allowlist.jso
 const readinessEvalReason = RATCHET_ALLOWLIST.find(entry => entry.path === 'land-and-deploy/sections/readiness-gate.md.tmpl')!.reason;
 const DESCRIPTION = 'user-facing description of where the data lives; no command reads or writes this literal';
 const SOURCE_COMMENT = 'source comment, not rendered into any skill';
-const DESIGN_DOC_HELD = 'held at the literal path: converting design-doc discovery to $GSTACK_STATE_ROOT made plan-eng-review ask its scope gate in prose instead of AskUserQuestion (plan-mode no-op eval, 4 of 4 runs); see TODOS.md';
+const DESIGN_DOC_HELD = 'held at the literal path: converting design-doc discovery to $GSTACK_STATE_ROOT made plan-eng-review ask its scope gate in prose instead of AskUserQuestion (plan-mode no-op eval: 5 of 5 runs failed with it, 6 of 6 passed without); see TODOS.md';
 
 const STATE_ROOT_ALLOWLIST: Array<{ file: string; match: string; reason: string }> = [
   { file: 'autoplan/SKILL.md.tmpl', match: 'ls -t ~/.gstack/projects/$SLUG/*-design-*.md', reason: DESIGN_DOC_HELD },

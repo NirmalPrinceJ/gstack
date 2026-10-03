@@ -93,8 +93,8 @@ Each item was deferred with a reason during the `/claude-api prompt-audit` clean
 - **Design-doc discovery still reads `~/.gstack/projects`** — converting
   `DESIGN_DOC_DISCOVERY` (and autoplan's Step 2 lookup) to `$GSTACK_STATE_ROOT`
   made /plan-eng-review answer its no-target scope gate in prose instead of
-  AskUserQuestion: the plan-mode no-op eval failed 4 of 4 runs with the change
-  and passed 5 of 5 without it. Custom state roots miss office-hours design docs
+  AskUserQuestion: the plan-mode no-op eval failed 5 of 5 runs with the converted
+  paths and passed 6 of 6 without them. Custom state roots miss office-hours design docs
   until this lands. Find why the path change shifts the gate (likely the gate's
   "do not probe for session state" rule), then convert and keep the eval green.
   Priority P2. Effort S.
