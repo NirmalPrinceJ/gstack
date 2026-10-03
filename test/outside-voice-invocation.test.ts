@@ -196,6 +196,21 @@ describe('generated outside-review dispatch', () => {
     }
   });
 
+  test('INV-1: the generated caller branches on VERDICT: findings complete, untagged is unverified', () => {
+    for (const host of ['claude', 'codex'] as const) {
+      const findings = invoke(host, { structuredBase: 'main', gate: 'structured' }, { FAKE_RESPONSE: '[P0] Seeded corruption' });
+      expect(findings.status).toBe(0);
+      expect(findings.stdout).toContain('VERDICT: findings\nFINDINGS: P0\n');
+      expect(findings.stdout).toContain('OUTSIDE_STATUS: completed');
+      const untagged = invoke(host, { structuredBase: 'main', gate: 'structured' }, { FAKE_RESPONSE: 'The change reads fine to me.' });
+      expect(untagged.status).toBe(4);
+      expect(untagged.stdout).toContain('VERDICT: unverified');
+      expect(untagged.stdout).toContain('OUTSIDE_STATUS: unverified');
+      expect(untagged.stdout).not.toContain('OUTSIDE_STATUS: completed');
+      expect(untagged.stderr).toContain('ran, verdict unverified');
+    }
+  });
+
   test('malformed Claude JSON cannot reach completion evaluation', () => {
     const result = invoke('codex',{}, {FAKE_MODE:'malformed'});
     expect(result.status).toBe(1);

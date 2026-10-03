@@ -169,6 +169,8 @@ test.each([
  'Outside review unavailable: empty response; missing coverage.',
  'Outside review unavailable: review refused; missing coverage.',
  'Outside review unavailable: missing review completion recommendation; missing coverage.',
+ 'Codex outside review unavailable: the reviewer process failed (exit 1: error: 401 Unauthorized). No review ran; this is missing coverage, not a pass. Fix: read the provider diagnosis above (auth, model, network), repair it, then re-run the review.',
+ 'Codex outside review unavailable: the response lacks the markers this gate requires (missing review completion recommendation). No review ran; this is missing coverage, not a pass. Fix: re-run the review; a response without its required markers never counts as a pass.',
 ])('actual owned post-execution error proves attempted outside voice, not completion: %s',diagnostic=>{
  const f=fixture();f.events[7]=ack('outside','Exit code 1\n'+diagnostic,true);
  expect(f.read()).toMatchObject({claudeVoiceFired:true,codexAttempted:true,codexVoiceFired:false,codexUnavailable:true,failedOutsideToolUseId:'outside'});

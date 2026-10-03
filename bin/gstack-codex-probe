@@ -260,7 +260,7 @@ _gstack_codex_timeout_wrapper() {
     "$@" &
     local _cmd_pid=$!
     (
-      sleep "$_duration" && trap '' TERM && kill -TERM "$_cmd_pid" 2>/dev/null || exit 0
+      sleep "$_duration" && trap '' TERM && kill -TERM "$_cmd_pid" 2>/dev/null || exit 0  # best-effort: the command already exited, nothing to stop
       _GSTACK_CODEX_WAITED=0
       while [ "$_GSTACK_CODEX_WAITED" -lt "$_grace" ] && kill -0 "$_cmd_pid" 2>/dev/null; do
         sleep 1
