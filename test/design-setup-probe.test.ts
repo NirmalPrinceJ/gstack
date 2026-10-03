@@ -61,13 +61,13 @@ describe('B4: DESIGN_READY requires a binary that starts', () => {
       expect(w.launches()).toBe(1);
       fs.writeFileSync(path.join(w.install, 'design/dist/design'), `#!/bin/sh\necho launched >> "${w.home}/launches"\nexit 3\n`);
       fs.utimesSync(path.join(w.install, 'design/dist/design'), new Date(), new Date(Date.now() + 5_000));
-      expect(run(setup(), w).stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design exited 3`);
+      expect(run(setup(), w).stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design --version exited 3`);
     });
 
     test(`${host.name}: a binary killed at launch is not ready and names the fix`, () => {
       const w = world(host.root, 'kill -9 $$');
       const r = run(setup(), w);
-      expect(r.stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design exited 137 (killed at launch; on macOS usually an invalid code signature). Fix: cd ${w.install} && ./setup`);
+      expect(r.stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design --version exited 137 (killed at launch; on macOS usually an invalid code signature). Fix: cd ${w.install} && ./setup`);
       expect(fs.existsSync(path.join(w.state, 'design-ready'))).toBe(false);
     });
 
@@ -100,7 +100,7 @@ describe('B4: DESIGN_READY requires a binary that starts', () => {
       child.on('error', reject);
       child.on('close', () => resolve(text));
     });
-    expect(stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design timed out after 10s`);
+    expect(stdout.trim()).toBe(`DESIGN_NOT_AVAILABLE: ${w.install}/design/dist/design --version timed out after 10s`);
   }, 30_000);
 
   test('office-hours visual exploration uses the same probe', () => {

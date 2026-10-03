@@ -1118,8 +1118,8 @@ Source: [OpenAI "Designing Delightful Frontends with GPT-5.4"](https://developer
 /**
  * B4 (#1076, #1254): DESIGN_READY only when the binary actually starts. A
  * binary that is merely executable can still be SIGKILLed at launch (an
- * invalid macOS code signature), so launch it (no arguments prints usage and
- * exits 0) under the portable deadline aside.ts uses. A success is cached
+ * invalid macOS code signature), so run `--version` under the portable
+ * deadline aside.ts uses. A success is cached
  * (inode + path, valid while newer than the binary) so Gatekeeper's
  * first-launch scan is paid once.
  */
@@ -1129,15 +1129,15 @@ _dt() { if command -v gtimeout >/dev/null; then gtimeout 10 "$@"; elif command -
 elif command -v perl >/dev/null; then perl -e 'alarm(shift);exec(@ARGV)' 10 "$@"; else return 125; fi; }
 _RC=0; _F="Fix: cd \${D%/design/dist/design} && ./setup"
 if [ ! -x "$D" ]; then _RC=missing
-elif [ ! "$_DC" -nt "$D" ] || [ "$(cat "$_DC")" != "$_DK" ]; then _dt "$D" >/dev/null 2>&1 </dev/null || _RC=$?
+elif [ ! "$_DC" -nt "$D" ] || [ "$(cat "$_DC")" != "$_DK" ]; then _dt "$D" --version >/dev/null 2>&1 </dev/null || _RC=$?
 fi
 case "$_RC" in
   0) echo "DESIGN_READY: $D"; [ -n "$_DC" ] && echo "$_DK" > "$_DC" 2>/dev/null ;;
   missing) echo "DESIGN_NOT_AVAILABLE: $D is not installed. $_F" ;;
-  124|142) echo "DESIGN_NOT_AVAILABLE: $D timed out after 10s" ;;
+  124|142) echo "DESIGN_NOT_AVAILABLE: $D --version timed out after 10s" ;;
   125) echo "DESIGN_NOT_AVAILABLE: no timeout/gtimeout/perl to bound $D" ;;
-  137) echo "DESIGN_NOT_AVAILABLE: $D exited 137 (killed at launch; on macOS usually an invalid code signature). $_F" ;;
-  *) echo "DESIGN_NOT_AVAILABLE: $D exited $_RC" ;;
+  137) echo "DESIGN_NOT_AVAILABLE: $D --version exited 137 (killed at launch; on macOS usually an invalid code signature). $_F" ;;
+  *) echo "DESIGN_NOT_AVAILABLE: $D --version exited $_RC" ;;
 esac`;
 }
 
@@ -1421,7 +1421,7 @@ else
 fi
 \`\`\`
 
-**If TASTE_PROFILE_UNAVAILABLE:** say that line once, then continue without a taste profile (do not treat it as "no history").
+**If TASTE_PROFILE_UNAVAILABLE:** say so once; continue without a taste profile.
 
 **If TASTE_PROFILE_FOUND:** Parse the full JSON; malformed/unreadable uses the legacy fallback. After decay, rank each dimension by confidence * approved_count (or rejected_count); take three per kind. Count retained sessions (at most 50, not lifetime). Include in ${ctx.skillName === 'design-consultation' ? 'the Phase 1 product brief (later shared unchanged with both independent voices)' : 'the brief'}:
 
