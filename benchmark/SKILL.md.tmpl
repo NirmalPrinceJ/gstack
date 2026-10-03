@@ -58,7 +58,9 @@ mkdir -p .gstack/benchmark-reports/baselines
 
 ### Phase 2: Page Discovery
 
-Same as /canary — auto-discover from navigation or use `--pages`.
+Use `--pages` when given. Otherwise open the URL, collect its same-origin `a[href]`
+links (skip logout/delete-style URLs), and propose the homepage plus up to 5 main
+navigation targets; confirm the list with the user before measuring.
 
 If `--diff` mode:
 ```bash
