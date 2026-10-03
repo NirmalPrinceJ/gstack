@@ -399,22 +399,40 @@ if (process.env.LIMIT_STAGE_WRITES === '1') {
       });
     }
 
-    for (const mode of ["no-write", "remote-http"]) {
-      it(`does not stamp an append during the ${mode} scan`, () => {
-        scanner("clean");
-        const path = source();
-        if (mode === "remote-http") writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { gbrain: { type: "http", url: "http://fixture.invalid/mcp" } } }));
-        env.APPEND_DURING_SCAN = path;
-        env.APPEND_RECORD = appendRecord();
-        const args = mode === "no-write" ? ["--scan-secrets", "--no-write"] : ["--scan-secrets"];
-        expect(run(args).status).toBe(0);
-        expect(sessions()[path]).toBeUndefined();
-        expect(imported()).toEqual([]);
-        delete env.APPEND_DURING_SCAN;
-        expect(run(args).status).toBe(0);
-        expect(sessions()[path]).toBeDefined();
-      });
-    }
+    it("does not stamp an append during the remote-http scan", () => {
+      scanner("clean");
+      const path = source();
+      writeFileSync(join(home, ".claude.json"), JSON.stringify({ mcpServers: { gbrain: { type: "http", url: "http://fixture.invalid/mcp" } } }));
+      env.APPEND_DURING_SCAN = path;
+      env.APPEND_RECORD = appendRecord();
+      expect(run(["--scan-secrets"]).status).toBe(0);
+      expect(sessions()[path]).toBeUndefined();
+      expect(imported()).toEqual([]);
+      delete env.APPEND_DURING_SCAN;
+      expect(run(["--scan-secrets"]).status).toBe(0);
+      expect(sessions()[path]).toBeDefined();
+    });
+
+    it("--no-write leaves state untouched, so the next real run imports every eligible page (A9)", () => {
+      scanner("clean");
+      const first = source("first conversation");
+      const second = source("second conversation");
+      const statePath = join(env.GSTACK_HOME, ".transcript-ingest-state.json");
+      const dry = run(["--no-write"]);
+      expect(dry.status).toBe(0);
+      expect(existsSync(statePath)).toBe(false);
+      expect(dry.stderr).toContain("--no-write: 2 page(s) would be imported");
+      expect(imported()).toEqual([]);
+      expect(run(["--no-write", "--scan-secrets"]).status).toBe(0);
+      expect(existsSync(statePath)).toBe(false);
+      expect(run([]).status).toBe(0);
+      expect(imported()).toHaveLength(2);
+      expect(Object.keys(sessions()).sort()).toEqual([first, second].sort());
+      const before = readFileSync(statePath, "utf8");
+      source("third conversation");
+      expect(run(["--no-write"]).status).toBe(0);
+      expect(readFileSync(statePath, "utf8")).toBe(before);
+    });
 
     for (const remote of [false, true]) {
       it(`never stamps a page that failed to stage (remote-http: ${remote})`, () => {
@@ -599,15 +617,16 @@ process.stdout.write(execFileSync(process.execPath, ['-e', 'process.stdout.write
     expect(existsSync(join(home, "scanner-late"))).toBe(false);
   });
 
-  it("does not stamp --no-write pages that could not pass the requested scan", () => {
+  it("does not stamp or import pages that could not pass the requested scan", () => {
     scanner("error");
     const path = source();
-    run(["--scan-secrets", "--no-write"]);
+    run(["--scan-secrets"]);
     expect(sessions()[path]).toBeUndefined();
-    scanner("clean");
-    expect(run(["--scan-secrets", "--no-write"]).status).toBe(0);
-    expect(sessions()[path]).toBeDefined();
     expect(imported()).toEqual([]);
+    scanner("clean");
+    expect(run(["--scan-secrets"]).status).toBe(0);
+    expect(sessions()[path]).toBeDefined();
+    expect(imported()).toHaveLength(1);
   });
 
   it("accepts a complete clean report exactly at the 16 MiB ceiling", () => {

@@ -261,8 +261,8 @@ Options:
                        transcript_ingest_mode is recent (90 days) or all
                        (all history). A list naming transcript overrides it.
   --limit <N>          Stop after N pages written (smoke testing).
-  --no-write           Skip gbrain put calls (still updates state file).
-                       Used by tests + dry runs without actual ingest.
+  --no-write           Dry run: prepare pages and report counts, but import
+                       nothing and leave the state file untouched.
   --scan-secrets       Opt-in gitleaks scan of outgoing rendered pages, including
                        resumed staging. Findings and incomplete scans block
                        writes and remain retryable. Off by default.
@@ -2052,31 +2052,17 @@ async function ingestPass(args: CliArgs): Promise<BulkResult> {
   }
 
   if (args.noWrite) {
-    // --no-write: skip the gbrain import call but still record state for
-    // prepared pages (treat them as ingested for dedup purposes). Matches
-    // the prior contract from --help: "Skip gbrain put calls (still
-    // updates state file)".
-    const nowIso = new Date().toISOString();
-    for (const p of prep.prepared) {
-      try {
-        const fingerprint = sourceFingerprintForStamp(p);
-        if (!fingerprint) continue;
-        state.sessions[p.source_path] = {
-          ...fingerprint,
-          ingested_at: nowIso,
-          page_slug: p.page_slug,
-          partial: p.partial,
-        };
-        written++;
-      } catch {
-        // best-effort state record
-      }
+    // --no-write is a dry run: it prepares pages (so parse, attribution,
+    // policy and scan results are reported) but neither imports nor touches
+    // the state file. Stamping here marked every prepared page ingested, so
+    // the next real run skipped them forever (A9).
+    if (!args.quiet) {
+      console.error(
+        `[memory-ingest] --no-write: ${prep.prepared.length} page(s) would be imported; nothing was imported and the state file was not changed.`,
+      );
     }
-    state.last_full_walk = new Date().toISOString();
-    state.last_writer = "gstack-memory-ingest";
-    saveState(state);
     return {
-      written,
+      written: 0,
       skipped_secret: prep.skippedSecret,
       skipped_dedup: prep.skippedDedup,
       skipped_unattributed: prep.skippedUnattributed,
