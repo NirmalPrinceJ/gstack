@@ -90,7 +90,6 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // through the real runner, plus the script wiring that gates + maps it
   // (token-reduction Phase 2: generate-first-run-guidance.ts was deleted; the
   // gate + token→tip map live in bin/gstack-skill-start's emission layer).
-  'first-task-scaffold': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'bin/gstack-skill-start', 'bin/gstack-skill-end', 'bin/gstack-first-task-detect', 'scripts/resolvers/preamble/generate-preamble-bash.ts', 'test/skill-e2e-first-task-scaffold.test.ts', 'test/helpers/session-runner.ts'],
 
   // SKILL.md setup + preamble (depend on ROOT SKILL.md + gen-skill-docs)
   'skillmd-setup-discovery':  [ 'SKILL.md', 'SKILL.md.tmpl', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-bws.test.ts'],
@@ -1155,7 +1154,6 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   'operational-learning': 'gate',
 
   // P4 first-run scaffold — periodic (onboarding, non-safety, model-touched marker)
-  'first-task-scaffold': 'periodic',
 
   // QA — gate for functional, periodic for quality/benchmarks
   'qa-quick': 'gate',
@@ -1617,7 +1615,6 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'skillmd-outside-git': 'rule',
   'session-awareness': 'rule',
   'operational-learning': 'rule',
-  'first-task-scaffold': 'rule',
   'qa-quick': 'rule',
   'qa-b6-static': 'rule',
   'qa-b7-spa': 'rule',
