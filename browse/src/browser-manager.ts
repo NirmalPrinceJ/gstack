@@ -2106,7 +2106,8 @@ export class BrowserManager {
         if (!reason || page.isClosed()) return;
         guard.blocked = reason;
         console.warn(`[browse] ${reason} (navigation from ${req.frame().url() || 'a new page'}; tab reset to about:blank)`);
-        await page.goto('about:blank').catch(() => {});
+        // Commit is enough to blank the tab; a bounded reset never holds the command for the full navigation timeout.
+        await page.goto('about:blank', { waitUntil: 'commit', timeout: 5_000 }).catch(() => {});
       }).finally(() => { guard.pending.delete(check); });
       guard.pending.add(check);
     });
