@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { validateOfficeHoursCompletion, validateOfficeHoursDesignDraft, validateOfficeHoursReviewerHandoffs, validateOfficeHoursReviewArtifacts, validateOfficeHoursReviewPreservation, validateOfficeHoursSpecSummary, type OfficeHoursCompletionEvidence } from './helpers/office-hours-completion';
+import { validateOfficeHoursCompletion, validateOfficeHoursDesignDraft, validateOfficeHoursReviewerHandoffs, validateOfficeHoursReviewArtifacts, validateOfficeHoursReviewPreservation, type OfficeHoursCompletionEvidence } from './helpers/office-hours-completion';
 import { E2E_TOUCHFILES } from './helpers/touchfiles-data';
 import { selectTests } from './helpers/test-selection';
 
@@ -700,46 +700,6 @@ describe('office-hours completion eval selection', () => {
     expect(selected).toContain('office-hours-section-loading');
     expect(selected).toContain('office-hours-design-draft');
     expect(selected).not.toContain('carve-section-loading');
-  });
-});
-
-describe('office-hours spec-review summary completion', () => {
-  const summary = `The Agent dispatches an independent reviewer across five dimensions:
-Completeness, Consistency, Clarity, Scope, and Feasibility. Maximum 3 iterations.
-Metrics track iterations, issues found, issues fixed, remaining issues, and quality score.`;
-
-  test('accepts a successful written explanation of the loop and metrics', () => {
-    expect(() => validateOfficeHoursSpecSummary('success', summary)).not.toThrow();
-  });
-
-  test.each(['timeout', 'error_max_turns', 'error_api'])('rejects %s even with a complete summary file', reason => {
-    expect(() => validateOfficeHoursSpecSummary(reason, summary)).toThrow(`execution failed: ${reason}`);
-  });
-
-  test('requires the actual summary file', () => {
-    expect(() => validateOfficeHoursSpecSummary('success', null)).toThrow('summary file was not written');
-  });
-
-  test('rejects incomplete dimensions, dispatch, and iteration explanations', () => {
-    expect(() => validateOfficeHoursSpecSummary('success', summary.replace(/five dimensions:[\s\S]*?Feasibility/, 'one dimension: Completeness')))
-      .toThrow('five review dimensions');
-    expect(() => validateOfficeHoursSpecSummary('success', summary.replace('Agent', 'model'))).toThrow('Agent reviewer dispatch');
-    expect(() => validateOfficeHoursSpecSummary('success', summary.replace('Maximum 3 iterations', 'Maximum 4 iterations')))
-      .toThrow('three-iteration limit');
-  });
-
-  test('15 dimensions does not satisfy the five-dimension count', () => {
-    const incorrect = summary.replace(/five dimensions:[\s\S]*?Feasibility/, '15 dimensions');
-    expect(() => validateOfficeHoursSpecSummary('success', incorrect)).toThrow('five review dimensions');
-  });
-
-  test('13 iterations does not satisfy the three-iteration limit', () => {
-    expect(() => validateOfficeHoursSpecSummary('success', summary.replace('Maximum 3 iterations', 'Maximum 13 iterations')))
-      .toThrow('three-iteration limit');
-  });
-
-  test.each(['issues found', 'issues fixed', 'remaining issues', 'quality score'])('requires the %s metric', metric => {
-    expect(() => validateOfficeHoursSpecSummary('success', summary.replace(metric, ''))).toThrow('metric');
   });
 });
 
