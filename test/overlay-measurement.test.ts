@@ -255,11 +255,12 @@ describe('literal fixture task correctness', () => {
     expect(() => assertReadOnlyWorkspace(before, snapshotWorkspace(dir))).toThrow('b');
   }));
   test('registry retires absent-nudge fanout cases and preserves remaining model/trial budgets', () => {
-    expect(OVERLAY_FIXTURES).toHaveLength(4);
+    expect(OVERLAY_FIXTURES).toHaveLength(5);
     expect(OVERLAY_FIXTURES.some((f) => f.id.includes('fanout') || f.comparison?.unsupportedHypothesis)).toBe(false);
     expect(OVERLAY_FIXTURES.every((f) => f.trials === 10 && f.comparison)).toBe(true);
     expect(OVERLAY_FIXTURES.filter((f) => f.model === 'claude-opus-4-7')).toHaveLength(3);
     expect(OVERLAY_FIXTURES.filter((f) => f.model === 'claude-sonnet-4-6')).toHaveLength(1);
+    expect(OVERLAY_FIXTURES.filter((f) => f.model === 'claude-opus-5-5')).toHaveLength(1);
   });
 });
 
