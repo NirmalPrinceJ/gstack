@@ -641,6 +641,13 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
 
   // Learnings
   'learnings-show': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'learn/**', 'bin/gstack-learnings-search', 'bin/gstack-learnings-log', 'scripts/resolvers/learnings.ts', 'test/skill-e2e-learnings.test.ts'],
+  // W1 safety-rule evals (test/helpers/safety-rules.ts registry; E3).
+  'safety-design-risk-stop': ['design-review/**', 'scripts/resolvers/browse.ts', 'scripts/resolvers/testing.ts', 'lib/aside-render.ts', 'test/skill-e2e-safety-design-risk.test.ts', 'test/helpers/browser-available.ts', 'test/helpers/aside-available.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts', 'test/helpers/llm-judge.ts'],
+  'safety-codex-boundary': ['scripts/resolvers/outside-voice-steps.ts', 'review/**', 'scripts/resolvers/constants.ts', 'test/skill-e2e-safety-codex-boundary.test.ts', 'test/helpers/codex-boundary-evidence.ts', 'test/helpers/safety-rules.ts', 'test/helpers/pricing.ts', 'test/helpers/e2e-gate.ts'],
+  'safety-codex-consult-embed': ['codex/**', 'bin/gstack-codex-probe', 'bin/gstack-paths', 'scripts/resolve-codex-generation-model.ts', 'test/skill-e2e-safety-codex-consult.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
+  'safety-ios-demo-ui-only': ['ios-qa/**', 'test/skill-e2e-safety-ios-demo.test.ts', 'test/helpers/ios-stub-state-server.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
+  'safety-pair-agent-block': ['pair-agent/**', 'browse/src/cli.ts', 'test/skill-e2e-safety-pair-agent.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
+  'safety-ship-stale-evidence': ['ship/SKILL.md.tmpl', 'ship/SKILL.md', 'bin/gstack-evidence', 'bin/gstack-wtree', 'test/skill-e2e-safety-ship-evidence.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts', 'test/helpers/llm-judge.ts'],
 
   // Session Intelligence (timeline, context recovery, /context-save + /context-restore)
   'timeline-event-flow':            ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'bin/gstack-timeline-log', 'bin/gstack-timeline-read', 'test/skill-e2e-session-intelligence.test.ts'],
@@ -1331,6 +1338,13 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
 
   // Learnings — gate (functional guardrail: seeded learnings must appear)
   'learnings-show': 'gate',
+  // W1 safety-rule evals.
+  'safety-design-risk-stop': 'periodic',
+  'safety-codex-boundary': 'periodic',
+  'safety-codex-consult-embed': 'gate',
+  'safety-ios-demo-ui-only': 'periodic',
+  'safety-pair-agent-block': 'gate',
+  'safety-ship-stale-evidence': 'gate',
 
   // Document-release — gate (CHANGELOG guardrail)
   'document-release': 'gate',
@@ -1697,6 +1711,13 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'cso-diff-mode': 'rule',
   'cso-infra-scope': 'rule',
   'learnings-show': 'rule',
+  // W1 safety-rule evals.
+  'safety-design-risk-stop': 'rule',
+  'safety-codex-boundary': 'rule',
+  'safety-codex-consult-embed': 'rule',
+  'safety-ios-demo-ui-only': 'rule',
+  'safety-pair-agent-block': 'rule',
+  'safety-ship-stale-evidence': 'rule',
   'document-release': 'rule',
   'codex-review': 'rule',
   'codex-discover-skill': 'rule',

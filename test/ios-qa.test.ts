@@ -10,7 +10,6 @@
 // boundary — what the /ios-qa skill orchestrates end-to-end.
 
 import { describe, test, expect, afterAll } from 'bun:test';
-import { createServer, type Server, type IncomingMessage } from 'http';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync, readFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -18,9 +17,8 @@ import { startDaemon, type RunningDaemon } from '../ios-qa/daemon/src/index';
 import type { DeviceTunnel } from '../ios-qa/daemon/src/proxy';
 import { grantIdentity } from '../ios-qa/daemon/src/allowlist';
 import { generate } from '../ios-qa/scripts/gen-accessors';
+import { DEVICE_TOKEN, startStubStateServer, type StubState } from './helpers/ios-stub-state-server';
 
-
-const DEVICE_TOKEN = 'rotated-mock-bearer-token';
 
 // Per-test isolation under `bun test --concurrent`: a single module-level
 // `workDir` reassigned in beforeEach is clobbered by parallel tests, so they
@@ -44,112 +42,6 @@ afterAll(() => {
   }
   createdWorkDirs.length = 0;
 });
-
-interface StubState {
-  loggedIn: boolean;
-  username: string;
-  rawTaps: Array<{ x: number; y: number }>;
-}
-
-// Build a stub StateServer that mimics the iOS app's HTTP surface end-to-end:
-// /auth/rotate, session lock, snapshot, restore, tap. Used for both NO_DEVICE
-// and as the development harness for WITH_DEVICE.
-function startStubStateServer(initial: StubState): Promise<{ server: Server; port: number; state: StubState }> {
-  const state = { ...initial };
-  let activeSession: string | null = null;
-
-  return new Promise((resolve) => {
-    const server = createServer((req, res) => {
-      const chunks: Buffer[] = [];
-      req.on('data', (c) => chunks.push(c));
-      req.on('end', () => {
-        const body = Buffer.concat(chunks).toString('utf-8');
-        const auth = req.headers['authorization'];
-        const url = req.url ?? '/';
-
-        // /healthz public on loopback (the stub mimics that)
-        if (req.method === 'GET' && url === '/healthz') {
-          return respond(res, 200, { version: '1.0.0' });
-        }
-
-        // /auth/rotate: validates boot token (we accept any here for the stub)
-        if (req.method === 'POST' && url === '/auth/rotate') {
-          return respond(res, 200, { ok: true });
-        }
-
-        // Everything else requires our rotated token
-        if (auth !== `Bearer ${DEVICE_TOKEN}`) {
-          return respond(res, 401, { error: 'unauthorized' });
-        }
-
-        // Session ops
-        if (req.method === 'POST' && url === '/session/acquire') {
-          if (activeSession) return respond(res, 423, { error: 'device_locked' });
-          activeSession = 'stub-session-' + Math.random().toString(16).slice(2, 8);
-          return respond(res, 200, { session_id: activeSession, ttl_seconds: 300 });
-        }
-        if (req.method === 'POST' && url === '/session/release') {
-          activeSession = null;
-          return respond(res, 200, { ok: true });
-        }
-
-        // Snapshot
-        if (req.method === 'GET' && url === '/state/snapshot') {
-          return respond(res, 200, {
-            _schema_version: 1,
-            _app_build_id: 'stub-1.0',
-            _accessor_hash: 'stub-hash',
-            keys: {
-              loggedIn: state.loggedIn,
-              username: state.username,
-            },
-          });
-        }
-
-        // Mutations require session
-        const sessionHeader = req.headers['x-session-id'];
-        const sessionOk = !!sessionHeader && sessionHeader === activeSession;
-        const isMutation = req.method === 'POST' && (
-          url === '/tap' || url === '/swipe' || url === '/type' ||
-          url.startsWith('/state/') && !url.endsWith('/snapshot')
-        );
-
-        if (isMutation && !sessionOk) {
-          return respond(res, 409, { error: 'session_required' });
-        }
-
-        if (req.method === 'POST' && url === '/tap') {
-          const payload = JSON.parse(body || '{}');
-          state.rawTaps.push({ x: payload.x ?? 0, y: payload.y ?? 0 });
-          return respond(res, 200, { op: 'tap', ok: true });
-        }
-
-        if (req.method === 'POST' && url === '/state/restore') {
-          const payload = JSON.parse(body || '{}');
-          if (payload._accessor_hash && payload._accessor_hash !== 'stub-hash') {
-            return respond(res, 409, { error: 'schema_mismatch' });
-          }
-          if (payload.keys?.loggedIn !== undefined) state.loggedIn = payload.keys.loggedIn;
-          if (payload.keys?.username !== undefined) state.username = payload.keys.username;
-          return respond(res, 200, { ok: true });
-        }
-
-        respond(res, 404, { error: 'not_found' });
-      });
-    });
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address();
-      const port = typeof addr === 'object' && addr ? addr.port : 0;
-      resolve({ server, port, state });
-    });
-  });
-}
-
-function respond(res: import('http').ServerResponse, status: number, body: unknown): void {
-  const payload = JSON.stringify(body);
-  res.writeHead(status, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) });
-  res.end(payload);
-}
 
 async function fetchJson(method: string, url: string, init: { headers?: Record<string, string>; body?: string } = {}): Promise<{ status: number; body: unknown }> {
   const res = await fetch(url, { method, headers: init.headers, body: init.body });
@@ -470,9 +362,8 @@ describe('ios-qa E2E (agent-flow simulation)', () => {
         const ss = await fetchJson('GET', `${base}/screenshot`, {
           headers: { 'authorization': `Bearer ${token}` },
         });
-        // The stub StateServer doesn't implement /screenshot, returns 404
-        // through the proxy. That's fine — what we're testing is the daemon's
-        // capability gate. observe is sufficient for /screenshot at the gate.
+        // What we're testing is the daemon's capability gate, not the stub's
+        // /screenshot body. observe is sufficient for /screenshot at the gate.
         expect([200, 404]).toContain(ss.status);
 
         // /tap (interact) → 403 capability_insufficient

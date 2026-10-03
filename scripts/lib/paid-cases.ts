@@ -256,6 +256,7 @@ export const CODEX_CI_FILES: readonly string[] = [
   'test/codex-e2e-recommendation-substance.test.ts',
   'test/skill-e2e-outside-voice.test.ts',
   'test/skill-e2e-outside-plan-disabled.test.ts',
+  'test/skill-e2e-safety-codex-boundary.test.ts',
 ];
 
 /**

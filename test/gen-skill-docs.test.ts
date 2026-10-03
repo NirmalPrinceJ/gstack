@@ -2815,7 +2815,7 @@ describe('Codex generation (--host codex)', () => {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
       // Outside prompts may explicitly forbid reading Claude's skill directory.
       // Every executable/runtime path must still use the selected host root.
-      const withoutBoundary = content.replace(/^.*IMPORTANT: do not read or execute[^\n]*$/gim, '');
+      const withoutBoundary = content.replace(/^.*do not read or execute any files under[^\n]*$/gim, '');
       expect(withoutBoundary).not.toContain('~/.claude/');
     }
   });

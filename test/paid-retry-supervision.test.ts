@@ -210,7 +210,7 @@ test('detached PR fallback and release commands cover their actual default worke
   const prFloor = Math.ceil((Math.ceil(fullGateFiles.length / prWorkers) * 1_800_000 + fullGateFiles.reduce(
     (total, file) => total + Math.max(0, resolvePaidShardBudget([file]).timeoutMs - 1_800_000), 0,
   )) / 1000 * 1.05);
-  expect(prFloor).toBe(73_385);
+  expect(prFloor).toBe(77_165);
   expect(prWall).toBe(92_820_000);
   expect(prWall).toBeGreaterThanOrEqual(paidShardWallUpperBoundMs(files, prWorkers) + 120_000);
 
@@ -229,8 +229,8 @@ test('detached PR fallback and release commands cover their actual default worke
     )) / 1000 * 1.05));
   }
   const detachedReleaseWall = Number(scripts['eval:bg:release'].match(/--timeout (\d+)/)?.[1]) * 1000;
-  expect(releaseFloors).toEqual([22_355, 35_742]);
-  expect(releaseFloors.reduce((total, floor) => total + floor, 0)).toBe(58_097);
+  expect(releaseFloors).toEqual([22_355, 37_632]);
+  expect(releaseFloors.reduce((total, floor) => total + floor, 0)).toBe(59_987);
   expect(detachedReleaseWall).toBe(116_700_000);
   expect(detachedReleaseWall).toBeGreaterThanOrEqual(releaseWall + 120_000);
 });
