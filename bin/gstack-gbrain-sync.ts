@@ -45,7 +45,14 @@ import { buildGbrainEnv, spawnGbrain, spawnGbrainAsync, execGbrainJson, NEEDS_SH
 import { repoPolicyTier as sharedRepoPolicyTier } from "../lib/gbrain-repo-policy-client";
 import { checkOwnedStagingDir } from "../lib/staging-guard";
 import { resolveStateRoot } from "../lib/state-root";
-import { normalizeTranscriptConsent, type TranscriptConsent } from "./gstack-memory-ingest";
+import type { TranscriptConsent } from "./gstack-memory-ingest";
+import {
+  describeTranscriptPolicy,
+  isScoped,
+  readTranscriptConsent,
+  reposHash,
+  type TranscriptPolicy,
+} from "../lib/transcript-consent";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -107,11 +114,15 @@ interface StageResult {
 }
 
 interface TranscriptConsentRecord {
-  /** Normalized transcript_ingest_mode: recent | all | off | not-set | legacy | unrecognized. */
+  /** Normalized transcript_ingest_mode: recent | all | new | off | not-set | legacy | unrecognized | repos-unreadable. */
   mode: string;
-  window: "recent" | "all" | null;
+  window: "recent" | "all" | "new" | null;
   /** Why transcripts were not ingested; absent when they were. */
   skip_reason?: string;
+  /** The new@ cutoff in force; a changed cutoff restages. */
+  cutoff?: string;
+  /** Hash of the transcript_repos allowlist in force; a scope change restages. */
+  repos_hash?: string;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -304,16 +315,28 @@ export function transcriptConsentNotice(consent: TranscriptConsent, quiet: boole
   if (consent.affirmative) return null;
   const value = consent.value ?? "not set";
   if (override) {
-    return `gbrain-sync: transcripts ingested because ${override} names transcript (transcript_ingest_mode=${value}). ${TRANSCRIPT_CHOICE_HINT}`;
+    const scope = isScoped(consent) ? " The new@ cutoff and transcript_repos allowlist still apply." : "";
+    return `gbrain-sync: transcripts ingested because ${override} names transcript (transcript_ingest_mode=${value}).${scope} ${TRANSCRIPT_CHOICE_HINT}`;
   }
   if (consent.reason === "off") return quiet ? null : "gbrain-sync: transcripts off (your choice)";
+  if (consent.reason === "repos-unreadable") {
+    return `gbrain-sync: transcripts skipped (transcript_ingest_mode=${value}): its +repos marker needs a transcript_repos allowlist, which is missing or empty. Other memory still syncs. ${TRANSCRIPT_CHOICE_HINT}`;
+  }
   return `gbrain-sync: transcripts skipped (transcript_ingest_mode=${value}). Other memory still syncs. ${TRANSCRIPT_CHOICE_HINT}`;
 }
 
-/** The consent record a memory stage stores; resume requires mode and window to match. */
+/** The consent in words for a consenting run (window or cutoff, repos, config roots). */
+export function transcriptConsentSummary(consent: TranscriptPolicy, quiet: boolean): string | null {
+  if (!consent.affirmative || quiet) return null;
+  return `gbrain-sync: transcripts: ${describeTranscriptPolicy(consent)}`;
+}
+
+/** The consent record a memory stage stores; resume requires every field to match. */
 export function transcriptConsentRecord(consent: TranscriptConsent, override: boolean): TranscriptConsentRecord {
   const record: TranscriptConsentRecord = { mode: consent.reason, window: consent.window };
   if (!consent.affirmative && !override) record.skip_reason = consent.reason;
+  if (consent.cutoff !== undefined) record.cutoff = consent.cutoff;
+  if (consent.repos !== undefined) record.repos_hash = reposHash(consent.repos);
   return record;
 }
 
@@ -448,10 +471,12 @@ Options:
                        except ${FEDERATED_CURATED_TYPES.join(",")} when a federated
                        gstack source already indexes them, and except
                        transcript unless transcript_ingest_mode is recent
-                       (last 90 days) or all (all history; --full passes
-                       --all-history). Without that consent each run prints a
-                       notice, even with --quiet. A list naming transcript
-                       overrides the mode for that run. See
+                       (last 90 days), all (all history; --full passes
+                       --all-history) or new@<UTC> (sessions started after
+                       it). Without that consent each run prints a notice,
+                       even with --quiet. A list naming transcript overrides
+                       the mode for that run, but a new@ cutoff and the
+                       transcript_repos allowlist still apply. See
                        setup-gbrain/memory.md#transcripts.
   --help               This text.
 
@@ -1470,12 +1495,12 @@ export function ensureGbrainSourceGitignored(root: string): void {
   }
 }
 
-function printTranscriptNotice(args: CliArgs, consent: TranscriptConsent, selection: ConsentedSelection, why: string): void {
-  const notice = transcriptConsentNotice(consent, args.quiet, selection.override ? why : null);
+function printTranscriptNotice(args: CliArgs, consent: TranscriptPolicy, selection: ConsentedSelection, why: string): void {
+  const notice = transcriptConsentNotice(consent, args.quiet, selection.override ? why : null) ?? transcriptConsentSummary(consent, args.quiet);
   if (notice) console.error(notice);
 }
 
-function runMemoryIngest(args: CliArgs, previous: SyncState, consent: TranscriptConsent): StageResult {
+function runMemoryIngest(args: CliArgs, previous: SyncState, consent: TranscriptPolicy): StageResult {
   const t0 = Date.now();
 
   if (args.mode === "dry-run") {
@@ -1518,14 +1543,19 @@ function runMemoryIngest(args: CliArgs, previous: SyncState, consent: Transcript
     // transcript window.
     const prevStage = previous.last_stages?.find((st) => st.name === "memory");
     const staged = prevStage?.memory_sources ?? [...MEMORY_INGEST_TYPES];
-    const prevConsent = prevStage?.transcript_consent ?? { mode: "recent", window: "recent" };
+    const prevConsent: TranscriptConsentRecord = prevStage?.transcript_consent ?? { mode: "recent", window: "recent" };
     if ([...staged].sort().join(",") !== [...selected].sort().join(",")) {
       console.error(
         `[sync:memory] memory source selection changed since the checkpointed run (${staged.join(",")} → ${selected.join(",")}); restaging from scratch.`,
       );
       resume = { kind: "no-checkpoint" };
     }
-    if (prevConsent.mode !== consentRecord.mode || prevConsent.window !== consentRecord.window) {
+    if (
+      prevConsent.mode !== consentRecord.mode ||
+      prevConsent.window !== consentRecord.window ||
+      prevConsent.cutoff !== consentRecord.cutoff ||
+      prevConsent.repos_hash !== consentRecord.repos_hash
+    ) {
       console.error(
         `gbrain-sync: transcript consent changed since the interrupted import (${prevConsent.mode} → ${consentRecord.mode}); restaging memory from scratch once.`,
       );
@@ -1554,7 +1584,7 @@ function runMemoryIngest(args: CliArgs, previous: SyncState, consent: Transcript
   const ingestArgs = ["run", ingestPath];
   if (args.mode === "full") ingestArgs.push("--bulk");
   else ingestArgs.push("--incremental");
-  if (args.mode === "full" && consent.window === "all") ingestArgs.push("--all-history");
+  if (args.mode === "full" && consent.affirmative && consent.window !== "recent") ingestArgs.push("--all-history");
   if (args.quiet) ingestArgs.push("--quiet");
   if (selection.sources) ingestArgs.push("--sources", selection.sources.join(","));
   if (!args.quiet) console.error(`[sync:memory] sources: ${selected.join(",")} (${selection.why})`);
@@ -1963,7 +1993,7 @@ async function main(): Promise<void> {
   const args = parseArgs();
   // Read once at sync start: a config change made while the sync runs never
   // adds transcripts to this run.
-  const consent = args.noMemory ? null : normalizeTranscriptConsent();
+  const consent = args.noMemory ? null : readTranscriptConsent();
 
   if (!args.quiet) {
     const engine = detectEngineTier();
