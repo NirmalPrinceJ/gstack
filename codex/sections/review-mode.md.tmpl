@@ -35,8 +35,8 @@ Use only one command path below. Remember its printed start token as CODEX_REVIE
 
 **Sandbox is pinned via config override.** Top-level `codex review` has no
 `-s`/`--sandbox` flag (verified on 0.147.0: `codex review --help` lists none), so the
-sandbox is set with `-c "sandbox_mode=..."` from `_GSTACK_CODEX_SANDBOX`, which
-`_gstack_codex_select_model` sets to `read-only` (full access only for
+sandbox is set with `-c` from `_GSTACK_CODEX_SANDBOX`, which `_gstack_codex_select_model`
+sets so the effective setting is `sandbox_mode="read-only"` (full access only for
 `GSTACK_CODEX_NO_SANDBOX=1`, with a warning). Without it the call inherits the user's
 `~/.codex/config.toml` default, which on a trusted project can be WRITE access —
 contradicting this skill's read-only contract (#2496, #2524):
