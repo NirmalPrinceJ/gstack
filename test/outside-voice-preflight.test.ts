@@ -64,7 +64,10 @@ test('CEO and Eng describe the actual disabled route and completion validator', 
         expect(output.replace(/\s+/g, ' ')).toContain('If preflight selected `disabled`, use the guarded record below');
         expect(output).toContain('"outside_status":"disabled"');
       } else expect(output).toContain('persist `outside_status: disabled` with the guarded');
-      const prompt = output.slice(output.indexOf('"IMPORTANT:'), output.indexOf('\n<plan content>"'));
+      const promptEnd = output.indexOf('\n<plan content>"');
+      const prompt = output.slice(output.lastIndexOf('\n"', promptEnd) + 1, promptEnd);
+      expect(prompt.startsWith('"')).toBe(true);
+      expect(prompt.split('\n')[0]).toContain('.claude/skills/');
       expect(prompt).toContain('End with Recommendation: <action> because <specific reason>');
       expect(prompt).toContain('If there are no findings, say so and explain why');
       const invocation = outsideVoiceInvocation(ctx);
