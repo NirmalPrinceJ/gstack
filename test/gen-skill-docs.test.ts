@@ -640,7 +640,7 @@ describe('gen-skill-docs', () => {
     // Should not have Edit, Glob, or Grep in allowed-tools.
     // Scope to frontmatter (between the first two --- lines) — the body can
     // legitimately mention these tool names in prose (e.g., Claude model
-    // overlay says "prefer Read, Edit, Write, Glob, Grep over Bash").
+    // overlay names the host's dedicated file and search tools).
     const fmMatch = qaOnlyContent.match(/^---\n([\s\S]*?)\n---/);
     expect(fmMatch).not.toBeNull();
     const frontmatter = fmMatch![1];
@@ -4485,7 +4485,7 @@ describe('plan-mode-info resolver (handshake-replacement)', () => {
       'utf-8',
     );
     const planModeIdx = content.indexOf(PLAN_MODE_INFO_MARKER);
-    const upgradeIdx = content.indexOf('If `PROACTIVE` is `"false"`');
+    const upgradeIdx = content.search(/If `PROACTIVE` is `"?false"?`/i);
     expect(planModeIdx).toBeGreaterThan(0);
     expect(upgradeIdx).toBeGreaterThan(0);
     expect(planModeIdx).toBeLessThan(upgradeIdx);
