@@ -35,7 +35,7 @@ describe("/document-release redaction", () => {
     expect(RELEASE).toMatch(/exit 3 \(HIGH\).*do NOT edit/i);
   });
   test("separate shell calls share an explicit run directory and never re-read raw tracker text", () => {
-    expect(RELEASE).toContain('mktemp -d /tmp/gstack-doc-release-XXXXXXXX');
+    expect(RELEASE).toContain('mktemp -d "${TMPDIR:-/tmp}/gstack-doc-release-XXXXXXXX"');
     expect(RELEASE).not.toContain('/tmp/gstack-pr-body-$$');
     expect(RELEASE).not.toContain('<paste the file contents here>');
     expect(RELEASE).toContain('pathlib.Path(sys.argv[1]).read_text()');
