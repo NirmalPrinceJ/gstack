@@ -253,6 +253,73 @@ export function looksLikeParcelId(span: string, match: RegExpExecArray): boolean
   return false;
 }
 
+/**
+ * Vector geometry reads as a phone number to pii.phone.e164 (#2885, #2827).
+ * The pattern accepts `.` as a group separator, so a single float
+ * (`viewBox="0 0 581.66796875 695.65625"`) parses as 581 · 6679 · 6875, and a
+ * run of path coordinates (`37.6188 101.694`, `100 64.5326 100`) as four
+ * spaced groups. One rendered /diagram SVG carried 18 of these; a Figma icon
+ * carries dozens per path.
+ *
+ * Phone conventions put a separator between EVERY group, so a token with
+ * digits, one dot and digits is a decimal number, never a dotted phone
+ * (415.555.0123 has two dots in one token and stays flagged). Exempt a span
+ * whose space-separated tokens include at least one decimal and none with two
+ * dots. A leading `+` is the E.164 marker, so a span starting with it is a
+ * phone context and never exempt.
+ */
+export function looksLikeDecimalCoordinates(span: string): boolean {
+  if (span.startsWith("+")) return false;
+  const tokens = span.split(" ");
+  if (tokens.some((t) => t.split(".").length > 2)) return false;
+  return tokens.some((t) => /^\d+\.\d+$/.test(t));
+}
+
+/** Span start/end in `match.input`, derived exactly as redact-engine.ts does. */
+function spanBounds(match: RegExpExecArray): { start: number; end: number } {
+  const spanStartInMatch = match[1] !== undefined ? match[0].indexOf(match[1]) : 0;
+  const start = match.index + Math.max(0, spanStartInMatch);
+  return { start, end: start + (match[1] ?? match[0]).length };
+}
+
+/**
+ * True when a digit span is one side of a decimal number: `<digit>.` sits
+ * immediately before it or `.<digit>` immediately after. pii.cc's `\b` stops
+ * at the dot, so the 14-digit fraction of `492.34399999999994` in an
+ * .excalidraw scene is a Luhn candidate, and a random digit run passes Luhn
+ * about one time in ten (#2827). A card number in prose is never glued to a
+ * decimal point; a sentence-ending period has no digit after it and stays
+ * flagged.
+ */
+export function insideDecimalNumber(match: RegExpExecArray): boolean {
+  const input = match.input ?? "";
+  const { start, end } = spanBounds(match);
+  const digit = (i: number) => i >= 0 && i < input.length && input[i] >= "0" && input[i] <= "9";
+  return (input[start - 1] === "." && digit(start - 2)) || (input[end] === "." && digit(end + 1));
+}
+
+/**
+ * JSON keys whose unquoted integer value is a random seed, nonce or epoch
+ * timestamp. Excalidraw writes three per element (`"seed":1808177121`,
+ * `"versionNonce":1365644783`, `"updated":1791059590857`), and pii.phone.e164
+ * reads each as a bare 10-13 digit number: 92 per /diagram scene (#2827).
+ */
+const NUMERIC_METADATA_KEY =
+  /"[A-Za-z0-9_]*(?:seed|nonce|updated|created|timestamp)(?:at|_at|ms|_ms)?"[ \t]*:[ \t]*$/i;
+
+/**
+ * True when a digit-only span is the unquoted JSON value of a seed, nonce or
+ * timestamp key. The evidence is the key, not the digits: the same number
+ * under `"phone":` still reports.
+ */
+export function isNumericMetadataValue(span: string, match: RegExpExecArray): boolean {
+  if (!/^\d+$/.test(span)) return false;
+  const input = match.input ?? "";
+  const { start } = spanBounds(match);
+  const lineStart = input.lastIndexOf("\n", start - 1) + 1;
+  return NUMERIC_METADATA_KEY.test(input.slice(Math.max(lineStart, start - 80), start));
+}
+
 // ── Placeholder suppression (per-matched-span, NOT per-line) ─────────────────
 
 /**
@@ -738,12 +805,16 @@ export const PATTERNS: RedactPattern[] = [
     autoRedactable: true,
     redactToken: "<REDACTED-PHONE>",
     // A digit-only UUID's hyphen groups read as national phone formatting, and
-    // so does a county tax-map parcel ID (see looksLikeParcelId).
+    // so do a county tax-map parcel ID (see looksLikeParcelId), vector
+    // coordinates (looksLikeDecimalCoordinates) and seed/nonce/timestamp JSON
+    // values (isNumericMetadataValue).
     validate: (span, match) =>
       !insideUuid(match) &&
       span.replace(/\D/g, "").length >= 10 &&
       !looksLikeCompactTimestamp(span) &&
-      !looksLikeParcelId(span, match),
+      !looksLikeParcelId(span, match) &&
+      !looksLikeDecimalCoordinates(span) &&
+      !isNumericMetadataValue(span, match),
   },
   {
     id: "pii.ssn",
@@ -767,9 +838,9 @@ export const PATTERNS: RedactPattern[] = [
     regex: /\b((?:\d[ \-]?){13,19})\b/,
     autoRedactable: true,
     redactToken: "<REDACTED-CC>",
-    // A 13-19 digit slice of a digit-only UUID passes Luhn often enough to
-    // matter; the enclosing-UUID check runs first so it never reaches Luhn.
-    validate: (span, match) => !insideUuid(match) && luhnValid(span),
+    // A 13-19 digit slice of a digit-only UUID or of a decimal number passes
+    // Luhn often enough to matter; both context checks run before Luhn.
+    validate: (span, match) => !insideUuid(match) && !insideDecimalNumber(match) && luhnValid(span),
   },
   {
     id: "pii.ip_public",
