@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { execSync } from 'child_process';
+import { execSync, spawnSync } from 'child_process';
 import { createHash } from 'crypto';
 import { runBashScript } from './helpers/bash-script';
 
@@ -248,8 +248,41 @@ describe('gstack-team-init', () => {
     expect(fs.existsSync(settingsPath)).toBe(true);
     const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
     expect(settings.hooks.PreToolUse).toHaveLength(1);
-    expect(settings.hooks.PreToolUse[0].matcher).toBe('Skill');
+    // C7 (#2229): Copilot CLI's skill tool is lowercase `skill`; Claude-format
+    // matchers fire when an alternation token equals the runtime tool name.
+    expect(settings.hooks.PreToolUse[0].matcher.split('|').sort()).toEqual(['Skill', 'skill']);
     expect(settings.hooks.PreToolUse[0].hooks[0].command).toContain('check-gstack');
+  });
+
+  test('required: a Skill-only entry from an older team-init is upgraded, not duplicated (C7)', () => {
+    const settingsPath = path.join(tmpDir, '.claude', 'settings.json');
+    fs.mkdirSync(path.dirname(settingsPath), { recursive: true });
+    fs.writeFileSync(settingsPath, JSON.stringify({ hooks: { PreToolUse: [
+      { matcher: 'Bash', hooks: [{ type: 'command', command: 'my-own-hook' }] },
+      { matcher: 'Skill', hooks: [{ type: 'command', command: '"$CLAUDE_PROJECT_DIR/.claude/hooks/check-gstack.sh"' }] },
+    ] } }));
+    run(`${TEAM_INIT} required`, { cwd: tmpDir });
+    run(`${TEAM_INIT} required`, { cwd: tmpDir });
+    const pre = JSON.parse(fs.readFileSync(settingsPath, 'utf-8')).hooks.PreToolUse;
+    expect(pre.map((e: { matcher: string }) => e.matcher)).toEqual(['Bash', 'Skill|skill']);
+  });
+
+  test('required: the hook denies in both Claude Code and Copilot CLI decision formats (C7)', () => {
+    run(`${TEAM_INIT} required`, { cwd: tmpDir });
+    const home = mkTmpDir();
+    try {
+      const r = spawnSync('bash', [path.join(tmpDir, '.claude', 'hooks', 'check-gstack.sh')], {
+        encoding: 'utf-8', timeout: 30_000, env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: home },
+      });
+      expect(r.status).toBe(0);
+      const out = JSON.parse(r.stdout);
+      expect(out.permissionDecision).toBe('deny');
+      expect(out.permissionDecisionReason).toContain('gstack is required');
+      expect(out.hookSpecificOutput).toMatchObject({ hookEventName: 'PreToolUse', permissionDecision: 'deny' });
+      expect(r.stderr).toContain('BLOCKED: gstack is not installed');
+    } finally {
+      fs.rmSync(home, { recursive: true, force: true });
+    }
   });
 
   test('idempotent: running twice does not duplicate CLAUDE.md section', () => {
