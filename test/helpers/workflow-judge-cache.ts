@@ -15,7 +15,10 @@ export interface WorkflowCacheOptions {
   judgeContext: string; judgeGoal: string; model?: string; thresholds: Thresholds; prompt: string; attempt: number;
   references?: readonly string[];
   agentCapability?: 'frontier';
-  structuredResponse?: boolean;
+  /** Sends WORKFLOW_JUDGE_RESPONSE_SCHEMA as the structured-output format. */
+  schemaTransport?: boolean;
+  /** Validates the compact response contract: exact keys, non-empty reasoning under the word limit. */
+  compactReasoning?: boolean;
   maxTokens?: number;
   stream?: boolean;
   effort?: 'medium';
@@ -34,11 +37,11 @@ export function workflowJudgeDependencies(root: string, documents: string[]): st
     'package.json', 'bun.lock', '.github/docker/Dockerfile.ci', ...documents]);
 }
 
-export function validWorkflowJudgeScore(value: EvalCacheValue, thresholds: Thresholds, structuredResponse = false): value is JudgeScore & EvalCacheValue {
+export function validWorkflowJudgeScore(value: EvalCacheValue, thresholds: Thresholds, compactReasoning = false): value is JudgeScore & EvalCacheValue {
   if (!value || typeof value !== 'object' || Array.isArray(value)
     || Object.keys(value).sort().join(',') !== 'actionability,clarity,completeness,reasoning'
     || typeof value.reasoning !== 'string'
-    || (structuredResponse && (!value.reasoning.trim()
+    || (compactReasoning && (!value.reasoning.trim()
       || value.reasoning.trim().split(/\s+/).length >= WORKFLOW_JUDGE_REASONING_WORD_LIMIT))) return false;
   return JUDGE_SCORE_DIMENSIONS.every(key =>
     typeof value[key] === 'number' && Number.isInteger(value[key]) && value[key] >= thresholds[key] && value[key] <= 5);
@@ -47,10 +50,10 @@ export function validWorkflowJudgeScore(value: EvalCacheValue, thresholds: Thres
 const SAMPLE_RANGE: Thresholds = { clarity: 1, completeness: 1, actionability: 1 };
 
 /** A complete judge panel: exactly JUDGE_PANEL_SAMPLES of valid samples whose per-dimension mean meets every threshold. */
-export function validWorkflowJudgePanel(value: EvalCacheValue, thresholds: Thresholds, structuredResponse = false): value is { samples: Array<JudgeScore & EvalCacheValue> } {
+export function validWorkflowJudgePanel(value: EvalCacheValue, thresholds: Thresholds, compactReasoning = false): value is { samples: Array<JudgeScore & EvalCacheValue> } {
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).join(',') !== 'samples'
     || !Array.isArray(value.samples) || value.samples.length !== JUDGE_PANEL_SAMPLES
-    || !value.samples.every(sample => validWorkflowJudgeScore(sample, SAMPLE_RANGE, structuredResponse))) return false;
+    || !value.samples.every(sample => validWorkflowJudgeScore(sample, SAMPLE_RANGE, compactReasoning))) return false;
   const mean = judgePanelMean(value.samples as JudgeScore[], JUDGE_SCORE_DIMENSIONS);
   return JUDGE_SCORE_DIMENSIONS.every(key => mean[key] >= thresholds[key]);
 }
@@ -90,8 +93,8 @@ export function prepareWorkflowJudgeCache(opts: WorkflowCacheOptions): {
           panel: { samples: JUDGE_PANEL_SAMPLES, numeric: 'mean', boolean: 'majority' },
           ...(opts.stream ? { stream: true } : {}),
           ...(opts.effort ? { effort: opts.effort } : {}),
-          ...(opts.structuredResponse ? { output_config: { format: { type: 'json_schema', schema: WORKFLOW_JUDGE_RESPONSE_SCHEMA } },
-            response_validation: { reasoning_words_below: WORKFLOW_JUDGE_REASONING_WORD_LIMIT } } : {}) },
+          ...(opts.schemaTransport ? { output_config: { format: { type: 'json_schema', schema: WORKFLOW_JUDGE_RESPONSE_SCHEMA } } } : {}),
+          ...(opts.compactReasoning ? { response_validation: { reasoning_words_below: WORKFLOW_JUDGE_REASONING_WORD_LIMIT } } : {}) },
         runtime: { image: env.EVALS_CACHE_RUNTIME_ID!, bun: Bun.version, node: process.versions.node,
           platform: process.platform, arch: process.arch, judge: resolveEvalModel('judge', opts.model, env),
           anthropic_base_url: env.ANTHROPIC_BASE_URL ?? 'https://api.anthropic.com',
@@ -108,7 +111,7 @@ export function prepareWorkflowJudgeCache(opts: WorkflowCacheOptions): {
   return {
     lookup() {
       const result = lookupEvalInputCache({ ...common, identity: before,
-        validateResult: value => validWorkflowJudgePanel(value, opts.thresholds, opts.structuredResponse) });
+        validateResult: value => validWorkflowJudgePanel(value, opts.thresholds, opts.compactReasoning) });
       return result.status === 'reused'
         ? { samples: (result.result as unknown as { samples: JudgeScore[] }).samples, reuse: { key: result.key, source: result.source } } : null;
     },
@@ -116,7 +119,7 @@ export function prepareWorkflowJudgeCache(opts: WorkflowCacheOptions): {
       // Caller reaches here ONLY after its actual assertions passed. A later
       // failed case in the file does not erase this independently completed case.
       const panel = { samples: samples.map(({ clarity, completeness, actionability, reasoning }) => ({ clarity, completeness, actionability, reasoning })) };
-      if (!isActive() || !validWorkflowJudgePanel(panel as unknown as EvalCacheValue, opts.thresholds, opts.structuredResponse)) return;
+      if (!isActive() || !validWorkflowJudgePanel(panel as unknown as EvalCacheValue, opts.thresholds, opts.compactReasoning)) return;
       const after = currentIdentity();
       const runId = env.GITHUB_RUN_ID ? `${env.GITHUB_RUN_ID}/${env.GITHUB_RUN_ATTEMPT ?? '1'}` : env.EVALS_RUN_ID;
       if (!after || !runId || !isActive()) return;

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import Anthropic from '@anthropic-ai/sdk';
-import { armJudge, callJudge, JudgeRefusalError, judgeRecommendation, RECOMMENDATION_JUDGE_SCHEMA } from './helpers/llm-judge';
+import { ARM_JUDGE_SCHEMA, armJudge, callJudge, JudgeRefusalError, judgeRecommendation, RECOMMENDATION_JUDGE_SCHEMA } from './helpers/llm-judge';
 import { gradeAuqRecommendation } from './helpers/auq-sdk-capture';
 
 describe('frontier Claude judge compatibility', () => {
@@ -225,7 +225,7 @@ describe('frontier Claude judge compatibility', () => {
   });
 
   test('arm judge sends no unsupported temperature to Fable', async () => {
-    create.mockResolvedValue({ content: [
+    create.mockResolvedValue({ stop_reason: 'end_turn', content: [
       { type: 'thinking', thinking: '', signature: 'fixture' },
       { type: 'text', text: '{"over_engineering":0,"construct":"none","reasoning":"Scoped change"}' },
     ] } as never);
@@ -233,5 +233,6 @@ describe('frontier Claude judge compatibility', () => {
     const request = create.mock.calls[0][0];
     expect(request.model).toBe('claude-fable-5-1');
     expect(request).not.toHaveProperty('temperature');
+    expect(request.output_config).toEqual({ format: { type: 'json_schema', schema: ARM_JUDGE_SCHEMA } });
   });
 });
