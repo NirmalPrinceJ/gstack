@@ -1,4 +1,5 @@
 import {expect, test} from 'bun:test';
+import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {ALL_HOST_CONFIGS} from '../hosts';
@@ -156,14 +157,12 @@ test('calibration keeps its future hook but no shipped source enables the absent
   const note = section.slice(section.indexOf('**Calibration gate status:**'),section.indexOf('{{BRAIN_WRITE_BACK}}'));
   expect(note).toMatch(/never set it yourself/i);
   const mentions: string[] = [];
-  for (const dir of ['bin', 'lib', 'scripts']) {
-    for (const rel of fs.readdirSync(path.join(root, dir), {recursive: true}) as string[]) {
-      const file = path.join(root, dir, rel);
-      if (!fs.statSync(file).isFile()) continue;
-      const text = fs.readFileSync(file, 'utf8');
-      if (text.includes('BRAIN_CALIBRATION_WRITEBACK')) mentions.push(`${dir}/${rel}`);
-      expect(text, `${dir}/${rel} must not set BRAIN_CALIBRATION_WRITEBACK`).not.toMatch(/BRAIN_CALIBRATION_WRITEBACK[=:]\s*\S|export BRAIN_CALIBRATION_WRITEBACK/);
-    }
+  const tracked = execFileSync('git', ['ls-files', '-z', '--', 'bin', 'lib', 'scripts'], {cwd: root, encoding: 'utf8', timeout: 30_000})
+    .split('\0').filter(Boolean);
+  for (const rel of tracked) {
+    const text = fs.readFileSync(path.join(root, rel), 'utf8');
+    if (text.includes('BRAIN_CALIBRATION_WRITEBACK')) mentions.push(rel);
+    expect(text, `${rel} must not set BRAIN_CALIBRATION_WRITEBACK`).not.toMatch(/BRAIN_CALIBRATION_WRITEBACK[=:]\s*\S|export BRAIN_CALIBRATION_WRITEBACK/);
   }
   expect(mentions).toEqual(['scripts/resolvers/gbrain.ts']);
 });
