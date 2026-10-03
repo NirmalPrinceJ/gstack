@@ -1212,7 +1212,8 @@ explore wide across diverse directions.
 $D variants --brief "<assembled brief>" --count 3 --output-dir "$_DESIGN_DIR/"
 \`\`\`
 
-This generates 3 style variations of the same brief (~40 seconds total).
+This generates 3 style variations of the same brief (~40 seconds total) in a new
+\`round-<N>/\` directory and prints JSON with \`roundDir\`, \`manifest\` and \`paths\`.
 
 **Step 4: Show variants inline, then open comparison board**
 
@@ -1220,7 +1221,7 @@ Show each variant to the user inline first (read the PNGs with Read tool), then
 create and serve the comparison board:
 
 \`\`\`bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
+$D compare --images "<comma-joined paths from the variants JSON>" --output "$_DESIGN_DIR/design-board.html" --serve
 \`\`\`
 
 This publishes the board to the design daemon, opens it in the user's default
@@ -1251,7 +1252,7 @@ If \`"regenerated": false\`: proceed with the approved variant.
 **Step 6: Save approved choice**
 
 \`\`\`bash
-echo '{"approved_variant":"<VARIANT>","feedback":"<FEEDBACK>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"mockup","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
+echo '{"approved_variant":"<VARIANT>","approved_path":"<absolute path of the chosen PNG>","round":<N>,"feedback":"<FEEDBACK>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"mockup","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
 \`\`\`
 
 Reference the saved mockup in the design doc or plan.`;
@@ -1263,7 +1264,7 @@ export function generateDesignShotgunLoop(ctx: TemplateContext): string {
 Use the successful, quality-checked paths in this example:
 
 \`\`\`bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
+$D compare --images "<comma-joined paths from the variants JSON>" --output "$_DESIGN_DIR/design-board.html" --serve
 \`\`\`
 
 This publishes to a persistent daemon, opens the board and exits. Read captured stderr for the startup marker; a PID is not readiness. Exit 0 with \`BOARD_URL\` means the daemon is serving. Save its full \`http://127.0.0.1:N/boards/<id>/\` URL. Only legacy \`--no-daemon\` needs a host background task; \`SERVE_STARTED: port=N\` gives root URL \`http://127.0.0.1:N/\`.
@@ -1294,13 +1295,13 @@ After the response, read current feedback next to the board HTML:
 
 **SERVER FALLBACK:** Nonzero exit or no readiness marker: show each variant inline with Read, then AskUserQuestion: "The comparison board server failed to start. Which variant? Any changes?" Route chat feedback as above.
 
-**After receiving feedback (any path):** summarize PREFERRED, RATINGS, YOUR NOTES, DIRECTION; AskUserQuestion "Is this right?" A confirmed final choice permits Write of \`$_DESIGN_DIR/approved.json\` with \`approved_variant\`, \`feedback\`, \`date\` (UTC), \`screen\` (the product page depicted by the chosen mockup), and \`branch\` (the current \`git branch --show-current\` result, empty if detached). Use valid JSON, never shell interpolation. This approves the image only; Q-final gates project writes.`;
+**After receiving feedback (any path):** summarize PREFERRED, RATINGS, YOUR NOTES, DIRECTION; AskUserQuestion "Is this right?" A confirmed final choice permits Write of \`$_DESIGN_DIR/approved.json\` with \`approved_variant\`, \`approved_path\` (absolute PNG), \`round\`, \`feedback\`, \`date\` (UTC), \`screen\` (the product page depicted by the chosen mockup), and \`branch\` (the current \`git branch --show-current\` result, empty if detached). Use valid JSON, never shell interpolation. This approves the image only; Q-final gates project writes.`;
   return `### Comparison Board + Feedback Loop
 
 Create the comparison board and serve it over HTTP:
 
 \`\`\`bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
+$D compare --images "<comma-joined paths from the variants JSON>" --output "$_DESIGN_DIR/design-board.html" --serve
 \`\`\`
 
 Creates HTML and opens the board. **Run it in the background** (host task, or \`&\` redirecting stdout/stderr to private files in \`$_DESIGN_DIR\`). Read captured stderr for the startup marker; a PID is not readiness. Missing marker: use the failure fallback below.
@@ -1396,7 +1397,7 @@ Use AskUserQuestion to verify before proceeding.
 
 **Save the approved choice:**
 \`\`\`bash
-echo '{"approved_variant":"<V>","feedback":"<FB>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"<SCREEN>","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
+echo '{"approved_variant":"<V>","approved_path":"<absolute path of the chosen PNG>","round":<N>,"feedback":"<FB>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"<SCREEN>","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
 \`\`\``;
 }
 
