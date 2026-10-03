@@ -21,7 +21,7 @@ import * as path from 'path';
 import type { Host, TemplateContext } from './resolvers/types';
 import { HOST_PATHS } from './resolvers/types';
 import { RESOLVERS } from './resolvers/index';
-import { usesLazySections } from './resolvers/sections';
+import { rewriteCarvedSectionRefs, SKILL_BYTE_CEILING, usesLazySections } from './resolvers/sections';
 import { insertRuntimePreludes } from './resolvers/runtime-root';
 import { ALL_HOST_NAMES, resolveHostArg, getHostConfig } from '../hosts/index';
 import type { HostConfig } from './host-config';
@@ -840,7 +840,7 @@ function processTemplate(tmplPath: string, host: Host, options: RenderOptions): 
 
   // --out-dir: repoint section-base paths to the out-dir (no-op otherwise).
   if (host === 'claude') content = rewriteSectionBase(content, options.contentLinkRoot);
-  content = rewriteInstallRoot(insertRuntimePreludes(content, ctx), currentHostConfig, options.installRoot);
+  content = rewriteInstallRoot(insertRuntimePreludes(rewriteCarvedSectionRefs(content, ctx), ctx), currentHostConfig, options.installRoot);
 
   return { outputPath, content, symlinkLoop, metadata };
 }
@@ -886,7 +886,7 @@ function processSectionTemplate(
     // repoint those to the out-dir too (no-op when --out-dir is unset).
     content = rewriteSectionBase(content, options.contentLinkRoot);
   }
-  content = rewriteInstallRoot(insertRuntimePreludes(content, ctx), hostConfig, options.installRoot);
+  content = rewriteInstallRoot(insertRuntimePreludes(rewriteCarvedSectionRefs(content, ctx), ctx), hostConfig, options.installRoot);
 
   // Plain generated header (no frontmatter to insert after).
   content = GENERATED_HEADER.replace('{{SOURCE}}', path.basename(sectionTmplPath)) + content;
@@ -1005,10 +1005,11 @@ export async function runGeneration(settings: GenerationOptions = {}): Promise<G
             (host === 'claude' ? '' : GENERATED_HEADER.replace('{{SOURCE}}', 'qa/templates/functional-report-template.md')) + report, 'asset', host);
         }
         tokenBudget.push({ skill: relativePath, lines: result.content.split('\n').length, tokens: Math.round(result.content.length / 4) });
-        const TOKEN_CEILING_BYTES = 160_000;
-        if (result.content.length > TOKEN_CEILING_BYTES) {
-          const message = `⚠️ TOKEN CEILING: ${relativePath} is ${result.content.length} bytes (~${Math.round(result.content.length / 4)} tokens), exceeds ${TOKEN_CEILING_BYTES} byte ceiling (~40K tokens)`;
-          diagnostics.push({ kind: 'warning', host, relativePath, message });
+        const bytes = Buffer.byteLength(result.content, 'utf8');
+        if (bytes > SKILL_BYTE_CEILING) {
+          // Setup renders per install (--install-root): an oversized skill must never leave a user with none.
+          const message = `${host}/${path.basename(path.dirname(result.outputPath))}/SKILL.md is ${bytes} bytes, over the ${SKILL_BYTE_CEILING.toLocaleString('en-US')}-byte limit. Fix: carve sections with usesLazySections() for this skill.`;
+          diagnostics.push({ kind: options.installRoot ? 'warning' : 'error', host, relativePath, message });
         }
       }
 

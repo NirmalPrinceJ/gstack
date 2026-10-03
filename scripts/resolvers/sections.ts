@@ -25,8 +25,28 @@ const ROOT = path.resolve(import.meta.dir, '..', '..');
 
 export const QA_ASSET_BLOCKER = 'If missing or unreadable, report a QA setup blocker and its affected probes as blocked; continue other safe probes (independent functional/static checks). Missing/unreadable assets block required QA.';
 
+/** Skills carved on every host: QA (portable assets) and those whose external
+ * render would exceed SKILL_BYTE_CEILING inlined (C4, #2777). */
+const CARVED_ON_EVERY_HOST = ['qa', 'qa-only', 'ship', 'plan-ceo-review'];
+
+/** Hosts read at most this many UTF-8 bytes of one SKILL.md (~40K tokens). */
+export const SKILL_BYTE_CEILING = 160_000;
+
 export function usesLazySections(host: Host, skill: string): boolean {
-  return host === 'claude' || skill === 'qa' || skill === 'qa-only';
+  return host === 'claude' || CARVED_ON_EVERY_HOST.includes(skill);
+}
+
+/**
+ * External hosts: a template's literal `~/.claude/skills/gstack/<skill>/sections/<file>`
+ * reference arrives here as `$GSTACK_ROOT/<skill>/sections/<file>`, which external
+ * runtime roots do not have. For a carved skill, point it at the installed copy.
+ */
+export function rewriteCarvedSectionRefs(content: string, ctx: TemplateContext): string {
+  if (ctx.host === 'claude') return content;
+  return content.replace(/`\$GSTACK_ROOT\/([a-z0-9-]+)\/sections\/([A-Za-z0-9._-]+)`/g, (match, skill: string, file: string) =>
+    usesLazySections(ctx.host, skill) && fs.existsSync(path.join(ROOT, skill, 'sections', `${file}.tmpl`))
+      ? `\`sections/${file}\` relative to the installed \`gstack-${skill}\` SKILL.md directory`
+      : match);
 }
 
 interface SectionEntry {
