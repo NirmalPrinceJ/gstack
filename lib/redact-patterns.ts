@@ -320,6 +320,28 @@ export function isNumericMetadataValue(span: string, match: RegExpExecArray): bo
   return NUMERIC_METADATA_KEY.test(input.slice(Math.max(lineStart, start - 80), start));
 }
 
+/**
+ * A four-part version (MAJOR.MINOR.PATCH.BUILD: .NET assembly versions,
+ * gstack's own VERSION) is byte-for-byte a dotted quad, and `1.128.1.0` is a
+ * public address, so `"version": "1.128.1.0"` raised pii.ip_public on every
+ * release (#2784). The value cannot decide it, so only the declaration
+ * immediately before it on the same line can: a `version` key or word
+ * (`"version": "`, `app_version = `, `<Version>`, `AssemblyVersion("`,
+ * `version `), or a Keep a Changelog heading `## [1.2.3.4]`. The same digits
+ * after `host:`, `server = ` or in prose that merely mentions a version still
+ * report, and the pre-push hook's VERSION-file rule (#2856) is unchanged.
+ */
+const VERSION_DECLARATION_BEFORE =
+  /(?:\b[Vv]ersion|\bVERSION|[a-z0-9_]Version|[_-][Vv]ersion|_VERSION)["'\]]?(?:[ \t]*[:=(>][ \t]*|[ \t]+)["']?$/;
+const CHANGELOG_HEADING_BEFORE = /^#{1,6}[ \t]+\[$/;
+export function isDeclaredVersion(match: RegExpExecArray): boolean {
+  const input = match.input ?? "";
+  const { start, end } = spanBounds(match);
+  const lineStart = input.lastIndexOf("\n", start - 1) + 1;
+  if (VERSION_DECLARATION_BEFORE.test(input.slice(Math.max(lineStart, start - 48), start))) return true;
+  return CHANGELOG_HEADING_BEFORE.test(input.slice(lineStart, start)) && input[end] === "]";
+}
+
 // ── Placeholder suppression (per-matched-span, NOT per-line) ─────────────────
 
 /**
@@ -898,7 +920,7 @@ export const PATTERNS: RedactPattern[] = [
     category: "pii",
     description: "Public IPv4 address",
     regex: /\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/,
-    validate: (span) => isPublicIPv4(span),
+    validate: (span, match) => isPublicIPv4(span) && !isDeclaredVersion(match),
   },
   {
     id: "pii.wallet",

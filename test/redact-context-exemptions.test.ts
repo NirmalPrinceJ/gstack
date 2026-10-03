@@ -130,3 +130,33 @@ describe("internal.hostname: per-machine config filenames are not hosts (#2962, 
     ],
   );
 });
+
+describe("pii.ip_public: a four-part version needs a version declaration (#2784)", () => {
+  table(
+    "pii.ip_public",
+    "MEDIUM",
+    [
+      '  "version": "1.128.1.0",',
+      "app_version = 1.128.1.0",
+      "schema-version: 1.128.1.0",
+      "APP_VERSION=1.128.1.0",
+      "Released version 1.128.1.0 today",
+      "## [1.128.1.0] - 2026-09-02",
+      "<Version>1.128.1.0</Version>",
+      '[assembly: AssemblyVersion("1.0.0.0")]',
+      "released v1.128.1.0 today",
+    ],
+    [
+      "1.128.1.0",
+      "host: 1.128.1.0",
+      "server = 1.128.1.0",
+      '"upstream": "1.128.1.0"',
+      "resolver = 8.8.8.8",
+      "version: 1.2.3.4 via 8.8.8.8",
+      "the version endpoint moved to 1.128.1.0",
+      "conversion 1.128.1.0",
+      "## 1.128.1.0 is our egress",
+      "## [1.128.1.0 mirror]",
+    ],
+  );
+});
