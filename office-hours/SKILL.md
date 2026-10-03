@@ -959,18 +959,26 @@ explore wide across diverse directions.
 **Step 3: Generate 3 variants**
 
 ```bash
-$D variants --brief "<assembled brief>" --count 3 --output-dir "$_DESIGN_DIR/"
+_OUT=$($D variants --brief "<assembled brief>" --count 3 --output-dir "$_DESIGN_DIR/"); _RC=$?
+printf '%s\n' "$_OUT"; echo "EXIT: $_RC"
 ```
 
 This generates 3 style variations of the same brief (~40 seconds total).
 
+<!-- design:round-accounting -->
+**Round accounting (before any board, check or inline view):** `$D` never overwrites; a taken name is bumped (for example `-2`), so use only the paths its JSON printed and carry them as literal paths into later blocks (bash blocks do not share variables). Tell the user how many of `requested` paid images were saved (`saved`) and name each `failures` entry. Route on the exit code: 0 continue with `saved`; 3 continue with `saved` and say the run stopped early; 2 nothing was saved, so report `failures` and stop: do not run `$D compare` or `$D check`.
+
 **Step 4: Show variants inline, then open comparison board**
 
-Show each variant to the user inline first (read the PNGs with Read tool), then
+Show each saved image to the user inline first (read the printed paths with Read tool), then
 create and serve the comparison board:
 
+<!-- design:board -->
+Write this round's board images (printed paths that passed checks, in order) as a JSON array to `$_DESIGN_DIR/board-images.json` with the Write tool; board letters A, B, C follow that order. Then archive any earlier Submit so it cannot approve these images, and build the board:
+
 ```bash
-$D compare --images "$_DESIGN_DIR/variant-A.png,$_DESIGN_DIR/variant-B.png,$_DESIGN_DIR/variant-C.png" --output "$_DESIGN_DIR/design-board.html" --serve
+[ -f "$_DESIGN_DIR/feedback.json" ] && mv "$_DESIGN_DIR/feedback.json" "$_DESIGN_DIR/feedback-$(date -u +%Y%m%dT%H%M%SZ).json"
+$D compare --images-file "$_DESIGN_DIR/board-images.json" --output "$_DESIGN_DIR/design-board.html" --serve
 ```
 
 This publishes the board to the design daemon, opens it in the user's default
@@ -987,8 +995,8 @@ with Read and fall back to AskUserQuestion: "Which variant do you prefer? Any fe
 
 If the JSON contains `"regenerated": true`:
 1. Read `regenerateAction` (or `remixSpec` for remix requests)
-2. Generate new variants with `$D iterate` or `$D variants` using updated brief
-3. Create new board with `$D compare`
+2. Generate new variants with `$D iterate` or `$D variants` using updated brief (capture and round accounting as in Step 3)
+3. Rebuild the board with Step 4's board block, without `--serve`
 4. POST the new HTML to the running board. Parse the board URL from stderr
    (`BOARD_URL: http://127.0.0.1:N/boards/<id>/` — the daemon path) or fall
    back to the legacy port (`SERVE_STARTED: port=N` — only emitted under
@@ -1000,11 +1008,19 @@ If `"regenerated": false`: proceed with the approved variant.
 
 **Step 6: Save approved choice**
 
+Map the confirmed letter through this board's `board-images.json` (never the directory listing) and save it:
+
 ```bash
-echo '{"approved_variant":"<VARIANT>","feedback":"<FEEDBACK>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"mockup","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
+_IMG=$(jq -r --arg v "<VARIANT>" '.[($v | explode[0]) - 65] // empty' "$_DESIGN_DIR/board-images.json")
+if [ -n "$_IMG" ]; then
+  echo '{"approved_variant":"<VARIANT>","approved_path":"'"$(basename "$_IMG")"'","feedback":"<FEEDBACK>","date":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'","screen":"mockup","branch":"'$(git branch --show-current 2>/dev/null)'"}' > "$_DESIGN_DIR/approved.json"
+  echo "APPROVED_IMAGE: $_IMG"
+else
+  echo "NO_BOARD_IMAGE: <VARIANT> is not on this board; reselect from the board"
+fi
 ```
 
-Reference the saved mockup in the design doc or plan.
+Reference the printed `APPROVED_IMAGE` in the design doc or plan.
 
 ## Visual Sketch (UI ideas only)
 

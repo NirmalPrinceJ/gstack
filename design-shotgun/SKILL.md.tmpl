@@ -173,14 +173,16 @@ _TASTE=$(find "$GSTACK_STATE_ROOT/projects/$SLUG/designs/" -name "approved.json"
 ```
 
 If prior sessions exist, read each `approved.json` and extract patterns from the
-approved variants. Merge these into the taste-profile.json-derived signal — if the
+approved variants; resolve each approved image with `{{BIN_DIR}}/gstack-design-approved <approved.json>`
+(an error means that image is gone: skip it, never substitute another). Merge these into the taste-profile.json-derived signal — if the
 profile already says "user prefers Geist font" (from aggregated history), the
 approved.json files add the specific recent approval context.
 
 Limit to last 10 sessions. Try/catch JSON parse on each (skip corrupted files).
 
 **Updating taste profile after a design-shotgun session:** When the user picks a
-variant, call `{{BIN_DIR}}/gstack-taste-update approved <variant-path>`. When they
+variant, call `{{BIN_DIR}}/gstack-taste-update approved <approved image path>` (the
+`APPROVED_IMAGE` printed when approved.json is saved). When they
 explicitly reject a variant, call `{{BIN_DIR}}/gstack-taste-update rejected <variant-path>`.
 The CLI handles schema migration from approved.json, decay, and conflict flagging.
 
@@ -271,58 +273,55 @@ variable that agents do NOT inherit. Substitute the resolved absolute path (from
 **Agent prompt template** (one per variant, substitute all `{...}` values):
 
 ```
-Generate a design variant and save it.
+Generate a design variant and publish it without overwriting any image.
 
 Design binary: {absolute path to $D binary}
+Claim helper: {{BIN_DIR}}/gstack-design-claim
 Brief: {the full variant-specific brief for this direction}
-Output: /tmp/variant-{letter}.png
-Final location: {_DESIGN_DIR absolute path}/variant-{letter}.png
+Design dir: {_DESIGN_DIR absolute path}
 
-Steps:
-1. Run: {$D path} generate --brief "{brief}" --output /tmp/variant-{letter}.png
-2. If the command fails with a rate limit error (429 or "rate limit"), wait 5 seconds
-   and retry. Up to 3 retries.
-3. If the output file is missing or empty after the command succeeds, retry once.
-4. Copy: cp /tmp/variant-{letter}.png {_DESIGN_DIR}/variant-{letter}.png
-5. Quality check: {$D path} check --image {_DESIGN_DIR}/variant-{letter}.png --brief "{brief}"
-   If quality check fails, retry generation once.
-6. Verify: ls -lh {_DESIGN_DIR}/variant-{letter}.png
-7. Report exactly one of:
-   VARIANT_{letter}_DONE: {file size}
-   VARIANT_{letter}_FAILED: {error description}
+Steps (no set -e; never cp or mv an image):
+1. Stage in a fresh per-run directory: STAGE=$(mktemp -d /tmp/gstack-variant-XXXXXXXX)
+2. Generate: OUT=$({$D path} generate --brief "{brief}" --output "$STAGE/variant.png"); RC=$?; echo "$OUT"; echo "EXIT: $RC"
+   Read outputPath, saved and failures from the JSON. Exit 2 = nothing saved: on a rate
+   limit (429 or "rate limit") wait 5 seconds and retry, up to 3 retries.
+3. Publish: FINAL=$({{BIN_DIR}}/gstack-design-claim "<outputPath>" "{Design dir}/variant-{letter}.png")
+   It never overwrites and prints the final (possibly bumped) path. Use FINAL from here on.
+   If it fails, report the error; the staged image stays at <outputPath>.
+4. Quality check: {$D path} check --image "<FINAL>" --brief "{brief}"
+   If it fails, regenerate once (steps 2-3; the first image is kept).
+5. Verify: ls -lh "<FINAL>"
+6. Report exactly one of:
+   VARIANT_{letter}_DONE: {every published path, comma-separated, last one is the pick} {file size}
+   VARIANT_{letter}_FAILED: {error description, plus any published paths}
    VARIANT_{letter}_RATE_LIMITED: exhausted retries
 ```
 
-For the evolve path, replace step 1 with:
+For the evolve path, replace the step 2 command with:
 ```
-{$D path} evolve --screenshot {_DESIGN_DIR}/current.png --brief "{brief}" --output /tmp/variant-{letter}.png
+OUT=$({$D path} evolve --screenshot {_DESIGN_DIR}/current.png --brief "{brief}" --output "$STAGE/variant.png"); RC=$?
 ```
 
-**Generate to `/tmp/`, then `cp`:** in sandboxed sessions `$D generate --output` under
-`~/.gstack/` can abort ("The operation was aborted"), while `/tmp/` works.
+**Why staging:** in sandboxed sessions `$D generate --output` under `~/.gstack/` can
+abort ("The operation was aborted"), while `/tmp/` works. A fresh `mktemp -d` per run
+means no other session's file can be published, and the claim helper never clobbers.
 
 ### Step 3d: Results
 
 After all agents complete:
 
-1. Read each generated PNG inline (Read tool) so the user sees all variants at once.
-2. Report status: "All {N} variants generated in ~{actual time}. {successes} succeeded,
-   {failures} failed."
-3. For any failures: report explicitly with the error. Do NOT silently skip.
-4. If zero variants succeeded: fall back to sequential generation (one at a time with
-   `$D generate`, showing each as it lands). Tell the user: "Parallel generation failed
-   (likely rate limiting). Falling back to sequential..."
-5. Proceed to Step 4 (comparison board).
-
-**Dynamic image list for comparison board:** When proceeding to Step 4, construct the
-image list from whatever variant files actually exist, not a hardcoded A/B/C list:
-
-```bash
-setopt +o nomatch 2>/dev/null || true  # zsh compat
-_IMAGES=$(ls "$_DESIGN_DIR"/variant-*.png 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-```
-
-Use `$_IMAGES` in the `$D compare --images` command.
+<!-- design:round-accounting -->
+1. Round accounting first: this round's images are exactly the paths the DONE and FAILED
+   lines report (never a directory listing; older rounds stay on disk). Tell the user:
+   "{saved} of {N} paid images saved in ~{actual time}", listing every published path.
+2. For any failures: report explicitly with the error. Do NOT silently skip.
+3. If zero variants succeeded: fall back to sequential generation, running the agent
+   steps yourself one variant at a time and showing each as it lands. Tell the user:
+   "Parallel generation failed (likely rate limiting). Falling back to sequential..."
+   If that also saves nothing, report the failures and stop: no board.
+4. Read each saved image inline (Read tool, the reported paths) so the user sees all variants at once.
+5. Proceed to Step 4 with each variant's pick (the last reported path), in letter order,
+   as this round's board images.
 
 ## Step 4: Comparison Board + Feedback Loop
 
@@ -349,7 +348,8 @@ Use AskUserQuestion to confirm before saving.
 Write `approved.json` to `$_DESIGN_DIR/` (handled by the loop above).
 
 If invoked from another skill: return the structured feedback for that skill to consume.
-The calling skill reads `approved.json` and the approved variant PNG.
+The calling skill reads `approved.json` and resolves the approved image with
+`{{BIN_DIR}}/gstack-design-approved "$_DESIGN_DIR/approved.json"`.
 
 If standalone, offer next steps via AskUserQuestion:
 

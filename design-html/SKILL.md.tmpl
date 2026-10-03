@@ -82,8 +82,17 @@ Now route based on what was found. Check these cases in order:
 
 ### Case A: approved.json exists (design-shotgun ran)
 
-If `APPROVED` was found, read it. Extract: approved variant PNG path, user feedback,
-screen name. Also read the CEO plan if one exists (it adds strategic context).
+If `APPROVED` was found, read it for user feedback and screen name, and resolve the
+approved PNG (never guess it from a letter or the newest variant):
+
+```bash
+{{BIN_DIR}}/gstack-design-approved "<APPROVED path>"
+```
+
+It prints the approved image's absolute path. If it prints "approved image ... is
+missing; reselect from the board" instead, tell the user exactly that, offer
+/design-shotgun to reselect, and do not substitute another image. Also read the CEO
+plan if one exists (it adds strategic context).
 
 Read `DESIGN.md` if it exists in the repo root. These tokens take priority for
 system-level values (fonts, brand colors, spacing scale).

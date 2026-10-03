@@ -736,12 +736,14 @@ Comparison boards are local HTML files: open them with `open file://...` on macO
 
 If `DESIGN_READY`: the design binary is available for visual mockup generation.
 Commands:
-- `$D generate --brief "..." --output /path.png` — generate a single mockup
-- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants
-- `$D compare --images "a.png,b.png,c.png" --output /path/board.html --serve` — comparison board + HTTP server
+- `$D generate --brief "..." --output /path.png` — generate a single mockup (prints `outputPath`)
+- `$D variants --brief "..." --count 3 --output-dir /path/` — generate N style variants (prints `paths`)
+- `$D compare --images-file /path/board-images.json --output /path/board.html --serve` — comparison board + HTTP server
 - `$D serve --html /path/board.html` — serve comparison board and collect feedback via HTTP
 - `$D check --image /path.png --brief "..."` — vision quality gate
 - `$D iterate --session /path/session.json --feedback "..." --output /path.png` — iterate
+
+Image commands never overwrite (a taken name gets `-2`) and always print JSON (`requested`, `saved`, `failures`); exit 0 ready, 2 nothing saved, 3 stopped after saving some. Capture without `set -e`: `_OUT=$($D ...); _RC=$?`.
 
 **Path rule:** Design artifacts belong in `$GSTACK_STATE_ROOT/projects/$SLUG/designs/`.
 Use `bin/gstack-paths` (docs/state-root.md). Keep it even if temporary; never substitute
@@ -1736,8 +1738,11 @@ For each fixable finding, in impact order:
 If the gstack designer is available and the finding involves visual layout, hierarchy, or spacing (not just a CSS value fix like wrong color or font-size), generate a target mockup showing what the corrected version should look like:
 
 ```bash
-$D generate --brief "<description of the page/component with the finding fixed, referencing DESIGN.md constraints>" --output "$REPORT_DIR/screenshots/finding-NNN-target.png"
+_OUT=$($D generate --brief "<description of the page/component with the finding fixed, referencing DESIGN.md constraints>" --output "$REPORT_DIR/screenshots/finding-NNN-target.png"); _RC=$?
+printf '%s\n' "$_OUT"; echo "EXIT: $_RC"
 ```
+
+Record the printed `outputPath` for this finding (images are never overwritten, so it may be bumped); later steps use that path. Exit 2: no mockup was saved; skip it for this finding.
 
 Show the user: "Here's the current state (screenshot) and here's what it should look like (mockup). Now I'll fix the source to match."
 
@@ -1828,7 +1833,7 @@ DESIGN-FIX RISK:
 After all fixes are applied:
 
 1. Re-run the design audit on all affected pages
-2. If target mockups were generated during the fix loop AND `DESIGN_READY`: run `$D verify --mockup "$REPORT_DIR/screenshots/finding-NNN-target.png" --screenshot "$REPORT_DIR/screenshots/finding-NNN-after.png"` to compare the fix result against the target. Include pass/fail in the report.
+2. If target mockups were generated during the fix loop AND `DESIGN_READY`: run `$D verify --mockup "<outputPath printed for finding NNN>" --screenshot "$REPORT_DIR/screenshots/finding-NNN-after.png"` to compare the fix result against the target. Include pass/fail in the report.
 3. Compute final design score and AI slop score
 4. Recompute the detector count the same way Phase 0 scanned: DOM mode re-dumps the affected pages after reload into `$REPORT_DIR/dom/$RUN_ID/` and rescans; source mode rescans the files you touched. Then delete `$REPORT_DIR/dom/$RUN_ID/` unless the user passed `--keep-dom`.
 5. **If final scores are WORSE than baseline:** WARN prominently — something regressed
