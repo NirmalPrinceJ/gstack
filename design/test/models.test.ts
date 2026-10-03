@@ -167,7 +167,7 @@ describe("image-generation call sites (Responses API)", () => {
 
   test("iterate: threaded and fresh fallback", async () => {
     const id = `models-test-${process.pid}-${Date.now()}`;
-    const session = path.join("/tmp", `design-session-${id}.json`);
+    const session = path.join(os.tmpdir(), `design-session-${id}.json`);
     const write = () => fs.writeFileSync(session, JSON.stringify({ id, lastResponseId: "resp_prev", originalBrief: "b", feedbackHistory: [], outputPaths: [], createdAt: "", updatedAt: "" }));
     try {
       write();

@@ -25,14 +25,14 @@ function flowFiles(): string[] {
   const out: string[] = [];
   for (const entry of fs.readdirSync(ROOT, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-    const skill = path.join(entry.name, 'SKILL.md');
+    const skill = `${entry.name}/SKILL.md`;
     if (fs.existsSync(path.join(ROOT, skill))) out.push(skill);
-    const sections = path.join(entry.name, 'sections');
+    const sections = `${entry.name}/sections`;
     if (fs.existsSync(path.join(ROOT, sections))) {
-      for (const f of fs.readdirSync(path.join(ROOT, sections))) if (f.endsWith('.md')) out.push(path.join(sections, f));
+      for (const f of fs.readdirSync(path.join(ROOT, sections))) if (f.endsWith('.md')) out.push(`${sections}/${f}`);
     }
   }
-  for (const f of fs.readdirSync(path.join(ROOT, 'scripts/resolvers'))) if (f.endsWith('.ts')) out.push(path.join('scripts/resolvers', f));
+  for (const f of fs.readdirSync(path.join(ROOT, 'scripts/resolvers'))) if (f.endsWith('.ts')) out.push(`scripts/resolvers/${f}`);
   return out;
 }
 
