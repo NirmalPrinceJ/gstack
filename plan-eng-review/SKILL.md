@@ -50,7 +50,7 @@ Name the selected plan by its title or path; use "this draft" only for an untitl
 
 When no exception above applied:
 
-1. Choose listed, enabled MCP AskUserQuestion, otherwise listed native. First tool call = AskUserQuestion (tool_use). Send this exact menu and wait.
+1. Choose listed, enabled MCP AskUserQuestion, otherwise listed native. First tool call = AskUserQuestion (tool_use). Send this exact menu and wait; its Recommendation line advises the user, so do not inspect the repository to resolve it.
 2. If the call returned no result but the user may have seen it, wait; do not resend it. If the tool is unavailable, disallowed (`--disallowedTools`) or failed before reaching the user, send the menu as plain prose and STOP, whatever the session type; the session type never chooses a target or approves work. Options start at column 0, without blockquotes. Never guess a target.
 
 What should I review?
