@@ -210,7 +210,9 @@ function testsOnlyTestCode(file: string): { counted: boolean; helper?: string } 
   const targets = directSpecifiers(source).map(specifier => resolveRepoSpecifier(ROOT, file, specifier)).filter(Boolean) as string[];
   if (targets.some(target => !target.startsWith('test/') && !target.startsWith('node_modules/'))) return { counted: false };
   if (/(['"`])[^'"`\n]*(?:\bbin\/|SKILL\.md|CLAUDE\.md|\.tmpl)[^'"`\n]*\1/.test(source)) return { counted: false };
-  if (/(['"`])(?:\.\/)?\.github\b[^'"`\n]*\1|(['"`])bin\2\s*,\s*(['"`])[\w.-]+\3/.test(source)) return { counted: false };
+  if (/(['"`])(?:\.\/)?\.github\b[^'"`\n]*\1|(['"`])bin\2\s*,\s*(?:(['"`])[\w.-]+\3|[A-Za-z_$])/.test(source)) return { counted: false };
+  // A repo script run or read by path (`scripts/gen-skill-docs.ts`, `path.join(ROOT, 'setup')`) is product code too.
+  if (/(['"`])(?:\.\/)?scripts\/[\w./-]+\1|ROOT\s*,\s*(['"`])setup\2/.test(source)) return { counted: false };
   return { counted: true, helper: targets.find(target => target.startsWith('test/helpers/') && !target.endsWith('.test.ts')) };
 }
 
