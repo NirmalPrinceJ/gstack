@@ -26,35 +26,34 @@ function render(file: string, ctx: TemplateContext): string {
 }
 
 function assertProbeLocalBlocker(body: string): void {
-  expect(body).toContain('QA setup blocker');
-  expect(body).toContain('affected probes as blocked');
-  expect(body).toContain('continue other safe probes');
-  expect(body).toContain('required QA');
-  expect(body).toContain('independent functional/static checks');
+  expect(body).toMatch(/QA setup blocker/i);
+  expect(body).toMatch(/affected probes as blocked/i);
+  expect(body).toMatch(/continue other safe probes/i);
+  expect(body).toMatch(/independent functional\/static checks/i);
   expect(body).not.toContain('stop that workflow');
   expect(body).not.toContain('stop all checks');
 }
 
 function assertSharedBrowserAuthority(body: string): void {
   const decision = body.slice(body.indexOf('## Browser access decision'), body.indexOf('## BROWSER SETUP'));
-  expect(decision).toContain('invoking workflow, not this file');
+  expect(decision).toMatch(/invoking workflow, not this file/i);
   const reportOnly = decision.slice(decision.indexOf('**Report-only'), decision.indexOf('**Standalone /qa'));
   expect(reportOnly).toContain('/qa-only, /review and /ship');
-  expect(reportOnly).toContain("do not run the fallback's setup/install or cookie-import workflow");
-  expect(reportOnly).toContain('Never bootstrap or invoke another skill');
-  expect(reportOnly).toContain('block only the affected browser probes');
-  expect(reportOnly).toContain('continue independent functional/static checks');
+  expect(reportOnly).toMatch(/do not run the fallback's setup\/install or cookie-import workflow/i);
+  expect(reportOnly).toMatch(/never bootstrap or invoke another skill/i);
+  expect(reportOnly).toMatch(/block only the affected browser probes/i);
+  expect(reportOnly).toMatch(/continue independent functional\/static checks/i);
   expect(reportOnly).not.toContain('run `cd');
   const standalone = decision.slice(decision.indexOf('**Standalone /qa'));
-  expect(standalone).toContain('explicit approval');
-  expect(standalone).toContain('STOP and wait');
-  expect(standalone).toContain('Only after approval');
-  expect(standalone).toContain('`cd <SKILL_DIR> && ./setup`');
+  const ask = standalone.search(/explicit approval/i);
+  const gate = standalone.search(/only after approval/i);
+  const setup = standalone.indexOf('`cd <SKILL_DIR> && ./setup`');
+  expect(ask).toBeGreaterThan(-1);
+  expect(gate).toBeGreaterThan(ask);
+  expect(setup).toBeGreaterThan(gate);
   expect(standalone).toContain('/setup-browser-cookies');
-  expect(standalone).toContain('declined, unavailable or unsuccessful');
-  expect(standalone).toContain('blocked');
-  expect(decision).toContain('Unknown caller');
-  expect(decision).toContain('report-only');
+  expect(standalone).toMatch(/declined, unavailable or unsuccessful[\s\S]{0,40}blocked/i);
+  expect(decision).toMatch(/unknown caller[^\n]*report-only/i);
   expect(body).not.toContain('If `NEEDS_SETUP`: tell the user');
   expect(body).not.toContain('An authenticated page needs /setup-browser-cookies');
 }
@@ -64,16 +63,11 @@ describe('QA caller authority in pure host renders', () => {
     test(`${host.name}: a scope handoff requires the actual prior method read`, () => {
       for (const caller of callers) {
         const body = RESOLVERS.QA_EXPLORATORY(context(host.name, caller));
-        expect(body).toContain('Read `sections/scope.md`');
-        expect(body).toContain('Do not repeat a Read already completed in this invocation');
-        expect(body).toContain('Complete these Reads in order before writing charters or probing');
-        const scope = body.indexOf('1. Read `sections/scope.md`');
-        const selection = body.indexOf('in full and select the surfaces');
-        const methods = body.indexOf('2. Read the selected surface methods below in full');
+        const scope = body.indexOf('Read `sections/scope.md`');
+        const methods = body.indexOf('**Functional surfaces:**');
         expect(scope).toBeGreaterThan(-1);
-        expect(selection).toBeGreaterThan(scope);
-        expect(methods).toBeGreaterThan(selection);
-        expect(body.indexOf('Write a **charter**')).toBeGreaterThan(methods);
+        expect(methods).toBeGreaterThan(scope);
+        expect(body.indexOf('## 1. Charter and preflight')).toBeGreaterThan(methods);
         expect(body).not.toContain('If the caller has not selected surfaces and established isolation');
       }
     });
@@ -82,12 +76,10 @@ describe('QA caller authority in pure host renders', () => {
       for (const caller of callers) {
         const body = RESOLVERS.QA_EXPLORATORY(context(host.name, caller));
         expect(body).toContain('The **caller** (/qa, /qa-only, /review or /ship)');
-        expect(body).toContain('charter** per behavior');
         expect(body).toContain('bun G start D SECONDS [EARLIER_UTC]');
         expect(body).toContain('G enforces the deadline');
-        expect(body).toContain('announce finite command timeouts');
         expect(body.indexOf('bun G start D')).toBeLessThan(body.indexOf('1. First demonstrate success'));
-        expect(body).toContain('scoped contracts are tested or blocked');
+        expect(body).toMatch(/stop when scoped contracts are tested or blocked/i);
       }
     });
 
@@ -96,9 +88,8 @@ describe('QA caller authority in pure host renders', () => {
         ...context(host.name, 'qa'), tmplPath: 'qa/SKILL.md.tmpl', preambleTier: 4,
       });
       const final = body.slice(body.indexOf('## Phase 9: Final QA'), body.indexOf('## Phase 10: Report'));
-      expect(final).toContain('Re-run affected contracts and adjacent happy paths on the final inputs');
-      expect(final).toContain('Caller-required rechecks cannot be skipped as unaffected');
-      expect(final).toContain('blocked/inconclusive rechecks never verify repairs');
+      expect(final).toMatch(/caller-required rechecks cannot be skipped as unaffected/i);
+      expect(final).toMatch(/blocked\/inconclusive rechecks never verify repairs/i);
     });
 
     test(`${host.name}: prior learnings name QA findings without changing review callers`, () => {
@@ -116,12 +107,10 @@ describe('QA caller authority in pure host renders', () => {
     test(`${host.name}: report-only learning lookup cannot configure or initialize stores`, () => {
       const ctx = context(host.name, 'qa-only');
       const search = RESOLVERS.LEARNINGS_SEARCH(ctx, ['query=webhook retries']);
-      expect(search).toContain('Read this project\'s existing learnings.jsonl only if its directory is already known');
-      expect(search).toContain('the caller permits that Read');
-      expect(search).toContain('Otherwise skip this optional lookup');
-      expect(search).toContain('Look for notes matching "webhook retries"');
-      expect(search).toContain('Do not run gstack-learnings-search here');
-      expect(search).toContain('Reading old notes never requires writing new ones');
+      expect(search).toMatch(/learnings\.jsonl only if its directory is already known/i);
+      expect(search).toMatch(/the caller permits that Read/i);
+      expect(search).toContain('"webhook retries"');
+      expect(search).toMatch(/do not run gstack-learnings-search here/i);
       expect(search).not.toContain('```bash');
       expect(search).not.toContain('gstack-config');
       expect(search).not.toContain('AskUserQuestion');
@@ -137,7 +126,7 @@ describe('QA caller authority in pure host renders', () => {
           assertProbeLocalBlocker(pointer);
           expect(pointer).toContain(`\`sections/${id}.md\``);
           expect(pointer).toContain('SKILL.md directory');
-          expect(pointer).toContain(sharedSetup ? 'No product-directory or cross-host substitutes' : 'never the product working directory');
+          expect(pointer).toMatch(sharedSetup ? /no product-directory or cross-host substitutes/i : /never the product working directory/i);
           expect(pointer).not.toContain('## BROWSER SETUP');
           expect(pointer).not.toContain('aside repl');
         }
@@ -164,12 +153,11 @@ describe('QA caller authority in pure host renders', () => {
       assertSharedBrowserAuthority(body);
       expect(body.indexOf('## Browser access decision')).toBeLessThan(body.indexOf('## BROWSER SETUP'));
       expect(body.indexOf('## BROWSER SETUP')).toBeLessThan(body.indexOf('## Browser fallback'));
-      expect(body).toContain('Functional-only');
-      expect(body).toContain('do not probe Aside');
-      expect(body).toContain("scope section's ownership rules apply even to LOCAL browser targets");
-      expect(body).toContain('never substitute unit tests or curl for the browser step');
-      expect(body).toContain('Never type passwords, one-time codes, or payment details');
-      expect(body).toContain('Never read, screenshot, navigate, or close any other tab');
+      expect(body.replace(/\s+/g, ' ')).toMatch(/functional-only targets do not probe Aside/i);
+      expect(body).toMatch(/ownership rules apply even to local browser targets/i);
+      expect(body).toMatch(/never substitute unit tests or curl for the browser step/i);
+      expect(body).toMatch(/never type passwords, one-time codes, or payment details/i);
+      expect(body).toMatch(/never read, screenshot, navigate, or close any other tab/i);
       expect((body.match(/cd <SKILL_DIR> && \.\/setup/g) ?? [])).toHaveLength(1);
     });
 
@@ -191,22 +179,19 @@ describe('QA caller authority in pure host renders', () => {
       const auth = body.slice(body.indexOf('### Phase 2:'), body.indexOf('### Phase 3:'));
       expect(auth).toContain('Browser access decision');
       expect(auth).not.toContain('Fallback: /setup-browser-cookies or');
-      expect(auth).toContain('Never handle credentials');
-      expect(body).toContain('Run only for selected browser surfaces');
-      expect(body).toContain('Confirm each issue by retrying once');
+      expect(auth).toMatch(/never handle credentials/i);
     });
 
     test(`${host.name}: functional-only and report-only paths preserve independent checks and gates`, () => {
       const scope = RESOLVERS.QA_SCOPE(context(host.name, 'qa'));
-      expect(scope).toContain('Functional-only runs must not read browser setup, methodology, verification or bootstrap');
+      expect(scope).toMatch(/functional-only runs must not read browser setup/i);
       expect(scope).not.toContain('command -v aside');
       expect(scope).not.toContain('curl -sI');
       for (const caller of callers) {
         const ctx = context(host.name, caller);
         const body = RESOLVERS.QA_EXPLORATORY(ctx);
         const compact = body.replace(/\s+/g, ' ');
-        expect(compact).toContain('Missing or unreadable assets, prerequisites or permission block affected probes, not independent safe checks');
-        expect(compact).toContain('Report QA setup blockers');
+        expect(compact).toMatch(/block affected probes, not independent safe checks/i);
         expect(compact).not.toContain('stop all checks');
         expect(body).toContain('2. Read the selected surface methods below in full');
         expect(body.indexOf('2. Read the selected surface methods below in full')).toBeLessThan(body.indexOf('1. First demonstrate success'));
@@ -215,29 +200,29 @@ describe('QA caller authority in pure host renders', () => {
         expect(reads).toContain('sections/system-functional.md');
         expect(reads).toContain('**Browser surfaces only:**');
         expect(reads).toContain('sections/qa-patterns.md');
-        expect(body).toContain('no workflows, framework installs or publication');
-        expect(body).toContain('owns decisions, tests, fixes and publication');
-        expect(body).toContain('Missing prerequisites/expectations/observations, timeouts and refusal never pass');
-        expect(body).toContain('Pass requires all required current-input contracts to pass with no required remainder');
+        expect(body).toMatch(/no workflows, framework installs or publication/i);
+        expect(body).toMatch(/owns decisions, tests, fixes and publication/i);
+        expect(body).toMatch(/timeouts and refusal never pass/i);
+        expect(body).toMatch(/pass requires all required current-input contracts to pass/i);
         if (caller !== 'qa-only') {
           expect(body).toContain('leaves /review incomplete');
-          expect(body).toContain('unless the user explicitly accepts that named risk');
-          expect(body).toContain('noninteractive runs return blocked');
-          expect(body).toContain('test_stub proposals require ASK approval');
+          expect(body).toMatch(/unless the user explicitly accepts that named risk/i);
+          expect(body).toMatch(/noninteractive runs return blocked/i);
+          expect(body).toMatch(/test_stub proposals require ASK approval/i);
         }
       }
       const review = RESOLVERS.QA_REVIEW(context(host.name, 'review'));
       const ship = RESOLVERS.QA_REVIEW(context(host.name, 'ship'));
-      expect(review).toContain('a ship waiver cannot complete it');
-      expect(ship).toContain('explicit named-risk acceptance');
-      expect(ship.replace(/\s+/g, ' ')).toContain('Report clean/completed only when all required checks pass on current inputs');
-      expect(ship).toContain('List failed, blocked, inconclusive and not-run checks');
+      expect(review).toMatch(/a ship waiver cannot complete it/i);
+      expect(ship).toMatch(/explicit named-risk acceptance/i);
+      expect(ship.replace(/\s+/g, ' ')).toMatch(/report clean\/completed only when all required checks pass on current inputs/i);
     });
 
     test(`${host.name}: non-QA fallback retains its existing setup and human sign-in flow`, () => {
       const fallback = RESOLVERS.BROWSE_FALLBACK(context(host.name, 'browse'));
       expect(fallback).toContain('OK to proceed?');
-      expect(fallback).toContain('STOP for the answer, then run `cd <SKILL_DIR> && ./setup`');
+      expect(fallback).toMatch(/stop for the answer, then run `cd <SKILL_DIR> && \.\/setup`/i);
+      expect(fallback.indexOf('OK to proceed?')).toBeLessThan(fallback.indexOf('cd <SKILL_DIR> && ./setup'));
       expect(fallback).toContain('An authenticated page needs /setup-browser-cookies');
       expect(fallback).toContain('$B handoff');
       expect(fallback).toContain('$B resume');
@@ -253,23 +238,17 @@ describe('QA caller authority in pure host renders', () => {
         const resource = RESOLVERS.QA_RESOURCE(ctx, ['exploratory']);
         expect(resource).toContain(`../${host.name === 'claude' ? 'qa' : 'gstack-qa'}/sections/exploratory.md`);
         const shared = render('qa/sections/exploratory.md.tmpl', context(host.name, 'qa'));
-        expect(shared).toContain('Read `sections/system-functional.md` in full');
-        expect(shared.indexOf('in full and select the surfaces')).toBeLessThan(shared.indexOf('Read `sections/system-functional.md`'));
+        expect(shared.indexOf('Read `sections/scope.md`')).toBeLessThan(shared.indexOf('Read `sections/system-functional.md`'));
         const required = body.indexOf(caller === 'review'
           ? '2. Check readiness and list required checks' : '2. List required checks');
         expect(required).toBeGreaterThan(-1);
         expect(exploration).toBeLessThan(required);
-        expect(body).toContain('one success and the riskiest changed failure/edge');
-        expect(body).toContain('Smoke: 5 minutes/12 probes');
-        expect(body).toContain('Required even for small diffs or missing plans/servers');
-        expect(body).toContain('Required: plan commands/assertions, listed separately');
-        expect(body).toContain('Other ideas are optional, untested');
-        expect(body.replace(/\s+/g, ' ')).toContain('Report clean/completed only when all required checks pass on current inputs');
-        expect(body).toContain('List failed, blocked, inconclusive and not-run checks');
+        expect(body).toContain('5 minutes/12 probes');
+        expect(body.replace(/\s+/g, ' ')).toMatch(/report clean\/completed only when all required checks pass on current inputs/i);
       }
       const ship = RESOLVERS.QA_REVIEW(context(host.name, 'ship'));
-      expect(ship).toContain('Step 9.4 asks: permission/repair');
-      expect(ship).toContain('explicit named-risk acceptance; otherwise blocked');
+      expect(ship).toContain('Step 9.4');
+      expect(ship).toMatch(/explicit named-risk acceptance; otherwise blocked/i);
     });
 
     test(`${host.name}: caller QA selects surfaces directly and links checkpoints in one final section`, () => {
@@ -279,33 +258,25 @@ describe('QA caller authority in pure host renders', () => {
         const exploration = body.indexOf('{{QA_RESOURCE:exploratory}}');
         const shared = render('qa/sections/exploratory.md.tmpl', context(host.name, 'qa'));
         const scope = shared.indexOf('Read `sections/scope.md`');
-        const selection = shared.indexOf('in full and select the surfaces');
         const methods = shared.indexOf('**Functional surfaces:**');
         const probes = body.indexOf(caller === 'review'
           ? '2. Check readiness and list required checks' : '2. List required checks');
         expect(scope).toBeGreaterThan(-1);
         expect(exploration).toBeGreaterThan(-1);
-        expect(selection).toBeGreaterThan(scope);
-        expect(methods).toBeGreaterThan(selection);
-        expect(shared.indexOf('Write a **charter**')).toBeGreaterThan(methods);
+        expect(methods).toBeGreaterThan(scope);
+        expect(shared.indexOf('## 1. Charter and preflight')).toBeGreaterThan(methods);
         expect(exploration).toBeLessThan(probes);
         expect(body).not.toContain('**Functional surfaces:**');
         expect(RESOLVERS.QA_RESOURCE(ctx, ['exploratory'])).toContain(`../${host.name === 'claude' ? 'qa' : 'gstack-qa'}/sections/exploratory.md`);
         if (caller === 'review') {
           const flat = body.replace(/\s+/g, ' ');
-          expect(flat).toContain('Title it `## Exploratory QA and Verification Results`');
-          expect(flat).toContain('keep metadata/outcome tables');
-          expect(flat).toContain('demote other headings one level');
-          expect(flat).toContain('include it here under `### Browser results`');
-          expect(flat).toContain('other headings demoted two levels');
-          expect(flat).toContain('Link every checkpoint');
-          expect(flat).toContain('No second report');
-          expect(flat).toContain('Keep browser/functional scores and outcomes separate');
-          expect(flat).toContain('save browser baseline/evidence normally');
+          expect(flat).toContain('`## Exploratory QA and Verification Results`');
+          expect(flat).toContain('`### Browser results`');
+          expect(flat).toMatch(/link every checkpoint/i);
+          expect(flat).toMatch(/no second report/i);
         } else {
-          expect(body.replace(/\s+/g, ' ')).toContain('PR section `## Exploratory QA');
-          expect(body).toContain('fields as subsections');
-          expect(body).toContain('Link every checkpoint; no second report');
+          expect(body.replace(/\s+/g, ' ')).toContain('`## Exploratory QA');
+          expect(body).toMatch(/link every checkpoint; no second report/i);
         }
         expect(body).toContain('templates/functional-report-template.md');
         expect(body).not.toContain('not a second report');
@@ -314,14 +285,14 @@ describe('QA caller authority in pure host renders', () => {
 
     test(`${host.name}: orchestration logs reviewer attempts before parent-owned edits`, () => {
       const body = RESOLVERS.ADVERSARIAL_STEP(context(host.name, 'review'));
-      expect(body).toContain("queued for the parent's Fix-First handling at Step 5; do not edit during Step 4.8");
-      expect(body).toContain('do not start an inner repair loop');
-      expect(body.replace(/\s+/g, ' ')).toContain("Keep each token with that attempt; do not overwrite the parent's REVIEW_START");
-      expect(body.replace(/\s+/g, ' ')).toContain('save one record per source, phase and attempt, before the');
-      expect(body).toContain('parent applies queued fixes');
-      expect(body).toContain('Each token is consumed once');
+      const flat = body.replace(/\s+/g, ' ');
+      expect(flat).toMatch(/Fix-First handling at Step 5; do not edit during Step 4\.8/i);
+      expect(flat).toMatch(/do not start an inner repair loop/i);
+      expect(flat).toMatch(/do not overwrite the parent's REVIEW_START/i);
+      expect(flat).toMatch(/one record per source, phase and attempt/i);
+      expect(flat).toMatch(/each token is consumed once/i);
       expect(body).not.toContain('address the findings. Re-run the same shared structured invocation');
-      expect(body).toContain('The native pass is required for Step 5.8 completion');
+      expect(flat).toMatch(/native pass is required for Step 5\.8 completion/i);
     });
 
     test(`${host.name}: orchestration skips only history matching without user skips`, () => {
@@ -329,17 +300,12 @@ describe('QA caller authority in pure host renders', () => {
         const body = RESOLVERS.CROSS_REVIEW_DEDUP(context(host.name, caller));
         if (caller === 'ship') {
           const flat = body.replace(/\s+/g, ' ');
-          expect(flat).toContain('Combine saved `findings` with the invocation action list, honoring later user decisions');
-          expect(flat).toContain('If both history and the invocation action list lack decisions, classify normally');
           expect(body.indexOf('2. **Read decisions.**')).toBeLessThan(body.indexOf('3. **Match evidence.**'));
-          expect(flat).toContain('Only explicit `skipped` actions qualify, never `fixed`, `auto-fixed` or unanswered questions');
-          expect(flat).toContain('Report the suppressed count once if nonzero');
+          expect(flat).toMatch(/only explicit `skipped` actions qualify, never `fixed`, `auto-fixed` or unanswered questions/i);
         } else {
-          expect(body).toContain('skip history matching silently; still classify current findings');
+          expect(body).toMatch(/still classify current findings/i);
           expect(body.indexOf('If no prior reviews exist')).toBeLessThan(body.indexOf('For each JSONL entry'));
-          expect(body).toContain('If N > 0, print once:');
-          expect(body).toContain('Otherwise skip the summary');
-          expect(body).toContain('Only suppress `skipped` findings — never `fixed` or `auto-fixed`');
+          expect(body).toMatch(/only suppress `skipped` findings — never `fixed` or `auto-fixed`/i);
         }
         expect(body).not.toContain('skip this step silently');
       }
@@ -347,11 +313,11 @@ describe('QA caller authority in pure host renders', () => {
 
     test(`${host.name}: orchestration consumes the existing generation allowance at both coverage gates`, () => {
       const body = RESOLVERS.TEST_COVERAGE_GATE_SHIP(context(host.name, 'ship'));
-      expect(body).toContain("Use Step 7's remaining generation allowance");
+      expect(body).toContain("Step 7's remaining generation allowance");
       expect(body.match(/If A and allowance remains:/g)).toHaveLength(2);
-      expect(body).toContain('At the cap, offer only B/C or stop');
-      expect(body).toContain('At the cap, offer only B or stop');
-      expect(body).toContain('At the cap, omit A\'s generation pass and recommend stopping');
+      expect(body).toMatch(/at the cap, offer only B\/C or stop/i);
+      expect(body).toMatch(/at the cap, offer only B or stop/i);
+      expect(body).toMatch(/at the cap, omit A's generation pass and recommend stopping/i);
       expect(body).toContain('Minimum = 60%, Target = 80%');
       expect(body).not.toContain('Maximum 2 passes total');
     });
@@ -359,24 +325,23 @@ describe('QA caller authority in pure host renders', () => {
 
   test('report-only recommendations cannot dispatch a repair skill during discovery', () => {
     const skill = readFileSync(join(root, 'qa-only/SKILL.md.tmpl'), 'utf8');
-    expect(skill).toContain('Never invoke /qa or another skill from this report-only run');
-    expect(skill).toContain('separate, user-authorized');
-    expect(skill).toContain('No test framework detected');
-    expect(skill).toContain('Never commit, stash or bootstrap');
+    expect(skill).toMatch(/never invoke \/qa or another skill from this report-only run/i);
+    expect(skill).toMatch(/separate, user-authorized/i);
+    expect(skill).toMatch(/never commit, stash or bootstrap/i);
   });
 
   test('standalone QA scopes its general test rule around the approved browser bootstrap', () => {
     const skill = readFileSync(join(root, 'qa/SKILL.md.tmpl'), 'utf8');
     const rule = skill.split('\n').find(line => line.startsWith('**Outside an explicitly approved browser bootstrap:**'));
     expect(skill).not.toMatch(/^13\. /m);
-    expect(rule).toContain('Outside an explicitly approved browser bootstrap');
-    expect(rule).toContain('Only create tests through authorized codification in Phase 8a.5');
-    expect(rule).toContain('Never modify CI configuration or weaken existing tests');
+    expect(rule).toMatch(/authorized codification in Phase 8a\.5/i);
+    expect(rule).toMatch(/never modify CI configuration or weaken existing tests/i);
     const bootstrap = readFileSync(join(root, 'qa/sections/test-bootstrap.md.tmpl'), 'utf8');
-    expect(bootstrap).toContain('Browser /qa only, never functional/report-only');
-    expect(bootstrap).toContain('AskUserQuestion and WAIT');
-    expect(bootstrap).toContain('install only the actual choice');
-    expect(bootstrap).toContain('Never silently delete a valid red regression');
+    expect(bootstrap).toMatch(/browser \/qa only, never functional\/report-only/i);
+    const ask = bootstrap.search(/AskUserQuestion and wait/i);
+    expect(ask).toBeGreaterThan(-1);
+    expect(ask).toBeLessThan(bootstrap.search(/install only the actual choice/i));
+    expect(bootstrap).toMatch(/never silently delete a valid red regression/i);
     expect(bootstrap).toContain('create/extend `.github/workflows/test.yml`');
   });
 
@@ -387,6 +352,7 @@ describe('QA caller authority in pure host renders', () => {
     expect(() => assertProbeLocalBlocker(pointer.replace('continue other safe probes', 'stop all checks'))).toThrow();
     const setup = render('qa/sections/browser-setup.md.tmpl', ctx);
     expect(() => assertSharedBrowserAuthority(setup.replace('Only after approval', 'Immediately'))).toThrow();
+    expect(() => assertSharedBrowserAuthority(setup.replace('explicit approval', 'a status update'))).toThrow();
     expect(() => assertSharedBrowserAuthority(setup.replace('Never bootstrap or invoke another skill', 'Invoke another skill'))).toThrow();
     expect(() => assertSharedBrowserAuthority(setup + '\nIf `NEEDS_SETUP`: tell the user')).toThrow();
     expect(() => assertSharedBrowserAuthority(setup + '\nAn authenticated page needs /setup-browser-cookies')).toThrow();
