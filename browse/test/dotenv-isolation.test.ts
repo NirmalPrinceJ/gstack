@@ -92,7 +92,7 @@ describe('D0: project .env and bunfig.toml are ignored', () => {
         pid: process.pid, port: server.port, token: 'dotenv-test', mode: 'launched',
         sandbox: process.env.GSTACK_CHROMIUM_NO_SANDBOX ?? null,
       }));
-      setTimeout(() => process.exit(0), 5000);
+      setTimeout(() => server.stop(true), 5000);
     `);
     const env: Record<string, string> = {};
     for (const [key, value] of Object.entries(process.env)) {

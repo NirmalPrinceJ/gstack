@@ -3,6 +3,7 @@
  */
 import { toShellPath, type TemplateContext } from './types';
 import { CODEX_MODEL_CONFIG_FLAG, CODEX_REVIEW_MODEL_CONFIG_FLAG, CODEX_WEB_SEARCH_FLAG, codexPreflight } from './constants';
+import { runtimeRootPrelude } from './runtime-root';
 
 export function outsideVoiceFor(ctx: Pick<TemplateContext, 'host'>) {
   return ctx.host === 'codex'
@@ -46,7 +47,8 @@ fi`;
 export function outsideVoicePreflight(ctx: TemplateContext, opts: { disabledBehavior: 'skip-all' | 'codex-only' | 'opt-in'; acceptedOnly?: boolean; nativeReview?: boolean }): string {
   const v = outsideVoiceFor(ctx);
   if (v.id === 'codex' && opts.disabledBehavior !== 'opt-in') {
-    let preflight = outsideVoiceLabels(ctx, codexPreflight({ disabledBehavior: opts.disabledBehavior, nativeReview: opts.nativeReview }));
+    let preflight = outsideVoiceLabels(ctx, codexPreflight({ disabledBehavior: opts.disabledBehavior, nativeReview: opts.nativeReview }))
+      .replace('```bash\n', `\`\`\`bash\n${runtimeRootPrelude(ctx)}\n`);
     if (['plan-eng-review', 'plan-ceo-review'].includes(ctx.skillName)) {
       preflight = preflight.replace("follow the workflow's native-review instructions below",
         'construct the prompt below, then follow **Native fallback**');
@@ -69,6 +71,7 @@ else
   echo 'CODEX_MODE: under_current_harness'
 fi`;
   return `\`\`\`bash
+${runtimeRootPrelude(ctx)}
 ${opts.acceptedOnly ? '' : `${config}
 if [ "$_OUTSIDE_CFG" = disabled ]; then
   echo 'CODEX_MODE: disabled'
@@ -120,6 +123,7 @@ if [ "$_OUTSIDE_EXIT" -eq 0 ]; then
   bun -e 'const r=await Bun.file(process.argv[1]).json(); if(r.status!=="completed" || typeof r.result!=="string" || !r.result.trim()) process.exit(1); await Bun.write(process.argv[2],r.result)' "$_OUTSIDE_TMP/result.json" "$_OUTSIDE_TMP/text" || _OUTSIDE_EXIT=1
 fi`;
   return `${outsideVoiceGuard(ctx)}
+${runtimeRootPrelude(ctx)}
 _REPO_ROOT=$(git rev-parse --show-toplevel) || { echo 'ERROR: not in a git repo' >&2; exit 1; }
 _OUTSIDE_TMP=$(mktemp -d "\${TMPDIR:-/tmp}/gstack-outside.XXXXXXXX") || exit 1
 trap 'rm -rf "$_OUTSIDE_TMP"' EXIT

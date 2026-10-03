@@ -21,6 +21,8 @@
 # session tokens are outstanding.
 
 set -euo pipefail
+# The --help heredoc is over 512 bytes; keep it off a pipe (test/heredoc-pipe-deadlock.test.ts).
+BASH_COMPAT=50
 
 case "${1:-}" in
   -h|--help)

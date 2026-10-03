@@ -103,6 +103,10 @@ function writeRegistry(list: string[]): void {
  */
 export function ensureProjectProfile(profileDir: string, log: (msg: string) => void = console.log): void {
   if (fs.existsSync(profileDir)) return;
+  // An explicit CHROMIUM_PROFILE belongs to its caller (gbrowser's per-workspace
+  // gbd): never seed it from the shared profile or register it for pruning.
+  const explicit = process.env.CHROMIUM_PROFILE;
+  if (explicit && path.resolve(explicit) === path.resolve(profileDir)) return;
   const legacy = legacyProfileDir();
   if (path.resolve(profileDir) === path.resolve(legacy)) return;
   writeRegistry([...readRegistry(), path.resolve(profileDir)]);

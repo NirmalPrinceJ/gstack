@@ -49,7 +49,7 @@ describe('CLI → daemon behind a proxy that fails every request', () => {
       fs.writeFileSync(process.env.BROWSE_STATE_FILE!, JSON.stringify({
         pid: process.pid, port: server.port, token: 'no-proxy-test', mode: 'launched', noProxy: process.env.NO_PROXY,
       }));
-      setTimeout(() => process.exit(0), 5000);
+      setTimeout(() => server.stop(true), 5000);
     `);
     const env: Record<string, string> = {};
     for (const [key, value] of Object.entries(process.env)) {

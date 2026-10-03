@@ -390,3 +390,29 @@ describe.skipIf(process.platform === 'win32')('Chromium profile isolation (#2817
     }, 60_000);
   }
 });
+
+describe('explicit CHROMIUM_PROFILE (D5)', () => {
+  test('an explicit profile is neither seeded from the shared profile nor registered for pruning', async () => {
+    const { ensureProjectProfile } = await import('../src/chromium-profiles');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'browse-explicit-profile-'));
+    const saved = { CHROMIUM_PROFILE: process.env.CHROMIUM_PROFILE, GSTACK_HOME: process.env.GSTACK_HOME };
+    try {
+      process.env.GSTACK_HOME = path.join(root, 'state');
+      fs.mkdirSync(path.join(process.env.GSTACK_HOME, 'chromium-profile'), { recursive: true });
+      fs.writeFileSync(path.join(process.env.GSTACK_HOME, 'chromium-profile', 'Cookies'), 'shared logins');
+      const explicit = path.join(root, 'workspace-profile');
+      process.env.CHROMIUM_PROFILE = explicit;
+      const logs: string[] = [];
+      ensureProjectProfile(explicit, msg => logs.push(msg));
+      expect(fs.existsSync(explicit)).toBe(false);
+      expect(fs.existsSync(path.join(process.env.GSTACK_HOME, 'browse-profiles.json'))).toBe(false);
+      expect(logs).toEqual([]);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

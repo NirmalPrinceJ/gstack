@@ -38,12 +38,15 @@ describe.skipIf(process.platform !== 'linux')('headless launch options (Linux, r
   test('GSTACK_CHROMIUM_PATH is the binary the headless launch runs', async () => {
     const custom = chromium.executablePath();
     process.env.GSTACK_CHROMIUM_PATH = custom;
+    // Only browsers this launch started count: an earlier file in the same
+    // shard process may still be reaping its own headless_shell child.
+    const children = () => new Set(fs.readdirSync('/proc').filter(d => /^\d+$/.test(d)).filter(d => {
+      try { return fs.readFileSync(`/proc/${d}/stat`, 'utf-8').split(') ')[1].split(' ')[1] === String(process.pid); } catch { return false; }
+    }));
+    const before = children();
     bm = new BrowserManager();
     await bm.launch();
-    const children = fs.readdirSync('/proc').filter(d => /^\d+$/.test(d)).filter(d => {
-      try { return fs.readFileSync(`/proc/${d}/stat`, 'utf-8').split(') ')[1].split(' ')[1] === String(process.pid); } catch { return false; }
-    });
-    const cmdlines = children.map(pid => readPidCmdline(Number(pid)));
+    const cmdlines = [...children()].filter(pid => !before.has(pid)).map(pid => readPidCmdline(Number(pid)));
     expect(cmdlines.some(c => c.startsWith(custom) && c.includes('--headless'))).toBe(true);
     expect(cmdlines.some(c => c.includes('headless_shell'))).toBe(false);
   }, 60_000);
