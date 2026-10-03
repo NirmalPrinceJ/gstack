@@ -492,7 +492,7 @@ if ! _gstack_codex_auth_probe >/dev/null; then
   _gstack_codex_log_event "codex_auth_failed"
   echo "AUTH_FAILED"
 else
-  _gstack_codex_model_probe   # ~10s round trip on first run, cached 1h (#2477)
+  _gstack_codex_model_probe   # ~10s round trip on first run, cached 1h
 fi
 _gstack_codex_version_check   # warns if known-bad, non-blocking
 ```
@@ -507,7 +507,7 @@ source on the `CODEX_MODEL:` line) is invalid or the account cannot use it. Rela
 probe's HINT lines and
 follow the "Model not supported (HTTP 400)" recovery steps in
 `## Error Handling` below. Running the modes anyway just burns four
-invocations on the same 400 (#2477).
+invocations on the same 400.
 
 `MODEL_PROBE_INCONCLUSIVE` is non-blocking (timeout/transient network): pass
 the warning through and continue.

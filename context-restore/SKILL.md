@@ -442,7 +442,7 @@ else
     done <<EOF
 $ALL
 EOF
-    # Identity check (#3003): only checkpoints stamped with THIS project's
+    # Identity check: only checkpoints stamped with THIS project's
     # identity are candidates for "latest". Unstamped (older) checkpoints are
     # trusted unless the directory demonstrably holds another project's files.
     CLASSIFIED=$(printf '%s%s' "$SAME" "$OTHER" | grep -v '^[[:space:]]*$' \

@@ -441,21 +441,7 @@ branch name wherever the instructions say "the base branch" or `<default>`.
 setopt +o nomatch 2>/dev/null || true  # zsh compat
 SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
-_LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
-[ -z "$_LOCALDOC" ] && _LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
-# Repo-local docs win when at least as fresh (#703): office-hours dual-writes
-# docs/designs/ alongside ~/.gstack, and the committed copy is what teammates
-# see. A stale old repo doc never shadows a newer private session.
-_REPOTOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-_REPODOC=""
-if [ -n "$_REPOTOP" ]; then
-  [ -f "$_REPOTOP/DESIGN.md" ] && _REPODOC="$_REPOTOP/DESIGN.md"
-  [ -z "$_REPODOC" ] && _REPODOC=$(ls -t "$_REPOTOP"/docs/designs/*.md 2>/dev/null | head -1)
-fi
-DESIGN="$_LOCALDOC"
-if [ -n "$_REPODOC" ] && { [ -z "$_LOCALDOC" ] || [ "$_REPODOC" -nt "$_LOCALDOC" ]; }; then
-  DESIGN="$_REPODOC"
-fi
+DESIGN=$(~/.claude/skills/gstack/bin/gstack-design-doc-find "$SLUG" "$BRANCH")
 [ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
 ```
 If a design doc exists, read it and use its problem statement, constraints, and
@@ -510,21 +496,7 @@ After /office-hours completes, re-run the design doc check:
 setopt +o nomatch 2>/dev/null || true  # zsh compat
 SLUG=$(~/.claude/skills/gstack/browse/bin/remote-slug 2>/dev/null || basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")
 BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null | tr '/' '-' || echo 'no-branch')
-_LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-$BRANCH-design-*.md 2>/dev/null | head -1)
-[ -z "$_LOCALDOC" ] && _LOCALDOC=$(ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1)
-# Repo-local docs win when at least as fresh (#703): office-hours dual-writes
-# docs/designs/ alongside ~/.gstack, and the committed copy is what teammates
-# see. A stale old repo doc never shadows a newer private session.
-_REPOTOP=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
-_REPODOC=""
-if [ -n "$_REPOTOP" ]; then
-  [ -f "$_REPOTOP/DESIGN.md" ] && _REPODOC="$_REPOTOP/DESIGN.md"
-  [ -z "$_REPODOC" ] && _REPODOC=$(ls -t "$_REPOTOP"/docs/designs/*.md 2>/dev/null | head -1)
-fi
-DESIGN="$_LOCALDOC"
-if [ -n "$_REPODOC" ] && { [ -z "$_LOCALDOC" ] || [ "$_REPODOC" -nt "$_LOCALDOC" ]; }; then
-  DESIGN="$_REPODOC"
-fi
+DESIGN=$(~/.claude/skills/gstack/bin/gstack-design-doc-find "$SLUG" "$BRANCH")
 [ -n "$DESIGN" ] && echo "Design doc found: $DESIGN" || echo "No design doc found"
 ```
 
@@ -722,7 +694,7 @@ Re-run: copy RESTORE_PATH's bytes to SOURCE_PLAN, then /autoplan.
 ### Step 2: Read context
 
 - Read CLAUDE.md, TODOS.md, git log -30, git diff against the base branch --stat
-- Discover design docs: `ls -t ~/.gstack/projects/$SLUG/*-design-*.md 2>/dev/null | head -1`
+- Discover design docs: `~/.claude/skills/gstack/bin/gstack-design-doc-find "$SLUG" "$BRANCH"` (prints the doc path, or nothing)
 - Detect UI scope: grep the plan for view/rendering terms (component, screen, form,
   button, modal, layout, dashboard, sidebar, nav, dialog). Require 2+ matches. Exclude
   false positives ("page" alone, "UI" in acronyms).
@@ -813,7 +785,7 @@ Branch on the echoed `CODEX_MODE`:
 - **`under_codex`** — stale artifact selected its own harness. Print: "Codex outside review unavailable: harness mismatch; no outside process started. Missing coverage. Repair: setup --host codex." Skip the outside invocation and follow the workflow's native-review instructions below. Conflicting inherited harness markers are not grounds to guess another provider.
 - **`not_authed`** — installed but no credentials. Print: "Codex not authenticated; outside coverage unavailable. Run `codex login` or set `$CODEX_API_KEY`." Keep the required Claude adversarial pass; do not dispatch a duplicate.
 - **`broken_install`** — the CLI is on PATH but cannot execute (spawn ENOENT, non-executable binary, missing vendor payload). Print: "Codex is installed but its binary cannot run — Codex passes skipped. Reinstall: `npm install -g @openai/codex`." Relay the probe's HINT lines. Keep the required Claude adversarial pass; do not dispatch a duplicate.
-- **`model_unusable`** — the selected model (see `CODEX_MODEL:`) is invalid or unavailable to the account (#2477: HTTP 400 on every call). Relay the probe's HINT lines and the fix (`GSTACK_CODEX_MODEL=<supported-model>` or config.toml `model`); never substitute a model. Keep the required Claude adversarial pass; do not dispatch a duplicate. The ~10s round trip is cached for 1h; timeouts fail open to `ready`.
+- **`model_unusable`** — the selected model (see `CODEX_MODEL:`) is invalid or unavailable to the account (HTTP 400 on every call). Relay the probe's HINT lines and the fix (`GSTACK_CODEX_MODEL=<supported-model>` or config.toml `model`); never substitute a model. Keep the required Claude adversarial pass; do not dispatch a duplicate. The ~10s round trip is cached for 1h; timeouts fail open to `ready`.
 - **`ready`** — run the Codex pass below.
 
 Disabled/unavailable retains applicable native passes. Recheck each outside dispatch.

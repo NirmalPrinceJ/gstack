@@ -514,7 +514,9 @@ gets the actionable remediation message.
 ## Step 1.6: Transcript consent
 
 Claude Code and Codex session transcripts are ingested only when
-`transcript_ingest_mode` is `recent` (last 90 days) or `all` (all history).
+`transcript_ingest_mode` is `recent` (last 90 days), `all` (all history) or
+`new@<UTC time>` (only sessions that start after it), optionally narrowed to
+the repos in `transcript_repos` (the value then ends in `+repos`).
 Skip this step for `--code-only`, `--no-memory`, `--dry-run`,
 `--refresh-cache` and `--audit`. Otherwise check whether the user chose;
 `has` tells an absent key from the `off` default that `get` prints:
@@ -522,16 +524,19 @@ Skip this step for `--code-only`, `--no-memory`, `--dry-run`,
 ```bash
 _TIM=$(~/.claude/skills/gstack/bin/gstack-config get transcript_ingest_mode 2>/dev/null || true)
 if ~/.claude/skills/gstack/bin/gstack-config has transcript_ingest_mode; then
+  _T='[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]t[0-9][0-9]:[0-9][0-9]:[0-9][0-9]z'
   case "$(printf '%s' "$_TIM" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')" in
-    recent|all|off) echo "TRANSCRIPT_MODE: $_TIM" ;;
-    *) echo "TRANSCRIPT_MODE: ask (stored value '$_TIM' is from an older version)" ;;
+    recent|all|off|recent+repos|all+repos|new@$_T|new@$_T+repos)
+      echo "TRANSCRIPT_MODE: $_TIM (repos: $(~/.claude/skills/gstack/bin/gstack-config get transcript_repos 2>/dev/null || true))" ;;
+    *) echo "TRANSCRIPT_MODE: ask (stored value '$_TIM' is not recognized by this version)" ;;
   esac
 else
   echo "TRANSCRIPT_MODE: ask (not set)"
 fi
 ```
 
-`recent`, `all` or `off`: continue to Step 2 without asking. On `ask`, with
+A stored value (`recent`, `all`, `off`, `new@<time>`, any with `+repos`):
+continue to Step 2 without asking. On `ask`, with
 `SESSION_KIND: spawned` or `headless`, do not ask and store nothing: the sync
 skips transcripts and prints how to choose. In an interactive session, ask
 once. Count first (`--sources transcript` counts sessions that are not
@@ -543,7 +548,7 @@ bun run ~/.claude/skills/gstack/bin/gstack-memory-ingest.ts --probe --sources tr
 ```
 
 If both report `Total files in window: 0`, ask yes/no: "Ingest coding-agent
-sessions as they appear?" Yes stores `recent`, No stores `off`. Otherwise
+sessions as they appear?" Yes means `recent`, No stores `off`. Otherwise
 AskUserQuestion: name both sources (Claude Code and Codex sessions from every
 project on this machine that repo policy allows), the counts from the two
 probes, and the destination: the local brain (`gbrain_engine` from Step 1:
@@ -553,13 +558,23 @@ and skills stay usable meanwhile. Options:
 
 - A) Yes, last 90 days (`recent`)
 - B) Yes, all history (`all`)
+- C) Yes, only new sessions starting now (`new`)
 - E) No, never ingest transcripts (`off`)
 
-Store the value, never the letter, then continue to Step 2:
+On any yes (the yes/no form included), ask a second, separate question:
+"Which repos' sessions?" A) every project repo your repo policy allows, or
+B) only this repo (offer B only when `git remote get-url origin` succeeds).
+Store nothing until both answers are known; a cancel in between stores
+nothing. Then store the scope, then the value (never the letter; `new`
+stores `new@` plus the current UTC time), and continue to Step 2:
 
 ```bash
-~/.claude/skills/gstack/bin/gstack-config set transcript_ingest_mode <recent|all|off>
+~/.claude/skills/gstack/bin/gstack-config set transcript_repos "$(git remote get-url origin)"  # only this repo
+~/.claude/skills/gstack/bin/gstack-config unset transcript_repos                                 # every repo
+~/.claude/skills/gstack/bin/gstack-config set transcript_ingest_mode <recent|all|off|new@$(date -u +%Y-%m-%dT%H:%M:%SZ)>
 ```
+
+The sync prints what it will ingest, in words; repeat that line to the user.
 
 Other memory types sync whatever the answer. Details:
 `setup-gbrain/memory.md#transcripts`.
@@ -773,7 +788,7 @@ machine — gbrain's daemon handles incremental refresh on a schedule.
 
 Safety: don't run `/sync-gbrain` while `gbrain autopilot` is active — the
 orchestrator refuses destructive source ops when it detects a running autopilot
-to avoid racing it (#1734). Prefer registering user repos with `gbrain sources
+to avoid racing it. Prefer registering user repos with `gbrain sources
 add --path <dir>` (no `--url`): URL-managed sources can auto-reclone, and the
 sync code walk for them requires an explicit `--allow-reclone` opt-in.
 

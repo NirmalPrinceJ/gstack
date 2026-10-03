@@ -130,7 +130,7 @@ Then follow the same secret-read + verify + init flow as Path 1.
 # A/B). Without the key, gbrain auto-selects (OpenAI 1536d when available).
 # Never select gbrain's legacy zeroentropyai recipe for a new brain: its hosted
 # API's sunset date (September 4, 2026) has passed; the wireup helper warns existing installs.
-set --  # flags ride the positional params — unquoted $VAR breaks under zsh word-splitting (#1798)
+set --  # flags ride the positional params — unquoted $VAR breaks under zsh word-splitting
 if [ -n "${VOYAGE_API_KEY:-}" ]; then
   set -- --embedding-model voyage:voyage-code-3 --embedding-dimensions 1024
 fi
@@ -222,7 +222,7 @@ fi
 # VOYAGE_API_KEY is set. It wins the A/B over voyage-4-large and OpenAI
 # text-embedding-3-large on this codebase's symbol queries. Falls back to
 # gbrain's auto-selected provider when the key isn't present.
-set --  # flags ride the positional params — unquoted $VAR breaks under zsh word-splitting (#1798)
+set --  # flags ride the positional params — unquoted $VAR breaks under zsh word-splitting
 if [ -n "${VOYAGE_API_KEY:-}" ]; then
   set -- --embedding-model voyage:voyage-code-3 --embedding-dimensions 1024
 fi

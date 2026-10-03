@@ -12,7 +12,6 @@ allowed-tools:
   - Read
   - Glob
   - Grep
-  - Agent
   - AskUserQuestion
 gbrain:
   schema: 1
@@ -630,8 +629,8 @@ them, not one team on different days.
 
 Use AskUserQuestion to confirm before spending API credits:
 
-> "These are the {N} directions I'll generate. Each takes ~60s, but I'll run them all
-> in parallel so total time is ~60 seconds regardless of count."
+> "These are the {N} directions I'll generate. They run in parallel, so the whole set
+> typically takes about 60 seconds."
 
 Options:
 - A) Generate all {N} — looks good
@@ -661,57 +660,43 @@ console.log("GSTACK_STEP_OK");
 Then `cp "<ASIDE_DIR>/current.png" "$_DESIGN_DIR/current.png"` and Read it so the user
 sees what you're evolving from.
 
-**Launch N Agent subagents in a single message** (parallel execution). Use the Agent
-tool with `subagent_type: "general-purpose"` and `run_in_background: false` for each
-variant (parallel foreground calls in one message still run concurrently, and the
-comparison board needs every variant's result). Each agent is independent and handles
-its own generation, quality check, verification, and retry.
+**Generate every variant with one `$D variants --briefs-file` call.** Write one entry per
+confirmed concept to `$_DESIGN_DIR/briefs.json`: a JSON array of `{"brief": "<the full
+variant-specific brief>"}` objects, in concept order (A, B, C, ...), at most 7. When
+evolving, add `"screenshot": "<_DESIGN_DIR>/current.png"` to every entry. Then run this
+Bash call with `timeout: 600000` and wait for it to return:
 
-**Important: $D path propagation.** The `$D` variable from DESIGN SETUP is a shell
-variable that agents do NOT inherit. Substitute the resolved absolute path (from the
-`DESIGN_READY: /path/to/design` output in Step 0) into each agent prompt.
-
-**Agent prompt template** (one per variant, substitute all `{...}` values):
-
-```
-Generate a design variant and save it.
-
-Design binary: {absolute path to $D binary}
-Brief: {the full variant-specific brief for this direction}
-Output: /tmp/variant-{letter}.png
-Final location: {_DESIGN_DIR absolute path}/variant-{letter}.png
-
-Steps:
-1. Run: {$D path} generate --brief "{brief}" --output /tmp/variant-{letter}.png
-2. If the command fails with a rate limit error (429 or "rate limit"), wait 5 seconds
-   and retry. Up to 3 retries.
-3. If the output file is missing or empty after the command succeeds, retry once.
-4. Copy: cp /tmp/variant-{letter}.png {_DESIGN_DIR}/variant-{letter}.png
-5. Quality check: {$D path} check --image {_DESIGN_DIR}/variant-{letter}.png --brief "{brief}"
-   If quality check fails, retry generation once.
-6. Verify: ls -lh {_DESIGN_DIR}/variant-{letter}.png
-7. Report exactly one of:
-   VARIANT_{letter}_DONE: {file size}
-   VARIANT_{letter}_FAILED: {error description}
-   VARIANT_{letter}_RATE_LIMITED: exhausted retries
+```bash
+_VARIANT_TMP=$(mktemp -d /tmp/gstack-variants-XXXXXX)
+"$D" variants --briefs-file "$_DESIGN_DIR/briefs.json" --output-dir "$_VARIANT_TMP"; _VARIANTS_EXIT=$?
+cp "$_VARIANT_TMP"/variant-*.png "$_DESIGN_DIR"/ 2>/dev/null
+echo "VARIANTS_EXIT=$_VARIANTS_EXIT"
 ```
 
-For the evolve path, replace step 1 with:
-```
-{$D path} evolve --screenshot {_DESIGN_DIR}/current.png --brief "{brief}" --output /tmp/variant-{letter}.png
-```
+The command starts the variants 1.5s apart, retries rate limits with backoff, regenerates a
+missing or empty image once, runs the vision check on each image and regenerates once
+when it fails, and starts no new work after 9 minutes. It prints one
+`VARIANT_<letter>_DONE`, `_FAILED` or `_RATE_LIMITED` line per variant on stderr and a JSON
+summary on stdout: per variant `path`, `operation`, `status`, `error`, `retryable` and
+`check.status` (`pass`, `fail` or `skipped`). Exit 0 means every variant was generated, 3
+means some failed, 1 means none were generated or the briefs file was invalid (the error
+names the entry and field; fix it and rerun).
 
-**Generate to `/tmp/`, then `cp`:** in sandboxed sessions `$D generate --output` under
-`~/.gstack/` can abort ("The operation was aborted"), while `/tmp/` works.
+**Generate to `/tmp/`, then `cp`:** in sandboxed sessions `$D` output under `~/.gstack/`
+can abort ("The operation was aborted"), while `/tmp/` works.
 
 ### Step 3d: Results
 
-After all agents complete:
+After the command returns:
 
 1. Read each generated PNG inline (Read tool) so the user sees all variants at once.
 2. Report status: "All {N} variants generated in ~{actual time}. {successes} succeeded,
-   {failures} failed."
-3. For any failures: report explicitly with the error. Do NOT silently skip.
+   {failures} failed." A `skipped` check is missing automated coverage, not a pass: say so.
+3. For any failures: report explicitly with the error. Do NOT silently skip. Rerun each
+   failed variant with `retryable: true` once, using its own operation and brief:
+   `"$D" generate --brief "<brief>" --output /tmp/variant-<letter>.png`, or for a screenshot
+   entry `"$D" evolve --screenshot "$_DESIGN_DIR/current.png" --brief "<brief>" --output /tmp/variant-<letter>.png`,
+   then `cp` it into `$_DESIGN_DIR`.
 4. If zero variants succeeded: fall back to sequential generation (one at a time with
    `$D generate`, showing each as it lands). Tell the user: "Parallel generation failed
    (likely rate limiting). Falling back to sequential..."
