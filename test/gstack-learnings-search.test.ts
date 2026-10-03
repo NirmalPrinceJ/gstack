@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { execFileSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 
 const ROOT = path.resolve(import.meta.dir, '..');
 const BIN = path.join(ROOT, 'bin', 'gstack-learnings-search');
@@ -89,5 +89,55 @@ describe('gstack-learnings-search cross-project trust gating', () => {
   test('cross-project mode excludes foreign rows missing the trusted field (#1745)', () => {
     const out = run(['--cross-project', '--query', 'foreign']);
     expect(out).not.toContain('foreign-legacy');
+  });
+});
+
+// B5 (#2790): both query scripts ended in `2>/dev/null || exit 0`, so a
+// missing bun or a crashed embedded script printed nothing and exited 0,
+// exactly like "nothing recorded".
+describe('B5: query scripts never report a failed read as an empty result', () => {
+  const TOOLS = ['bash', 'sh', 'env', 'dirname', 'basename', 'git', 'tr', 'sed', 'cat', 'head', 'tail', 'grep', 'find',
+    'ls', 'mkdir', 'mktemp', 'mv', 'rm', 'cp', 'awk', 'wc', 'sort', 'uname', 'date', 'cut', 'readlink', 'realpath', 'stat', 'touch', 'id', 'printf'];
+  const shimDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-nobun-'));
+  const failDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-failbun-'));
+  for (const tool of TOOLS) {
+    const r = spawnSync('bash', ['-c', `command -v ${tool}`], { encoding: 'utf-8', timeout: 5000 });
+    const where = (r.stdout || '').trim();
+    if (where.startsWith('/')) fs.symlinkSync(where, path.join(shimDir, tool));
+  }
+  fs.writeFileSync(path.join(failDir, 'bun'), '#!/bin/sh\necho "embedded script exploded" >&2\nexit 3\n', { mode: 0o755 });
+  const timelineDir = path.join(tmpHome, 'projects', slug);
+  afterAll(() => {
+    fs.rmSync(shimDir, { recursive: true, force: true });
+    fs.rmSync(failDir, { recursive: true, force: true });
+  });
+
+  function runWith(script: string, pathValue: string, args: string[] = []) {
+    return spawnSync('bash', [path.join(ROOT, 'bin', script), ...args], {
+      timeout: 30_000, env: { ...process.env, GSTACK_HOME: tmpHome, PATH: pathValue }, cwd: tmpCwd, encoding: 'utf-8',
+    });
+  }
+
+  for (const script of ['gstack-learnings-search', 'gstack-timeline-read']) {
+    test(`${script}: bun missing exits 127 with the fix line`, () => {
+      fs.writeFileSync(path.join(timelineDir, 'timeline.jsonl'), JSON.stringify({ ts: '2026-05-01T00:00:00Z', skill: 'ship', event: 'started', branch: 'main' }) + '\n');
+      const r = runWith(script, shimDir);
+      expect(r.status).toBe(127);
+      expect(r.stdout).toBe('');
+      expect(r.stderr).toContain(`${script}: bun not found on PATH`);
+      expect(r.stderr).toContain('Fix: install Bun (https://bun.sh), then re-run ./setup.');
+    });
+
+    test(`${script}: a failing embedded script exits non-zero and keeps its stderr`, () => {
+      const r = runWith(script, `${failDir}:${process.env.PATH}`);
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toContain('embedded script exploded');
+    });
+  }
+
+  test('a successful search with no matches still exits 0 with empty output', () => {
+    const r = runWith('gstack-learnings-search', process.env.PATH!, ['--query', 'zzz-no-such-token']);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe('');
   });
 });
