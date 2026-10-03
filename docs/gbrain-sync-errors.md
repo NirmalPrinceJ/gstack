@@ -240,11 +240,11 @@ Do not move `~/.gbrain/config.json` aside; that remediation is only for
 
 ---
 
-## `[memory-ingest] ... dot-leading slug` (pages under `.claude`-style project slugs never landed)
+## `[memory-ingest] ERR: gbrain import accounted for N-1 of N staged page(s) ... Refusing to advance state` on every run (a `.claude`-style project)
 
 **Problem.** Before this release, ingest refused every batch that held a page
-from a project whose slug starts with a dot (for example `.claude`), with
-`gbrain import accounted for N-1 of N staged page(s) ... Refusing to advance state`.
+from a project whose slug starts with a dot (for example `.claude`), on every
+run.
 
 **Cause.** gbrain's import walker skips every path segment that starts with a
 dot, so the staged page was never collected.
