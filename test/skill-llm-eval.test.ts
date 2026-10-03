@@ -430,7 +430,8 @@ async function runWorkflowJudge(opts: {
   judgeContext: string;
   judgeGoal: string;
   agentCapability?: 'frontier';
-  structuredResponse?: boolean;
+  schemaTransport?: boolean;
+  compactReasoning?: boolean;
   maxTokens?: number;
   stream?: boolean;
   effort?: 'medium';
@@ -520,7 +521,7 @@ async function runWorkflowJudge(opts: {
     try {
       result = reused?.samples ?? await judgePanel(() => callJudge<JudgeScore>(prompt, opts.model, { signal: controller.signal, max_tokens: maxTokens,
         ...(opts.stream ? { stream: true } : {}),
-        ...(opts.structuredResponse ? { jsonSchema: WORKFLOW_JUDGE_RESPONSE_SCHEMA } : {}),
+        ...(opts.schemaTransport ? { jsonSchema: WORKFLOW_JUDGE_RESPONSE_SCHEMA } : {}),
         ...(opts.effort ? { effort: opts.effort } : {}) }));
     } catch (error) {
       checkActive();
@@ -541,8 +542,8 @@ async function runWorkflowJudge(opts: {
     samples = result;
     console.log(`[workflow-judge] ${opts.testName}: ${reused ? `reused ${reused.reuse.source.runId} @ ${reused.reuse.source.revision} (${new Date(reused.reuse.source.completedAt).toISOString()})` : 'executed'}`);
     stage = 'validation';
-    if (opts.structuredResponse && !samples.every(sample => validWorkflowJudgeScore(sample as unknown as EvalCacheValue, { clarity: 1, completeness: 1, actionability: 1 }, true))) {
-      throw new Error('Structured workflow judge violated the response schema');
+    if (opts.compactReasoning && !samples.every(sample => validWorkflowJudgeScore(sample as unknown as EvalCacheValue, { clarity: 1, completeness: 1, actionability: 1 }, true))) {
+      throw new Error('Workflow judge violated the compact response contract');
     }
     scores = judgePanelMean(samples, JUDGE_SCORE_DIMENSIONS);
     console.log(`${opts.testName} panel:`, JSON.stringify({ mean: scores, samples }, null, 2));
@@ -570,7 +571,8 @@ describeIfSelected('Ship & Release skill evals', ['ship/SKILL.md workflow', 'doc
   testIfSelected('ship/SKILL.md workflow', async () => {
     await runWorkflowJudge({
       testName: 'ship/SKILL.md workflow',
-      structuredResponse: true,
+      schemaTransport: true,
+      compactReasoning: true,
       maxTokens: 65_536,
       stream: true,
       // Default effort thought past JUDGE_MS in 3 of 18 measured samples; medium kept all 18 under 80 s.
