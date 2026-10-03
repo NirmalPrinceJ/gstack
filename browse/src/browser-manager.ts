@@ -20,7 +20,7 @@ import { chromium, type Browser, type BrowserContext, type BrowserContextOptions
 import { writeSecureFile, mkdirSecure } from './file-permissions';
 import { addConsoleEntry, addNetworkEntry, addDialogEntry, networkBuffer, type DialogEntry } from './buffers';
 import { emitActivity } from './activity';
-import { validateNavigationUrl } from './url-validation';
+import { validateNavigationUrl, blockedNavigationReason } from './url-validation';
 import { TabSession, type RefEntry } from './tab-session';
 import { resolveChromiumProfile, cleanSingletonLocks } from './config';
 import { launchWithXProtectHeal } from './xprotect-heal';
@@ -318,6 +318,8 @@ export class BrowserManager {
   // ─── Tab Ownership (multi-agent isolation) ──────────────
   // Maps tabId → clientId. Unowned tabs (not in this map) are root-only for writes.
   private tabOwnership: Map<number, string> = new Map();
+  /** Pending and recorded navigation-guard verdicts per page (D2). */
+  private navigationGuards = new WeakMap<Page, { pending: Set<Promise<void>>; blocked: string | null }>();
 
   // ─── Dialog Handling (global, not per-tab) ──────────────────
   private dialogAutoAccept: boolean = true;
@@ -2024,10 +2026,49 @@ export class BrowserManager {
     return null;
   }
 
+  /**
+   * Run a command and surface any navigation the guard blocked while it ran.
+   * The block reason replaces the command's own result or error (often
+   * "navigation interrupted"), so the caller learns why the tab is blank.
+   */
+  async failIfNavigationBlocked<T>(page: Page, work: Promise<T>): Promise<T> {
+    const outcome = await work.then((value) => ({ value }), (error) => ({ error }));
+    const guard = this.navigationGuards.get(page);
+    while (guard && guard.pending.size > 0) await Promise.all([...guard.pending]);
+    const blocked = guard?.blocked ?? null;
+    if (guard) guard.blocked = null;
+    if (blocked) throw new Error(blocked);
+    if ('error' in outcome) throw outcome.error;
+    return outcome.value;
+  }
+
+  /**
+   * D2: validateNavigationUrl only sees explicit navigations. Redirect hops and
+   * page-driven navigations (links, scripts, forms, frames) arrive here as
+   * navigation requests; one that targets a blocked address blanks the tab and
+   * is reported by failIfNavigationBlocked.
+   */
+  private guardNavigations(page: Page): void {
+    if (this.navigationGuards.has(page)) return;
+    const guard = { pending: new Set<Promise<void>>(), blocked: null as string | null };
+    this.navigationGuards.set(page, guard);
+    page.on('request', (req) => {
+      if (!req.isNavigationRequest()) return;
+      const check: Promise<void> = blockedNavigationReason(req.url()).then(async (reason) => {
+        if (!reason || page.isClosed()) return;
+        guard.blocked = reason;
+        console.warn(`[browse] ${reason} (navigation from ${req.frame().url() || 'a new page'}; tab reset to about:blank)`);
+        await page.goto('about:blank').catch(() => {});
+      }).finally(() => { guard.pending.delete(check); });
+      guard.pending.add(check);
+    });
+  }
+
   // ─── Console/Network/Dialog/Ref Wiring ────────────────────
   private wirePageEvents(page: Page) {
     const pages = this.pages;
     const tabSessions = this.tabSessions;
+    this.guardNavigations(page);
     // Track tab close — remove from pages and sessions maps, switch to another tab
     page.on('close', () => {
       for (const [id, p] of pages) {
