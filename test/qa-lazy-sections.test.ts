@@ -382,7 +382,7 @@ describe('installed QA pointers', () => {
     expect(source).toContain('source/diff reads only map changes to pages and flows');
     expect(source).toContain('read `TODOS.md` if present to identify known bugs');
     expect(source).toContain('defaulting to functional then browser');
-    expect(source).toContain('Do not reset a clock when switching surfaces');
+    expect(source).toMatch(/absolute deadline is shared; switching surfaces does not extend it/i);
     expect(source).toContain('CLI executable basename');
     expect(source).toContain('**No explicit permission:** skip learning-store writes and continue to the report');
     expect(source).toContain('**Explicit permission:** Read the named store first');
