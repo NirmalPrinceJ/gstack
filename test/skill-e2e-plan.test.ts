@@ -577,7 +577,7 @@ Read plan.md — that's the plan to review. This is a standalone plan document, 
 Proceed directly to the full review. Skip any AskUserQuestion calls — this is non-interactive.
 Skip the preamble bash block, lake intro, telemetry, and contributor mode sections.
 
-plan.md is the plan file for this review session.`,
+plan.md is the plan file for this review session; save your review there.`,
             workingDirectory: planDir,
             maxTurns: 20,
             timeout: CAPTURE_LONG_MS,
