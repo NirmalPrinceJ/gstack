@@ -256,14 +256,14 @@ describe('proxy terminal event ordering', () => {
       let onResponse!: (res: IncomingMessage) => void;
       let deadline!: () => void;
       const nativeSetTimeout = globalThis.setTimeout;
-      const requestSpy = spyOn(http, 'request').mockImplementation((url, options, callback) => {
+      const requestSpy = spyOn(http, 'request').mockImplementation(((_url: unknown, _options: unknown, callback?: (res: IncomingMessage) => void) => {
         onResponse = callback!;
         return request as unknown as ClientRequest;
-      });
-      const timerSpy = spyOn(globalThis, 'setTimeout').mockImplementation((callback, ms, ...args) => {
-        deadline = callback as () => void;
-        return nativeSetTimeout(callback, ms, ...args);
-      });
+      }) as unknown as typeof http.request);
+      const timerSpy = spyOn(globalThis, 'setTimeout').mockImplementation(((callback: () => void, ms?: number) => {
+        deadline = callback;
+        return nativeSetTimeout(callback, ms);
+      }) as unknown as typeof setTimeout);
       const clearSpy = spyOn(globalThis, 'clearTimeout');
       try {
         const pending = attempt(1).then(value => ({ value, error: undefined }), error => ({ value: undefined, error }));
