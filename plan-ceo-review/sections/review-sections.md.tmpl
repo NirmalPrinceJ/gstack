@@ -139,7 +139,7 @@ Required ASCII diagram: full system architecture showing new components and thei
 **Decision gate.** Complete Analyze → Resolve → Apply above for this section before continuing.
 
 ### Section 2: Error & Rescue Map
-This is the section that catches silent failures. It is not optional.
+This is the section that catches silent failures.
 For strategy-only depth, map each retained capability, integration or data
 boundary that can fail. For implementation-ready depth, map every new method,
 service or codepath that can fail. Use the same table shape for both:
@@ -158,7 +158,7 @@ service or codepath that can fail. Use the same table shape for both:
   JSONParseError               | N ← GAP   | —                      | 500 error ← BAD
 ```
 Rules for this section:
-* Catch-all error handling (`rescue StandardError`, `catch (Exception e)`, `except Exception`) is ALWAYS a smell. Name the specific exceptions.
+* Catch-all error handling (`rescue StandardError`, `catch (Exception e)`, `except Exception`) is a smell. Name the specific exceptions.
 * Generic-only logging is insufficient. Log what was attempted, with what args and for what user/request.
 * Every rescued error must retry with backoff, degrade gracefully with a user-visible message, or re-raise with added context. "Swallow and continue" is almost never acceptable.
 * For each GAP (unrescued error that should be rescued): specify the rescue action and what the user should see.
