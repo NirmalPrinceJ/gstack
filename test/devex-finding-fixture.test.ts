@@ -80,8 +80,9 @@ test('every host exposes the DX per-call rule before the pre-review audit and St
       const options = beforeAudit.indexOf('4. **Draft and answer one decision.**', gate);
       expect([gate, ground, classify, scope, options].every((offset, i, offsets) =>
         offset >= 0 && (i === 0 || offset > offsets[i - 1]!))).toBe(true);
-      const localRule = allContent.slice(allContent.indexOf('## CRITICAL RULE — How to ask questions'),
-        allContent.indexOf('## Required Outputs', allContent.indexOf('## CRITICAL RULE — How to ask questions')));
+      const askHeading = allContent.search(/^## .*How to ask questions$/im);
+      expect(askHeading).toBeGreaterThanOrEqual(0);
+      const localRule = allContent.slice(askHeading, allContent.indexOf('## Required Outputs', askHeading));
       expect(localRule).toContain('Run the Decision gate before drafting options.');
       expect(localRule).not.toContain('use AskUserQuestion for each gap');
       expect(allContent).toContain('Record observed human onboarding separately from automated execution');
