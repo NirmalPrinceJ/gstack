@@ -139,7 +139,7 @@ test('live periodic census fits the declared CI wall including setup', () => {
 
 test('registered allocation is deterministic and preserves every discovered file', () => {
   const files = collectPaidTestFiles();
-  expect(files).toHaveLength(106);
+  expect(files).toHaveLength(107);
   expect(files).toContain('test/skill-e2e-ship-skip.test.ts');
   const m = livePlan(files);
   expect(livePlan([...files].reverse())).toEqual(m);
