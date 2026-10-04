@@ -53,7 +53,7 @@ function render(host: string): string[] {
 }
 
 describe('every rendered Codex invocation is classified by the shared validator', () => {
-  const rendered = Object.fromEntries(['claude', 'codex'].map(host => [host, render(host).flatMap(f => codexSites(fs.readFileSync(f, 'utf8'), path.relative(TMP, f)))]));
+  const rendered = Object.fromEntries(['claude', 'codex'].map(host => [host, render(host).flatMap(f => codexSites(fs.readFileSync(f, 'utf8'), path.relative(TMP, f).split(path.sep).join('/')))]));
 
   test('the Claude render has the expected invocation sites', () => {
     const files = new Set(rendered.claude!.map(s => s.file.replace(/^claude\//, '')));

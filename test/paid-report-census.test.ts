@@ -74,8 +74,8 @@ describe('census attribution from the 2026-10-03 artifacts', () => {
       const qa = junit(dir, 'skill-e2e-qa-workflow');
       fs.writeFileSync(qa, fs.readFileSync(qa, 'utf8').replace(/(<testcase name="qa-fix-loop"[^>]*?) \/>/, '$1><skipped /></testcase>'));
       const cso = junit(dir, 'skill-e2e-cso');
-      fs.writeFileSync(cso, fs.readFileSync(cso, 'utf8').replace('</testsuite>\n</testsuites>',
-        '<testcase name="an unlabeled helper" classname="CSO v3" time="1" file="test/skill-e2e-cso.test.ts" line="9" />\n</testsuite>\n</testsuites>'));
+      fs.writeFileSync(cso, fs.readFileSync(cso, 'utf8').replace(/<\/testsuite>(\r?\n)<\/testsuites>/,
+        '<testcase name="an unlabeled helper" classname="CSO v3" time="1" file="test/skill-e2e-cso.test.ts" line="9" />$1</testsuite>$1</testsuites>'));
     });
     expect(r.status, r.out).toBe(0);
     expect(r.out).toContain('  SKIPPED 1 · INFRA 0 · INCOMPLETE 0 · unattributed 1 · ACTION REQUIRED 0');

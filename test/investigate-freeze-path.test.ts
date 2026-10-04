@@ -80,9 +80,11 @@ describe('E1: freeze boundary and target share one platform-aware normalization 
     ['C:\\dev\\proj\\src\\', 'C:\\dev\\proj\\src-old\\a.py', 'deny'],
     ['C:\\dev\\proj\\src\\', 'D:\\dev\\proj\\src\\a.py', 'deny'],
     ['C:\\dev\\proj\\src\\', 'C:\\dev\\proj\\other\\missing\\a.py', 'deny'],
-    ['\\\\server\\share\\proj\\', '\\\\server\\share\\proj\\a.py', 'allow'],
-    ['\\\\server\\share\\proj\\', '\\\\server\\other\\proj\\a.py', 'deny'],
-    ['\\\\server\\share\\proj\\', '/server/share/proj/a.py', 'deny'],
+    // A reserved .invalid host fails name resolution at once; a single-label
+    // host makes Windows probe the network for ~10 s per filesystem call.
+    ['\\\\server.invalid\\share\\proj\\', '\\\\server.invalid\\share\\proj\\a.py', 'allow'],
+    ['\\\\server.invalid\\share\\proj\\', '\\\\server.invalid\\other\\proj\\a.py', 'deny'],
+    ['\\\\server.invalid\\share\\proj\\', '/server.invalid/share/proj/a.py', 'deny'],
   ])('boundary %s, target %s → %s', (boundary, target, expected) => {
     expect(freezeDecision(boundary, target)).toBe(expected);
   });
@@ -196,10 +198,13 @@ describe('E1: registered hook commands run under cmd.exe and POSIX sh (#2354)', 
       for (const [label, argv] of shells) {
         test(`${rel} hook #${i + 1} reaches a decision via ${label}`, () => {
           withInstalledHome((home) => withState(path.join(home, 'frozen'), (env) => {
+            // Claude Code hands cmd.exe its command line verbatim (Node's shell
+            // spawn); MSVC-quoting it would escape the inner quotes cmd.exe reads.
             const r = Bun.spawnSync(argv(home), {
               stdin: Buffer.from(JSON.stringify(input)),
               env: { ...env, HOME: home },
               timeout: 15_000,
+              windowsVerbatimArguments: IS_WIN,
             });
             expect(r.exitCode, r.stderr.toString()).toBe(0);
             expect(decision(r.stdout.toString())).toBe(expected);
