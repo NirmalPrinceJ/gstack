@@ -209,10 +209,12 @@ describe('outside-voice dispatch contract', () => {
   });
 
   test('the delegated prompt itself requires findings only and forbids plan mutations', () => {
-    const promptStart = rendered.indexOf('"IMPORTANT:');
     const promptEnd = rendered.indexOf('\n<plan content>"');
-    expect(promptStart).toBeGreaterThan(-1);
+    const promptStart = rendered.lastIndexOf('\n"', promptEnd) + 1;
+    expect(promptStart).toBeGreaterThan(0);
     expect(promptEnd).toBeGreaterThan(promptStart);
+    expect(rendered.slice(promptStart, promptStart + 1)).toBe('"');
+    expect(rendered.slice(promptStart, rendered.indexOf('\n', promptStart))).toContain('.claude/skills/');
     const prompt = rendered.slice(promptStart, promptEnd);
     // A sovereignty rule elsewhere in the parent workflow does not reach
     // a fresh-context reviewer receiving only this constructed prompt.
@@ -324,7 +326,6 @@ const GENERATED_WITH_GUIDANCE = [
   // guidance and its bounded worker policy is specified in its own skeleton.
   'design-consultation/sections/proposal-and-preview.md',
   'design-review/SKILL.md',
-  'design-shotgun/SKILL.md',
   'document-release/sections/release-body.md',
   'office-hours/SKILL.md',
   'office-hours/sections/design-and-handoff.md',

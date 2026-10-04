@@ -45,11 +45,12 @@ test('the existing quality and behavior phases retain their complete separate sh
   expect(quality.evalsAll).toBe(true);
   expect(behavior.evalsAll).toBe(true);
   expect(qualityFiles).toHaveLength(1);
-  // 41 files (first-task-scaffold registers no gate case, and four files whose
-  // computed names hold only periodic cases, so the gate lane skips them); the
-  // eight case-sharded files contribute one shard per gate case.
-  expect(new Set(behaviorFiles.map(file => file.split('#')[0])).size).toBe(41);
-  expect(behaviorFiles).toHaveLength(73);
+  // 44 files: first-task-scaffold registers no gate case, and six files whose
+  // computed names hold only periodic cases (four plan, QA and routing files
+  // plus the design-risk and iOS-demo safety-rule evals), so the gate lane skips
+  // them; the eight case-sharded files contribute one shard per gate case.
+  expect(new Set(behaviorFiles.map(file => file.split('#')[0])).size).toBe(44);
+  expect(behaviorFiles).toHaveLength(76);
   expect(behaviorFiles).toEqual(expect.arrayContaining([
     ...['review-exploratory-small-cli', 'ship-exploratory-small-cli', 'ship-exploratory-unavailable',
       'ship-exploratory-plan-checks', 'ship-exploratory-late-input'].map(id => `test/skill-e2e-qa-callers.test.ts#${id}`),

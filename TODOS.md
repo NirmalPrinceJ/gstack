@@ -226,79 +226,48 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
 
 Each item was deferred with a reason during the `/claude-api prompt-audit` cleanup.
 
-- **Safety rules kept at their old volume until an eval covers them.** A rule's
-  wording changes only when an eval shows the model still obeys it before and
-  after. These keep their wording, and each needs the named eval first:
-  - `CODEX_BOUNDARY` (scripts/resolvers/outside-voice-steps.ts): a codex-host
-    /review run asserting Claude Code never reads `.claude/skills/` or `agents/`.
-  - /ship Step 16 "IRON LAW: NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION
-    EVIDENCE": a ship E2E that offers a stale-evidence completion and asserts the
-    step blocks.
-  - design-review stop conditions (risk %): an eval that reaches the stop
-    condition with no cap coaching, runs where `browserAvailable()` resolves, and
-    asserts termination plus a report of remaining findings. `design-review-fix`
-    self-skips without Aside and accepts `error_max_turns`.
-  - pair-agent "output the full instruction block": no eval exercises relaying
-    the block verbatim.
-  - codex consult-mode "embed content, don't reference path": no eval checks that
-    the plan content, not its path, reaches Codex.
-  - ios-qa "DEMO MODE OVERRIDES ALL OTHER RULES": no device-free eval covers demo
-    mode.
-  Priority P2. Effort M per eval.
-- **Judge prompts still say "Respond with ONLY valid JSON"** —
-  `test/helpers/llm-judge.ts` (prompt-audit s11 M1-M7) and the five inline judges
-  in `test/skill-llm-eval.test.ts` (:223, :266, :315, :384, :823) already pass a
-  JSON schema or should. The change lands only with a calibration corpus: stored
-  judged outputs per changed judge (passing, failing, threshold-adjacent), an
-  old-vs-old flip rate, then new-vs-old not above it. Also move the qa
-  anti-refusal judge rubric (`skill-llm-eval.test.ts:291-343`) off "always …
-  regardless" wording in the same commit. Priority P2. Effort M.
-- **Fast PR profile has no CEO E2E probe** — retiring `plan-ceo-review-benefits`
-  removed the only fast PR probe for /plan-ceo-review; CEO template changes now
-  run the CEO judge and `auq-format-gate`. Adding `plan-ceo-review-plan-mode` to
-  `PR_PROFILE_CASE_IDS` fails the "exactly one planned owning file" rule in
-  scripts/lib/paid-plan.ts because the file is planned as more than one shard.
-  Priority P3. Effort S.
-- **Register an Opus 5.5 dedicated-tools overlay case** — the Opus 5.5 run was
-  measured as a one-off. Registering it as a periodic case moves the periodic
-  census walls, release floors and file counts pinned by
-  `test/paid-overlay-scheduling.test.ts`, `test/overlay-lifecycle.test.ts`,
-  `test/paid-retry-supervision.test.ts` and `test/eng-finding-retry-budget.test.ts`;
-  update those budgets in the same commit. Priority P3. Effort S.
-- **Ratchet parity caps back down** — `test/helpers/carve-guards.ts` caps were
-  raised during the cleanup (qa 1.104, land-and-deploy 1.108,
-  design-consultation 1.092, ship 1.405). Re-measure on the merged tree and lower
-  each to its measured value. Priority P3. Effort S.
-- **design-shotgun executor subagents** (prompt-audit s08 G1) — replace the N
-  subagents that only run a fixed script with one parallel bash batch. This
-  changes how variants are dispatched, not the prompt text. Priority P3. Effort S.
-- **Per-record "new sessions only" transcript consent** — let users consent to
-  ingesting only sessions created after they answer. Needs timestamp filtering
-  inside both transcript parsers (Claude Code and Codex) and a mode-plus-cutoff
-  config write that lands as one transaction. Priority P3. Effort M.
-- **Per-repo transcript scope** — `recent`/`all` cover every project on the
-  machine that repo policy allows. Add a way to restrict transcript ingest to
-  chosen repos. Priority P3. Effort M.
-- **Design-doc discovery still reads `~/.gstack/projects`** — converting
-  `DESIGN_DOC_DISCOVERY` (and autoplan's Step 2 lookup) to `$GSTACK_STATE_ROOT`
-  made /plan-eng-review answer its no-target scope gate in prose instead of
-  AskUserQuestion: the plan-mode no-op eval failed 5 of 5 runs with the converted
-  paths and passed 6 of 6 without them. Custom state roots miss office-hours design docs
-  until this lands. Find why the path change shifts the gate (likely the gate's
-  "do not probe for session state" rule), then convert and keep the eval green.
-  Priority P2. Effort S.
-- **Archaeology lint** — a free check that flags issue/PR numbers, plan IDs and
-  incident stories in runtime skill prose (templates and resolver strings), so
-  they stay in commit messages and CHANGELOG. Priority P3. Effort S.
-- **Claude-side model detection** — Claude Code hosts always render the generic
-  `claude` overlay; `./setup --model` is Codex-only. When the next Claude model
-  needs its own overlay, detect the model on the Claude side first, or the
-  overlay never reaches users. Priority P2. Trigger: the next Claude model that
-  needs a tuned overlay.
-- **Re-run the prompt audit at each frontier-model release** — run
-  `/claude-api prompt-audit` over templates, resolvers, overlays, CLAUDE.md and
-  the tests that pin them, and review the low-confidence flags it reports.
-  Priority P3. Trigger: each new frontier model.
+- **Safety rules held: their evals do not discriminate** — the
+  safety-ship-stale-evidence, safety-pair-agent-block, safety-codex-consult-embed
+  and safety-ios-demo-ui-only evals passed 10/10 with the current wording, but
+  their rule-removed arms showed 0/5 violations (2026-10-03, claude-fable-5-1,
+  Claude Code 2.1.284), so they cannot show a rewording is safe. The wording stays
+  until a fixture makes the rule's absence observable. The rules are listed in
+  `test/helpers/safety-rules.ts`. Priority P3. Effort M per fixture.
+- **design-review risk-stop rewording held (R8)** — safety-design-risk-stop
+  discriminates (current wording 10/10, rule removed 1/5 violated), but R8 needs a
+  clean run of the reworded rule on every render that carries it. The copilot,
+  cursor, factory, gbrain, hermes, kiro, openclaw, opencode and slate renders run
+  other models with no runner, and the `.agents` render has no Codex runner for
+  this eval. Narrow the rewording to the design-review render, or add per-host
+  runners. Priority P2. Effort M.
+- **Judge prose and rubric cleanup (W2 deferral)** — the arm, qa health-rubric,
+  qa anti-refusal, cross-skill and voice judges, and the default workflow judge,
+  now send a JSON schema; their prompt-audit s11 M1-M7 prose cleanup is still
+  open, as is the qa anti-refusal rubric's "always … regardless" wording. Two
+  prose steps were triggered and not run: the qa workflow judge (its schema
+  comparison held: 4/24 new flips vs 2/24 old, one new false pass on a06, zero
+  format errors, so it stays on today's request) and the default workflow judge
+  (landed, but one provider refusal on corpus item f03 under the new prompt,
+  matched by one under the old prompt). Reuse `test/fixtures/judge-calibration`
+  and `scripts/judge-calibration.ts`. Priority P3. Effort M.
+- **Uncalibrated workflow-judge configurations** — build corpora and calibrate
+  schema transport for the frontier configuration (review/SKILL.md workflow) and
+  the cookie configuration (setup-browser-cookies/SKILL.md workflow); both stay on
+  today's request. After any transport change, re-run the review and cookie
+  workflow judges. Priority P3. Effort M.
+- **Claude model auto-detection for the skill overlay** — when no
+  `claude_overlay_model` is set, detect the Claude Code model (`ANTHROPIC_MODEL`,
+  user and managed settings `model`) in `./setup` and render its pinned overlay.
+  `./setup --claude-model` is opt-in, so users who never pass it keep the generic
+  overlay. A `/model` switch would leave a stale render, and the pinned overlays
+  are not yet measured against `claude` on their own models.
+  `bin/gstack-render-claude.sh`, its activation record and the change-only banner
+  are in place; detection would record `source=detected`. Depends on: task-result
+  evidence that a pinned overlay beats `claude` on its model. Priority P3.
+- **Per-session overlay selection (E6)** — a runtime hook that follows `/model`
+  switches and serves the matching overlay per session. `./setup --claude-model`
+  is install-wide, so a mid-session switch keeps the installed overlay. Builds on
+  the `--claude-model` render and activation record. Priority P3.
 
 ### P2/P3: impeccable interop deferrals (filed 2026-09-08, from the CEO + eng reviews of docs/designs/IMPECCABLE_INTEROP.md)
 

@@ -269,7 +269,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   // (--max-concurrency, no retries), so worst-case cost is one pass of
   // each, sharing the API budget with sibling tests — not the
   // sequential ~+10min a local read suggests.
-  'plan-mode-no-op':              ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'test/fixtures/auto-decide-recommendation-361c.json',
+  'plan-mode-no-op':              ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'bin/gstack-design-doc-find', 'scripts/resolvers/design-doc-discovery.ts', 'scripts/resolvers/spec-review.ts', 'plan-devex-review/**', 'test/fixtures/auto-decide-recommendation-361c.json',
     
     'test/fixtures/auto-decide-target-361c.json',
 
@@ -641,6 +641,13 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
 
   // Learnings
   'learnings-show': ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'learn/**', 'bin/gstack-learnings-search', 'bin/gstack-learnings-log', 'scripts/resolvers/learnings.ts', 'test/skill-e2e-learnings.test.ts'],
+  // W1 safety-rule evals (test/helpers/safety-rules.ts registry; E3).
+  'safety-design-risk-stop': ['design-review/**', 'scripts/resolvers/browse.ts', 'scripts/resolvers/testing.ts', 'lib/aside-render.ts', 'test/skill-e2e-safety-design-risk.test.ts', 'test/helpers/browser-available.ts', 'test/helpers/aside-available.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts', 'test/helpers/llm-judge.ts'],
+  'safety-codex-boundary': ['scripts/resolvers/outside-voice-steps.ts', 'review/**', 'scripts/resolvers/constants.ts', 'test/skill-e2e-safety-codex-boundary.test.ts', 'test/helpers/codex-boundary-evidence.ts', 'test/helpers/safety-rules.ts', 'test/helpers/pricing.ts', 'test/helpers/e2e-gate.ts'],
+  'safety-codex-consult-embed': ['codex/**', 'bin/gstack-codex-probe', 'bin/gstack-paths', 'scripts/resolve-codex-generation-model.ts', 'test/skill-e2e-safety-codex-consult.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
+  'safety-ios-demo-ui-only': ['ios-qa/**', 'test/skill-e2e-safety-ios-demo.test.ts', 'test/helpers/ios-stub-state-server.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
+  'safety-pair-agent-block': ['pair-agent/**', 'browse/src/cli.ts', 'test/skill-e2e-safety-pair-agent.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts'],
+  'safety-ship-stale-evidence': ['ship/SKILL.md.tmpl', 'ship/SKILL.md', 'bin/gstack-evidence', 'bin/gstack-wtree', 'test/skill-e2e-safety-ship-evidence.test.ts', 'test/helpers/safety-rules.ts', 'test/helpers/skill-fixture.ts', 'test/helpers/llm-judge.ts'],
 
   // Session Intelligence (timeline, context recovery, /context-save + /context-restore)
   'timeline-event-flow':            ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'bin/gstack-timeline-log', 'bin/gstack-timeline-read', 'test/skill-e2e-session-intelligence.test.ts'],
@@ -839,7 +846,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     'test/fixtures/outside-async-task-m-events.json',
      'test/fixtures/autoplan-amend-input-77.json',
      'test/fixtures/autoplan-phase-handoff-6714.json','scripts/resolvers/learnings.ts', 'scripts/resolvers/preamble/generate-completion-status.ts', 'scripts/resolvers/preamble/generate-preamble-bash.ts',  'test/fixtures/plan-scope-recovery-av.json',   'test/fixtures/design-scope-checkpoint-at.json',  'scripts/resolvers/composition.ts',   'autoplan/**', 'codex/**', 'bin/gstack-codex-probe', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/design.ts', 'test/skill-e2e-autoplan-dual-voice.test.ts', 'bin/gstack-autoplan-snapshot.ts',    'test/fixtures/autoplan/t-ceo-omitted-obligations.json', 'test/fixtures/autoplan/u-ceo-original-loss.json', 'test/fixtures/autoplan/v-ceo-dangling-references.json',
-    'scripts/resolvers/design-doc-discovery.ts', 'plan-ceo-review/**', 'plan-eng-review/**', 'plan-design-review/**', 'plan-devex-review/**', 'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts',  'scripts/resolvers/tasks-section.ts', 'test/helpers/autoplan-phase-observer.ts', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts'],
+    'scripts/resolvers/design-doc-discovery.ts', 'bin/gstack-design-doc-find', 'plan-ceo-review/**', 'plan-eng-review/**', 'plan-design-review/**', 'plan-devex-review/**', 'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts',  'scripts/resolvers/tasks-section.ts', 'test/helpers/autoplan-phase-observer.ts', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts'],
 
   // Multi-provider benchmark adapters — live API smoke against real claude/codex/gemini CLIs
   'benchmark-providers-live': ['bin/gstack-model-benchmark', 'test/helpers/providers/**', 'test/helpers/benchmark-runner.ts', 'test/helpers/pricing.ts', 'test/skill-e2e-benchmark-providers.test.ts'],
@@ -1064,6 +1071,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'overlay-harness-opus-4-7-effort-match-trivial': ['model-overlays/**', 'test/fixtures/overlay-nudges.ts', 'test/helpers/agent-sdk-runner.ts',  'scripts/resolvers/model-overlay.ts', 'test/skill-e2e-overlay-harness-opus-4-7-effort-match-trivial.test.ts', 'test/helpers/overlay-measurement.ts', 'test/helpers/overlay-workspace.ts', 'test/helpers/overlay-attempt.ts',  'test/helpers/overlay-case.ts', 'test/helpers/overlay-case-policy.ts', 'test/helpers/overlay-lifecycle.ts',     'test/fixtures/overlay-admission-child.ts', 'test/helpers/e2e-gate.ts'],
   'overlay-harness-opus-4-7-literal-interpretation': ['model-overlays/**', 'test/fixtures/overlay-nudges.ts', 'test/helpers/agent-sdk-runner.ts',  'scripts/resolvers/model-overlay.ts', 'test/skill-e2e-overlay-harness-opus-4-7-literal-interpretation.test.ts', 'test/helpers/overlay-measurement.ts', 'test/helpers/overlay-workspace.ts', 'test/helpers/overlay-attempt.ts',  'test/helpers/overlay-case.ts', 'test/helpers/overlay-case-policy.ts', 'test/helpers/overlay-lifecycle.ts',     'test/fixtures/overlay-admission-child.ts', 'test/helpers/e2e-gate.ts'],
   'overlay-harness-claude-dedicated-tools-vs-bash-sonnet': ['model-overlays/**', 'test/fixtures/overlay-nudges.ts', 'test/helpers/agent-sdk-runner.ts',  'scripts/resolvers/model-overlay.ts', 'test/skill-e2e-overlay-harness-claude-dedicated-tools-vs-bash-sonnet.test.ts', 'test/helpers/overlay-measurement.ts', 'test/helpers/overlay-workspace.ts', 'test/helpers/overlay-attempt.ts',  'test/helpers/overlay-case.ts', 'test/helpers/overlay-case-policy.ts', 'test/helpers/overlay-lifecycle.ts',     'test/fixtures/overlay-admission-child.ts', 'test/helpers/e2e-gate.ts'],
+  'overlay-harness-claude-dedicated-tools-vs-bash-opus-5-5': ['model-overlays/**', 'test/fixtures/overlay-nudges.ts', 'test/helpers/agent-sdk-runner.ts',  'scripts/resolvers/model-overlay.ts', 'test/skill-e2e-overlay-harness-claude-dedicated-tools-vs-bash-opus-5-5.test.ts', 'test/helpers/overlay-measurement.ts', 'test/helpers/overlay-workspace.ts', 'test/helpers/overlay-attempt.ts',  'test/helpers/overlay-case.ts', 'test/helpers/overlay-case-policy.ts', 'test/helpers/overlay-lifecycle.ts',     'test/fixtures/overlay-admission-child.ts', 'test/helpers/e2e-gate.ts'],
   'journey-negatives':      [
     
 
@@ -1332,6 +1340,13 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
 
   // Learnings — gate (functional guardrail: seeded learnings must appear)
   'learnings-show': 'gate',
+  // W1 safety-rule evals.
+  'safety-design-risk-stop': 'periodic',
+  'safety-codex-boundary': 'periodic',
+  'safety-codex-consult-embed': 'gate',
+  'safety-ios-demo-ui-only': 'periodic',
+  'safety-pair-agent-block': 'gate',
+  'safety-ship-stale-evidence': 'gate',
 
   // Document-release — gate (CHANGELOG guardrail)
   'document-release': 'gate',
@@ -1436,6 +1451,7 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   'overlay-harness-opus-4-7-effort-match-trivial': 'periodic',
   'overlay-harness-opus-4-7-literal-interpretation': 'periodic',
   'overlay-harness-claude-dedicated-tools-vs-bash-sonnet': 'periodic',
+  'overlay-harness-claude-dedicated-tools-vs-bash-opus-5-5': 'periodic',
   'journey-negatives': 'periodic',
 };
 
@@ -1698,6 +1714,13 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'cso-diff-mode': 'rule',
   'cso-infra-scope': 'rule',
   'learnings-show': 'rule',
+  // W1 safety-rule evals.
+  'safety-design-risk-stop': 'rule',
+  'safety-codex-boundary': 'rule',
+  'safety-codex-consult-embed': 'rule',
+  'safety-ios-demo-ui-only': 'rule',
+  'safety-pair-agent-block': 'rule',
+  'safety-ship-stale-evidence': 'rule',
   'document-release': 'rule',
   'codex-review': 'rule',
   'codex-discover-skill': 'rule',
@@ -1755,6 +1778,7 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'overlay-harness-opus-4-7-effort-match-trivial': 'rule',
   'overlay-harness-opus-4-7-literal-interpretation': 'rule',
   'overlay-harness-claude-dedicated-tools-vs-bash-sonnet': 'rule',
+  'overlay-harness-claude-dedicated-tools-vs-bash-opus-5-5': 'rule',
   'journey-negatives': 'rule',
   'review/SKILL.md workflow': 'judge',
   'setup-browser-cookies/SKILL.md workflow': 'judge',

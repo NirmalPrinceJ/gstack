@@ -59,10 +59,10 @@ describe('Codex skill isolation (#2847)', () => {
     const sources = ['scripts/resolvers/outside-voice-steps.ts', ...['review-mode', 'challenge-mode', 'consult-mode'].map(m => `codex/sections/${m}.md.tmpl`)];
     for (const rel of sources) {
       const text = fs.readFileSync(path.join(ROOT, rel), 'utf8');
-      const boundaries = text.split('\n').filter(line => line.includes('IMPORTANT: Do NOT read or execute any files under'));
+      const boundaries = text.split('\n').filter(line => /do not read or execute any files under/i.test(line));
       expect(boundaries.length, rel).toBeGreaterThan(0);
       for (const line of boundaries) {
-        expect(line, rel).toContain('Do not invoke any installed skill (Codex home skills/, .agents/)');
+        expect(line, rel).toMatch(/do not invoke any installed skill \(Codex home skills\/, \.agents\/\)/i);
       }
     }
   });

@@ -52,7 +52,7 @@ describe('overlay file policy', () => {
   });
 
   test('only the exact wrapper family gets one attempt and the extra process grace', () => {
-    expect(overlayFiles).toHaveLength(4);
+    expect(overlayFiles).toHaveLength(5);
     expect(OVERLAY_MAX_ACTIVE_SHARDS).toBe(1);
     expect(OVERLAY_MIN_FILE_WALL_MS).toBe(1_830_000);
     for (const file of overlayFiles) {
@@ -125,16 +125,16 @@ describe('overlay file policy', () => {
 });
 
 describe('overlay manifest affinity and CI capacity', () => {
-  test('actual lifecycle wrapper guards include all four in periodic and exclude all four from gate', () => {
+  test('actual lifecycle wrapper guards include all five in periodic and exclude all five from gate', () => {
     for (const tier of ['periodic', 'gate'] as const) {
       const manifest = buildRunManifest({ tier, sliceCount: 6, evalsAll: true, env: { EVALS_ALL: '1' } });
       const entries = manifest.entries.filter(entry => isOverlayTestFile(entry.file));
-      expect(entries).toHaveLength(4);
+      expect(entries).toHaveLength(5);
       expect(entries.every(entry => entry.status === (tier === 'periodic' ? 'planned' : 'excluded'))).toBe(true);
     }
   });
 
-  test('93 files retain every case, reserve slice six, and fit 330 minutes with actual family walls', () => {
+  test('94 files retain every case, reserve slice six, and fit 330 minutes with actual family walls', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'overlay-affinity-'));
     const normalFiles = Array.from({ length: 89 }, (_, i) => `test/skill-e2e-normal-${i.toString().padStart(2, '0')}.test.ts`);
     const discovered = [...normalFiles, ...overlayFiles];
@@ -146,11 +146,11 @@ describe('overlay manifest affinity and CI capacity', () => {
       }
       const opts = { tier: 'periodic' as const, sliceCount: 6, evalsAll: true, discovered, rootDir: dir, env: { EVALS_ALL: '1' } };
       const manifest = buildRunManifest(opts);
-      expect(manifest.entries).toHaveLength(93);
-      expect(new Set(manifest.entries.map(e => e.file)).size).toBe(93);
+      expect(manifest.entries).toHaveLength(94);
+      expect(new Set(manifest.entries.map(e => e.file)).size).toBe(94);
       expect(manifest.entries.every(e => e.status === 'planned')).toBe(true);
       const counts = [1, 2, 3, 4, 5, 6].map(slice => manifest.entries.filter(e => e.slice === slice).length);
-      expect(counts).toEqual([18, 18, 18, 18, 17, 4]);
+      expect(counts).toEqual([18, 18, 18, 18, 17, 5]);
       expect(manifest.entries.filter(e => e.slice === 6).map(e => e.file).sort()).toEqual([...overlayFiles].sort());
       expect(buildRunManifest({ ...opts, discovered: [...discovered].reverse() })).toEqual(manifest);
       expect(parseRunManifest(JSON.stringify(manifest))).toEqual(manifest);
@@ -175,8 +175,8 @@ describe('overlay manifest affinity and CI capacity', () => {
       const overlayMinutes = Math.ceil(overlayFiles.length / OVERLAY_MAX_ACTIVE_SHARDS)
         * Math.max(...overlayFiles.map(file => resolvePaidShardTimeoutMs([file]))) / 60_000;
       expect(normalMinutes).toBe(270);
-      expect(overlayMinutes).toBe(122);
-      // The CI budget plan (what the workflow runs) keeps the four overlays
+      expect(overlayMinutes).toBe(152.5);
+      // The CI budget plan (what the workflow runs) keeps the five overlays
       // in one final one-at-a-time slice and its job cap covers them.
       const budget = buildRunManifest({ ...opts, sliceCount: undefined, sliceBudgetMs: 540_000, jobs });
       const lastSlice = budget.entries.filter(e => e.slice === budget.sliceCount).map(e => e.file).sort();

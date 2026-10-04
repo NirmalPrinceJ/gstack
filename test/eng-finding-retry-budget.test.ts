@@ -133,13 +133,13 @@ test('live periodic census fits the declared CI wall including setup', () => {
   const plannedFiles = new Set(m.entries.filter(e => e.status === 'planned').map(e => shardFile(e.file)));
   expect(plannedFiles).toEqual(new Set(selectPaidTestFiles(collectPaidTestFiles(), 'periodic').selected));
   const overlays = m.entries.filter(e => e.status === 'planned' && e.slice === m.sliceCount);
-  expect(overlays).toHaveLength(4);
+  expect(overlays).toHaveLength(5);
   expect(overlays.every(e => isOverlayTestFile(e.file))).toBe(true);
 });
 
 test('registered allocation is deterministic and preserves every discovered file', () => {
   const files = collectPaidTestFiles();
-  expect(files).toHaveLength(107);
+  expect(files).toHaveLength(114);
   expect(files).toContain('test/skill-e2e-ship-skip.test.ts');
   const m = livePlan(files);
   expect(livePlan([...files].reverse())).toEqual(m);
@@ -189,10 +189,10 @@ test('current detach supervision covers the live-census floor', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(import.meta.dir, '../package.json'), 'utf8'));
   const periodicTimeout = Number(pkg.scripts['eval:bg:periodic'].match(/--timeout\s+(\d+)/)[1]);
   const gateTimeout = Number(pkg.scripts['eval:bg:gate'].match(/--timeout\s+(\d+)/)[1]);
-  expect(floorFor('gate')).toBe(21_725);
+  expect(floorFor('gate')).toBe(22_355);
   expect(gateTimeout).toBe(49_320);
   expect(gateTimeout).toBeGreaterThanOrEqual(floorFor('gate'));
-  expect(floorFor('periodic')).toBe(35_711);
+  expect(floorFor('periodic')).toBe(35_742);
   expect(periodicTimeout).toBeGreaterThanOrEqual(floorFor('periodic'));
 });
 

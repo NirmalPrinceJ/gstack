@@ -1432,7 +1432,7 @@ function trackShardBrowser(stateDir: string, env: NodeJS.ProcessEnv) {
   let alive = true;
 
   const check = (capture: Capture) => {
-    if (closed || capture.abort.signal.aborted || active !== capture) throw new CaptureStopped();
+    if (closed || capture.abort.signal.aborted || active !== capture || (!forced && performance.now() >= forceAt)) throw new CaptureStopped();
     if (performance.now() >= Math.min(capture.deadline, deadline)) throw new BrowserCleanupError('browser ownership deadline exceeded');
   };
   const probe = async (capture: Capture, command: string, args: string[], timeout: number) => {
@@ -1462,7 +1462,7 @@ function trackShardBrowser(stateDir: string, env: NodeJS.ProcessEnv) {
         killProcessGroup(child, 'SIGKILL');
         reaper = setTimeout(() => finish(null), 100);
       };
-      const timer = setTimeout(stop, Math.max(1, remaining));
+      const timer = setTimeout(() => { if (!closed) errors.add('browser identity probe did not complete'); stop(); }, Math.max(1, Math.min(remaining, forced ? Infinity : forceAt - performance.now())));
       capture.abort.signal.addEventListener('abort', stop, { once: true });
       child.once('error', () => { failed = true; finish(null); });
       child.once('close', finish);
@@ -1693,7 +1693,7 @@ function trackShardBrowser(stateDir: string, env: NodeJS.ProcessEnv) {
   };
   const enqueue = () => {
     if (closed || pending || process.platform === 'win32') return;
-    const operation: Capture = { abort: new AbortController(), deadline: Math.min(performance.now() + 10000, deadline, forced ? Infinity : forceAt), probes: new Set() };
+    const operation: Capture = { abort: new AbortController(), deadline: Math.min(performance.now() + 10000, deadline), probes: new Set() };
     active = operation;
     pending = (async () => {
       try {

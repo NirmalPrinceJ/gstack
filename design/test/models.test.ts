@@ -206,7 +206,7 @@ describe("image-generation call sites (Responses API)", () => {
 describe("vision call sites (Chat Completions)", () => {
   test("check", async () => {
     stubFetch((u) => ok(u, "PASS"));
-    expect(await checkMockup(path.join(dir, "shot.png"), "brief")).toEqual({ pass: true, issues: "" });
+    expect(await checkMockup(path.join(dir, "shot.png"), "brief")).toEqual({ pass: true, status: "pass", issues: "" });
     expectVisionShape(calls[0]);
     stubFetch(() => rejected());
     await checkMockup(path.join(dir, "shot.png"), "brief");
@@ -262,7 +262,7 @@ describe("vision budgets leave room for reasoning", () => {
 
   test("check, diff, memory, design-to-code and evolve analysis all answer", async () => {
     stubFetch(reasoningStub("PASS"));
-    expect(await checkMockup(path.join(dir, "shot.png"), "brief")).toEqual({ pass: true, issues: "" });
+    expect(await checkMockup(path.join(dir, "shot.png"), "brief")).toEqual({ pass: true, status: "pass", issues: "" });
     stubFetch(reasoningStub(JSON.stringify({ differences: [], summary: "same", matchScore: 100 })));
     expect((await diffMockups(path.join(dir, "shot.png"), path.join(dir, "shot.png"))).matchScore).toBe(100);
     stubFetch(reasoningStub(JSON.stringify({ colors: [], typography: [], spacing: [], layout: [], mood: "calm" })));

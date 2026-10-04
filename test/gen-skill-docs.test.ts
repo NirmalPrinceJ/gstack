@@ -1930,6 +1930,10 @@ describe('BENEFITS_FROM resolver', () => {
       fs.chmodSync(helper, 0o755);
       fs.copyFileSync(path.join(ROOT, 'bin/gstack-state-root.sh'), path.join(path.dirname(helper), 'gstack-state-root.sh'));
       fs.copyFileSync(path.join(ROOT, 'bin/gstack-remote-identity.sh'), path.join(path.dirname(helper), 'gstack-remote-identity.sh'));
+      for (const bin of ['gstack-paths', 'gstack-design-doc-find']) {
+        fs.copyFileSync(path.join(ROOT, 'bin', bin), path.join(path.dirname(helper), bin));
+        fs.chmodSync(path.join(path.dirname(helper), bin), 0o755);
+      }
       const expected = path.join(home, '.gstack/projects/canonical-override/session-unknown-design-current.md');
       const wrong = path.join(home, '.gstack/projects/project/session-unknown-design-wrong.md');
       for (const file of [expected, wrong]) {
@@ -2817,7 +2821,7 @@ describe('Codex generation (--host codex)', () => {
       const content = fs.readFileSync(path.join(AGENTS_DIR, skill.codexName, 'SKILL.md'), 'utf-8');
       // Outside prompts may explicitly forbid reading Claude's skill directory.
       // Every executable/runtime path must still use the selected host root.
-      const withoutBoundary = content.replace(/^.*IMPORTANT: do not read or execute[^\n]*$/gim, '');
+      const withoutBoundary = content.replace(/^.*do not read or execute any files under[^\n]*$/gim, '');
       expect(withoutBoundary).not.toContain('~/.claude/');
     }
   });

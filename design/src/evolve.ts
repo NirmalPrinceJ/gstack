@@ -43,19 +43,7 @@ export async function evolve(options: EvolveOptions): Promise<ExitCode> {
     console.error(`  Analyzed current design: ${analysis.slice(0, 100)}...`);
 
     // Step 2: Generate evolved version using analysis + brief
-    const evolvedPrompt = [
-      "Generate a pixel-perfect UI mockup that is an improved version of an existing design.",
-      "",
-      "CURRENT DESIGN (what exists now):",
-      analysis,
-      "",
-      "REQUESTED CHANGES:",
-      options.brief,
-      "",
-      "Generate a new mockup that keeps the existing layout structure but applies the requested changes.",
-      "The result should look like a real production UI. All text must be readable.",
-      "1536x1024 pixels.",
-    ].join("\n");
+    const evolvedPrompt = evolvePrompt(analysis, options.brief);
 
     const imageData = await requestEvolvedImage(apiKey, evolvedPrompt);
     const outcome = persistImage(imageData, options.output);
@@ -122,12 +110,35 @@ async function requestEvolvedImage(apiKey: string, evolvedPrompt: string): Promi
   }
 }
 
+/** The image prompt for an evolved mockup: the analyzed current design plus the requested changes. */
+export function evolvePrompt(analysis: string, brief: string): string {
+  return [
+    "Generate a pixel-perfect UI mockup that is an improved version of an existing design.",
+    "",
+    "CURRENT DESIGN (what exists now):",
+    analysis,
+    "",
+    "REQUESTED CHANGES:",
+    brief,
+    "",
+    "Generate a new mockup that keeps the existing layout structure but applies the requested changes.",
+    "The result should look like a real production UI. All text must be readable.",
+    "1536x1024 pixels.",
+  ].join("\n");
+}
+
 /**
  * Analyze a screenshot to produce a detailed description for re-generation.
  */
-async function analyzeScreenshot(apiKey: string, imageBase64: string): Promise<string> {
+export async function analyzeScreenshot(
+  apiKey: string,
+  imageBase64: string,
+  fetchFn: typeof globalThis.fetch = globalThis.fetch,
+  batchSignal?: AbortSignal,
+): Promise<string> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30_000);
+  const signal = batchSignal ? AbortSignal.any([controller.signal, batchSignal]) : controller.signal;
 
   try {
     const response = await receiptedFetch("evolve-screenshot-analysis-request", "https://api.openai.com/v1/chat/completions", {
@@ -149,8 +160,8 @@ async function analyzeScreenshot(apiKey: string, imageBase64: string): Promise<s
           },
         ],
       }], 400),
-      signal: controller.signal,
-    });
+      signal,
+    }, fetchFn);
 
     if (!response.ok) {
       const error = await response.text();

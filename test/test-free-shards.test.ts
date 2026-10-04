@@ -87,6 +87,7 @@ if (role === 'leaf') {
     const current = JSON.parse(fs.readFileSync(path.join(path.dirname(process.env.BROWSE_STATE_FILE), 'terminal-agent-pid'), 'utf8'));
     try { process.kill(current.pid, 'SIGTERM'); } catch {}
     for (const child of children) try { child.kill('SIGTERM'); } catch {}
+    if (mode === 'settle-slow-exit') return;
     const finish = () => {
       fs.rmSync(process.env.BROWSE_STATE_FILE, {force:true});
       fs.rmSync(path.join(path.dirname(process.env.BROWSE_STATE_FILE), 'terminal-agent-pid'), {force:true});
@@ -126,10 +127,11 @@ if (role === 'leaf') {
 } else if (role === 'harness') {
   if (mode === 'settle-cold-probes') Object.defineProperty(process, 'platform', {value:'darwin'});
   let spy;
-  if (['replaced-start', 'exit-environment-race', 'unavailable-environment'].includes(mode)) {
+  if (['replaced-start', 'exit-environment-race', 'unavailable-environment', 'settle-slow-exit'].includes(mode)) {
     const original = fs.readFileSync;
     spy = spyOn(fs, 'readFileSync').mockImplementation((filename, ...args) => {
       const value = original(filename, ...args);
+      if (mode === 'settle-slow-exit' && String(filename).endsWith('/environ') && fs.existsSync(file('.interrupted'))) Bun.sleepSync(300);
       if (String(filename).endsWith('/environ') && fs.existsSync(file('.ready'))
         && (mode === 'unavailable-environment' || mode === 'exit-environment-race' && fs.existsSync(file('.interrupted')))) {
         const own = JSON.parse(original(file('.ready'), 'utf8'));
@@ -186,8 +188,8 @@ function ownershipProcessAlive(identity: { pid: number; start: string; ticks: st
 describe('test-free-shards: owned detached browser settlement', () => {
   for (const mode of ['success', 'failure', 'timeout', 'cancel', 'cancel-force', 'endpoint-mix', 'full-state-mix',
     'terminal-mix', 'chromium-mix', 'replaced-pid', 'stale-child-start', 'replaced-start', 'exit-environment-race',
-    'unavailable-environment', 'directory-remove-failure', 'cancel-cold-probes', 'settle-cold-probes']) {
-    test.skipIf(process.platform === 'win32' || ((['replaced-start', 'exit-environment-race', 'unavailable-environment'].includes(mode) || mode.endsWith('cold-probes')) && process.platform !== 'linux'))(mode, async () => {
+    'unavailable-environment', 'directory-remove-failure', 'cancel-cold-probes', 'settle-cold-probes', 'settle-slow-exit']) {
+    test.skipIf(process.platform === 'win32' || ((['replaced-start', 'exit-environment-race', 'unavailable-environment', 'settle-slow-exit'].includes(mode) || mode.endsWith('cold-probes')) && process.platform !== 'linux'))(mode, async () => {
       const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'free-owned-browser-'));
       const actor = path.join(directory, 'actor.ts');
       fs.writeFileSync(actor, OWNERSHIP_ACTOR);

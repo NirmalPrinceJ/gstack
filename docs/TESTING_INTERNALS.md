@@ -147,7 +147,7 @@ does not substitute for that evidence.
 HTML through `lib/aside-render.ts` / `bin/gstack-render.ts`, which render in
 Aside when `probeAside()` says `READY` and through the browse engine otherwise.
 make-pdf's `*-gate.test.ts` and `test/skill-e2e-diagram.test.ts` (periodic,
-paid) gate on `browserAvailable()` (`make-pdf/test/e2e/browser-available.ts`:
+paid) gate on `browserAvailable()` (`test/helpers/browser-available.ts`:
 `asideAvailable() || resolveBrowseBin() !== null`) — on a Mac they print
 through Aside, on Linux CI through the browse binary `bun run build:gates`
 compiles, and they skip only when neither exists. Only

@@ -23,7 +23,7 @@ function fixture(plan = original) {
   const env = { PATH: process.env.PATH!, HOME: home, GSTACK_HOME: state, GSTACK_STATE_ROOT: state };
   const start = () => execFileSync(join(root, 'bin/gstack-skill-start'), ['--skill', 'autoplan'],
     { cwd, env, encoding: 'utf8', timeout: 30_000 });
-  const discover = () => execFileSync('bash', ['-c', DESIGN_DOC_DISCOVERY_BLOCK],
+  const discover = () => execFileSync('bash', ['-c', DESIGN_DOC_DISCOVERY_BLOCK.replaceAll('~/.claude/skills/gstack/bin/', `${root}/bin/`)],
     { cwd, env: { ...env, SLUG: 'chain-fixture', BRANCH: 'main' }, encoding: 'utf8', timeout: 5000 }).trim();
   return { cwd, home, state, planFile, start, discover, cleanup: () => rmSync(temp, { recursive: true, force: true }) };
 }

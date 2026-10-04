@@ -85,6 +85,7 @@ export const CASE_TEST_NAMES: Record<string, string> = {
   'cso-full-audit': '/cso persists supported tenant-boundary findings with redacted evidence',
   'cso-diff-mode': '/cso --diff records its base and investigates changed security paths',
   'cso-infra-scope': '/cso --infra finds an attacker-to-credential execution path',
+  'plan-ceo-review-plan-mode': 'first terminal outcome is asked (Step 0 fires before any plan write)',
 };
 
 export const CASE_KEY_SEPARATOR = '#';
@@ -259,6 +260,7 @@ export const CODEX_CI_FILES: readonly string[] = [
   'test/codex-e2e-recommendation-substance.test.ts',
   'test/skill-e2e-outside-voice.test.ts',
   'test/skill-e2e-outside-plan-disabled.test.ts',
+  'test/skill-e2e-safety-codex-boundary.test.ts',
 ];
 
 /**

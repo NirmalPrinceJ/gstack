@@ -49,7 +49,7 @@ test('captured parent tree read is accepted without granting the captured child 
 // .qa-state/ is Git-excluded. check-ignore is a declared Git read; composition is not.
 test('captured check-ignore read is declared, executes without changing the repository', () => {
   const command = 'git check-ignore -v .qa-state';
-  expect(docsNativeInterface(fixture)).toContain('ls-files, check-ignore, rev-parse');
+  expect(docsNativeInterface(fixture)).toContain('ls-tree, check-ignore, rev-parse');
   expect(docsCommandAllowed(command, fixture)).toBe(true);
   const before = repoSnapshot(fixture.repo);
   const result = spawnSync('bash', ['-c', command], { cwd: fixture.repo, encoding: 'utf8', timeout: 10000 });
@@ -59,6 +59,21 @@ test('captured check-ignore read is declared, executes without changing the repo
   expect(repoSnapshot(fixture.repo)).toEqual(before);
   for (const denied of ['git check-ignore -v .qa-state; ls', 'git check-ignore -v .qa-state > out.txt']) {
     expect(docsCommandAllowed(denied, fixture)).toBe(false);
+  }
+});
+
+// ci-37165022930 eval-slices-2 ship-docsync-store: the docs child listed tracked files with git ls-tree -r HEAD.
+test('captured tracked-file listing is a declared read and leaves the repository unchanged', () => {
+  expect(docsNativeInterface(fixture)).toContain('ls-files, ls-tree, check-ignore');
+  const before = repoSnapshot(fixture.repo);
+  const command = 'git ls-tree -r HEAD';
+  expect(docsCommandAllowed(command, fixture)).toBe(true);
+  const result = spawnSync('bash', ['-c', command], { cwd: fixture.repo, encoding: 'utf8', timeout: 10000 });
+  expect(result.status).toBe(0);
+  expect(docsToolFailures(nativeResult(command, result.stdout), fixture, [], true)).toEqual([]);
+  expect(repoSnapshot(fixture.repo)).toEqual(before);
+  for (const rejected of ['git ls-tree -r HEAD > tree.txt', 'git ls-tree -r HEAD | head', 'git -c core.pager=less ls-tree HEAD']) {
+    expect(docsCommandAllowed(rejected, fixture)).toBe(false);
   }
 });
 

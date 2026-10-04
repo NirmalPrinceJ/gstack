@@ -13,7 +13,7 @@ import {
 } from './helpers/arm-benchmark-harness';
 import {
   armJudge, buildArmJudgePrompt, parseArmJudgeResponse,
-  callJudge,
+  callJudge, ARM_JUDGE_MODEL, ARM_JUDGE_SCHEMA, type CallJudgeOptions,
 } from './helpers/llm-judge';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -194,13 +194,13 @@ describe('arm benchmark selftest (free, no API)', () => {
       .rejects.toThrow(/malformed verdict \(never resampled\)/);
     expect(calls).toBe(1);
 
-    let goodCalls = 0;
-    const wellFormed = (async () => {
-      goodCalls++;
+    const received: Array<{ model?: string; opts?: CallJudgeOptions }> = [];
+    const wellFormed = (async (_prompt: string, model?: string, opts?: CallJudgeOptions) => {
+      received.push({ model, opts });
       return { over_engineering: 2, construct: 'repository layer in app.js', reasoning: 'ok' };
     }) as unknown as typeof callJudge;
     expect((await armJudge('ticket', 'diff --git a/x b/x\n+1\n', { call: wellFormed })).over_engineering).toBe(2);
-    expect(goodCalls).toBe(1);
+    expect(received).toEqual([{ model: ARM_JUDGE_MODEL, opts: { jsonSchema: ARM_JUDGE_SCHEMA } }]);
   });
 });
 

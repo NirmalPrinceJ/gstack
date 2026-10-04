@@ -20,9 +20,9 @@ export const COMMANDS = new Map<string, {
     flags: ["--brief", "--brief-file", "--output", "--check", "--retry", "--size", "--quality"],
   }],
   ["variants", {
-    description: "Generate N design variants from a brief",
-    usage: "variants --brief \"...\" --count 3 --output-dir /path/ [--viewports desktop,tablet,mobile]  (never overwrites: variant-A.png bumps to variant-A-2.png; prints paths, errors + run fields)",
-    flags: ["--brief", "--brief-file", "--count", "--output-dir", "--size", "--quality", "--viewports"],
+    description: "Generate N design variants from a brief, or one variant per entry of a briefs file",
+    usage: "variants --brief \"...\" --count 3 --output-dir /path/ [--viewports desktop,tablet,mobile] | variants --briefs-file briefs.json --output-dir /path/  (never overwrites: variant-A.png bumps to variant-A-2.png; prints paths, errors + run fields. briefs.json: [{\"brief\": \"Calm dashboard...\"}, {\"brief\": \"Bolder header...\", \"screenshot\": \"current.png\"}], 1-7 entries; per-variant status, saved paths and check in variants[])",
+    flags: ["--brief", "--brief-file", "--briefs-file", "--count", "--output-dir", "--size", "--quality", "--viewports"],
   }],
   ["iterate", {
     description: "Iterate on an existing mockup with feedback",
@@ -106,7 +106,9 @@ Run fields printed by generate, iterate, evolve and variants (on every exit):
   iterate   outputPath sessionFile responseId iteration      plan-design-review, design-consultation
   evolve    outputPath sourceScreenshot brief attempts       design-shotgun
   variants  outputDir count succeeded failed paths errors    office-hours, plan-design-review,
-            viewports (--viewports only)                     design-consultation
+            viewports (--viewports only)                     design-consultation, design-shotgun
+            validated variants[{variant, path, saved, status,
+            check}] (--briefs-file only)
   compare   board HTML; --serve prints {id, url, sourceDir}   all board flows (--images-file)
 
 Exit codes: 0 a selected result exists; 2 nothing was saved; 3 stopped after

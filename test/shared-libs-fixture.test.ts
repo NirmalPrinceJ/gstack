@@ -1133,6 +1133,11 @@ describe('shared-code PR coverage world', () => {
     const missingPr = curl(f, ['-fsS', 'https://api.github.com/repos/fixture/shared-libs/pulls/999999']);
     expect(missingPr.status).toBe(22);
     expect(JSON.parse(gh(f, 'repos/fixture/shared-libs').stdout).default_branch).toBe('main');
+    // Default-branch discovery may list branches; both transports serve the same one-branch world.
+    const branches = curl(f, ['-sS', 'https://api.github.com/repos/fixture/shared-libs/branches?per_page=100']);
+    expect(branches.status, branches.stderr).toBe(0);
+    expect(JSON.parse(branches.stdout)).toEqual(JSON.parse(gh(f, 'repos/fixture/shared-libs/branches?per_page=100').stdout));
+    expect(JSON.parse(branches.stdout).map((b: { name: string }) => b.name)).toEqual(['main']);
     // The read-only detector still rejects a raw-host fallback.
     const raw = curl(f, ['-sS', `https://raw.githubusercontent.com/fixture/shared-libs/${f.tip}/src/retry-route.ts`]);
     expect(raw.status).toBe(2);

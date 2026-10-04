@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { ALL_HOST_CONFIGS } from '../hosts';
 import { RESOLVERS } from '../scripts/resolvers';
 import { HOST_PATHS, type TemplateContext } from '../scripts/resolvers/types';
+import { qaProbeNames } from './helpers/qa-probe-names';
 
 const root = join(import.meta.dir, '..');
 const callers = ['qa', 'qa-only', 'review', 'ship'];
@@ -76,9 +77,11 @@ describe('QA caller authority in pure host renders', () => {
       for (const caller of callers) {
         const body = RESOLVERS.QA_EXPLORATORY(context(host.name, caller));
         expect(body).toContain('The **caller** (/qa, /qa-only, /review or /ship)');
-        expect(body).toContain('bun G start D SECONDS [EARLIER_UTC]');
-        expect(body).toContain('G enforces the deadline');
-        expect(body.indexOf('bun G start D')).toBeLessThan(body.indexOf('1. First demonstrate success'));
+        const n = qaProbeNames(body);
+        const start = `bun ${n.guard} start ${n.deadline} SECONDS [EARLIER_UTC]`;
+        expect(body).toContain(start);
+        expect(body).toContain(`${n.guard} enforces the deadline`);
+        expect(body.indexOf(start)).toBeLessThan(body.indexOf('1. First demonstrate success'));
         expect(body).toMatch(/stop when scoped contracts are tested or blocked/i);
       }
     });

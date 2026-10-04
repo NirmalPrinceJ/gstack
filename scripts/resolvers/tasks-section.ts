@@ -133,7 +133,7 @@ if command -v jq >/dev/null 2>&1; then
       # .commit must be bound BEFORE piping to the split commit array: a
       # pipe rebinds jq's context, so a bare .commit after it indexes the
       # ARRAY with a string, every line errors into 2>/dev/null, and the
-      # aggregate is empty forever — the #2018 zero-tasks bug.
+      # aggregate is empty forever.
       jq -c --arg branch "$BRANCH" --arg commits "$COMMITS_RECENT" \\
         '.commit as $c | select(.branch == $branch and ($commits | split("|") | index($c) != null))' \\
         "$f" 2>/dev/null >> "$ALL_JSONL" || true

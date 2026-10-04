@@ -30,7 +30,7 @@ const expectedWalls = {
   'test/skill-e2e-plan-eng-finding-floor.test.ts': 1_020_000,
   'test/skill-e2e-plan-design-finding-floor.test.ts': 1_020_000,
   'test/skill-e2e-plan-devex-finding-floor.test.ts': 1_020_000,
-  'test/skill-e2e-plan-mode-no-op.test.ts': 3_120_000,
+  'test/skill-e2e-plan-mode-no-op.test.ts': 3_720_000,
   'test/skill-e2e-plan-ceo-mode-routing.test.ts': 1_320_000,
   'test/skill-e2e-plan-eng-plan-mode.test.ts': 1_320_000,
   'test/skill-e2e-plan-prosons.test.ts': 1_360_000,
@@ -88,7 +88,7 @@ test('source allowances retain all captures, cases, and finalization grace', () 
     if (file.endsWith('-finding-floor')) expect(read(`test/skill-e2e-${file}.test.ts`)).toContain('timeoutMs: CAPTURE_LONG_MS');
   }
   const noop = read('test/skill-e2e-plan-mode-no-op.test.ts');
-  expect(noop).toContain("['plan-ceo-review', 'plan-eng-review', 'plan-design-review'] as const");
+  expect(noop).toContain("['plan-ceo-review', 'plan-eng-review', 'plan-design-review', 'plan-devex-review'] as const");
   expect(noop).toContain("['plan-eng-review', 'plan-design-review'] as const");
   expect(timeoutExpressions('test/skill-e2e-plan-mode-no-op.test.ts')).toEqual(Array(2).fill('CAPTURE_LONG_MS'));
   expect(read('test/skill-e2e-plan-ceo-mode-routing.test.ts').match(/^\s*{ mode: '/gm)).toHaveLength(2);
@@ -210,7 +210,7 @@ test('detached PR fallback and release commands cover their actual default worke
   const prFloor = Math.ceil((Math.ceil(fullGateFiles.length / prWorkers) * 1_800_000 + fullGateFiles.reduce(
     (total, file) => total + Math.max(0, resolvePaidShardBudget([file]).timeoutMs - 1_800_000), 0,
   )) / 1000 * 1.05);
-  expect(prFloor).toBe(72_755);
+  expect(prFloor).toBe(77_165);
   expect(prWall).toBe(92_820_000);
   expect(prWall).toBeGreaterThanOrEqual(paidShardWallUpperBoundMs(files, prWorkers) + 120_000);
 
@@ -229,8 +229,8 @@ test('detached PR fallback and release commands cover their actual default worke
     )) / 1000 * 1.05));
   }
   const detachedReleaseWall = Number(scripts['eval:bg:release'].match(/--timeout (\d+)/)?.[1]) * 1000;
-  expect(releaseFloors).toEqual([21_725, 35_711]);
-  expect(releaseFloors.reduce((total, floor) => total + floor, 0)).toBe(57_436);
+  expect(releaseFloors).toEqual([22_355, 35_742]);
+  expect(releaseFloors.reduce((total, floor) => total + floor, 0)).toBe(58_097);
   expect(detachedReleaseWall).toBe(116_700_000);
   expect(detachedReleaseWall).toBeGreaterThanOrEqual(releaseWall + 120_000);
 });

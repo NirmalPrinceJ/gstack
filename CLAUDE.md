@@ -31,6 +31,7 @@ bun run eval:summary # aggregate stats across all eval runs
 bun run eval:flake-rank  # rank tests by flake signal (retried passes first; --json, --dir, --since-days)
 bun run slop          # full slop-scan report (all files)
 bun run slop:diff     # slop findings in files changed on this branch only
+bun run audit:manifest  # file slices for /claude-api prompt-audit; rerun it at each frontier-model release (CONTRIBUTING.md)
 ```
 
 `test:evals` requires `ANTHROPIC_API_KEY`. Codex E2E tests (`test/codex-e2e.test.ts`,

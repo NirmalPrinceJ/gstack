@@ -55,7 +55,7 @@ export const MERGED_CONFIG_KEYS: Record<string, readonly string[]> = {
 };
 
 /** Same parse as `gstack-config get`: last `^key:` line wins, value trimmed, empty = unset. */
-function readKeyFromRoot(root: string, key: string): string | null {
+export function readKeyFromRoot(root: string, key: string): string | null {
   let yaml: string;
   try {
     yaml = fs.readFileSync(`${root}/config.yaml`, 'utf-8');

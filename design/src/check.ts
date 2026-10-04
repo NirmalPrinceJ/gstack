@@ -8,20 +8,30 @@ import { requireApiKey } from "./auth";
 import { receiptedFetch } from "./receipted-fetch";
 import { modelRejectionHint, visionRequestBody } from "./models";
 
+/** `pass` stays true when the check could not run; `status: "skipped"` marks that
+ * no automated validation happened, so callers never count it as validated. */
 export interface CheckResult {
   pass: boolean;
+  status: "pass" | "fail" | "skipped";
   issues: string;
+}
+
+export interface CheckOptions {
+  apiKey?: string;
+  fetchFn?: typeof globalThis.fetch;
+  signal?: AbortSignal;
 }
 
 /**
  * Check a generated mockup against the original brief.
  */
-export async function checkMockup(imagePath: string, brief: string): Promise<CheckResult> {
-  const apiKey = requireApiKey();
+export async function checkMockup(imagePath: string, brief: string, opts: CheckOptions = {}): Promise<CheckResult> {
+  const apiKey = opts.apiKey ?? requireApiKey();
   const imageData = fs.readFileSync(imagePath).toString("base64");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);
+  const signal = opts.signal ? AbortSignal.any([controller.signal, opts.signal]) : controller.signal;
 
   try {
     const response = await receiptedFetch("check-screenshot-request", "https://api.openai.com/v1/chat/completions", {
@@ -56,30 +66,30 @@ export async function checkMockup(imagePath: string, brief: string): Promise<Che
           },
         ],
       }], 200),
-      signal: controller.signal,
-    });
+      signal,
+    }, opts.fetchFn);
 
     if (!response.ok) {
       const error = await response.text();
       if (response.status === 403 && error.includes("organization must be verified")) {
         console.error("OpenAI organization verification required. Go to https://platform.openai.com/settings/organization to verify.");
-        return { pass: true, issues: "OpenAI org not verified — vision check skipped" };
+        return { pass: true, status: "skipped", issues: "OpenAI org not verified — vision check skipped" };
       }
       // Non-blocking: if vision check fails, default to PASS with warning
       console.error(`Vision check API error (${response.status}): ${error}${modelRejectionHint(response.status, error, "vision")}`);
-      return { pass: true, issues: "Vision check unavailable — skipped" };
+      return { pass: true, status: "skipped", issues: "Vision check unavailable — skipped" };
     }
 
     const data = await response.json() as any;
     const content = data.choices?.[0]?.message?.content?.trim() || "";
 
     if (content.startsWith("PASS")) {
-      return { pass: true, issues: "" };
+      return { pass: true, status: "pass", issues: "" };
     }
 
     // Extract issues after "FAIL:"
     const issues = content.replace(/^FAIL:\s*/i, "").trim();
-    return { pass: false, issues: issues || content };
+    return { pass: false, status: "fail", issues: issues || content };
   } finally {
     clearTimeout(timeout);
   }

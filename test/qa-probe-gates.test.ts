@@ -5,6 +5,9 @@ import { ALL_HOST_CONFIGS } from '../hosts';
 import { generateQAExploratory, generateQAMethodReads, generateQAReview, generateQAReviewPreflight } from '../scripts/resolvers/qa';
 import { generatePlanVerificationExec } from '../scripts/resolvers/plan-gates';
 import { HOST_PATHS } from '../scripts/resolvers/types';
+import { qaProbeNames } from './helpers/qa-probe-names';
+
+const startCommand = (text: string) => { const n = qaProbeNames(text); return `bun ${n.guard} start ${n.deadline} SECONDS`; };
 
 function assertPreparation(text: string) {
   expect(text).toMatch(/reads in order before writing charters or probing/i);
@@ -12,7 +15,7 @@ function assertPreparation(text: string) {
   expect(text).toMatch(/do not repeat a Read already completed/i);
   const stages = ['Read `sections/scope.md`', '**Functional surfaces:**', 'Read `sections/system-functional.md`',
     '**Browser surfaces only:**', 'Read `sections/qa-patterns.md`', '## 1. Charter and preflight',
-    'bun G start D SECONDS', '1. First demonstrate success'];
+    startCommand(text), '1. First demonstrate success'];
   const positions = stages.map(stage => text.indexOf(stage));
   expect(positions.every(position => position >= 0)).toBe(true);
   expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -26,13 +29,13 @@ function assertBoundsAndLayout(text: string) {
   for (const rule of [
     /functional full, quick and regression have no default total timer/i,
     /shorter mode\/caller limit/i,
-    /without a total time limit, do not start D/i,
+    new RegExp(`without a total time limit, do not (?:start|create) ${qaProbeNames(text).deadline}`, 'i'),
     /finite command timeouts/i,
     /mixed standalone runs use REPORT_DIR\/browser and REPORT_DIR\/functional/i,
     /one final report at REPORT_DIR/i,
     /caller paths win/i,
   ]) expect(text).toMatch(rule);
-  expect(text.search(/caller paths win/i)).toBeLessThan(text.indexOf('bun G start D SECONDS'));
+  expect(text.search(/caller paths win/i)).toBeLessThan(text.indexOf(startCommand(text)));
 }
 
 function assertPlanExecution(text: string, shared = generateQAExploratory({ host: 'claude', skillName: 'qa', tmplPath: '', paths: HOST_PATHS.claude })) {
@@ -127,7 +130,7 @@ describe('QA probe entry and checkpoint gates', () => {
         'QA_DEADLINE receipts are not observations',
       ]) expect(text).toContain(contract);
       assertBoundsAndLayout(text);
-      expect(text.indexOf('Browser Quick: SECONDS=30')).toBeLessThan(text.indexOf('bun G start D'));
+      expect(text.indexOf('Browser Quick: SECONDS=30')).toBeLessThan(text.indexOf(startCommand(text)));
     }
   });
 
@@ -152,7 +155,7 @@ describe('QA probe entry and checkpoint gates', () => {
         } else {
           expect(text).toMatch(/preserve every safe program-JSON key\/value and identity hash unchanged/i);
         }
-        expect(text).toMatch(/Q supplies observed; never transcribe it/i);
+        expect(text).toMatch(new RegExp(`${qaProbeNames(text).recorder} supplies observed; never transcribe it`, 'i'));
       }
     }
   });
@@ -163,15 +166,19 @@ describe('QA probe entry and checkpoint gates', () => {
       const steps = text.slice(text.indexOf('1. First demonstrate success')).split(/\n(?=[2-5]\. )/);
       expect(steps).toHaveLength(5);
       expect(text).toContain('/gstack-qa-deadline');
-      expect(text).toContain('bun G start D SECONDS [EARLIER_UTC]');
-      expect(text).toContain('Bounded browsers: `bun G run D -- COMMAND ARGS`');
-      expect(text).toMatch(/never reset D\/bypass G/i);
-      expect(text).toMatch(/invalid\/missing D stops probes/i);
+      const n = qaProbeNames(text);
+      for (const name of Object.values(n)) expect(name.length).toBeGreaterThan(3);
+      expect(text).toContain(`bun ${n.guard} start ${n.deadline} SECONDS [EARLIER_UTC]`);
+      expect(text).toContain(`\`bun ${n.guard} run ${n.deadline} -- COMMAND ARGS\``);
+      expect(text).toContain(`\`bun ${n.recorder} capture ${n.dir} NNN [--public] --deadline ${n.deadline} -- COMMAND ARGS\``);
+      expect(text).toContain(`\`bun ${n.recorder} materialize ${n.dir} annotations.json\``);
+      expect(text).toMatch(new RegExp(`never reset ${n.deadline}\\W+bypass ${n.guard}`, 'i'));
+      expect(text).toMatch(new RegExp(`invalid/missing ${n.deadline} stops probes`, 'i'));
       expect(steps[0]).toMatch(/demonstrate success: output and durable effects/i);
-      expect(steps[1]).toContain('`bun G status D`');
+      expect(steps[1]).toContain(`\`bun ${n.guard} status ${n.deadline}\``);
       expect(steps[1].indexOf('If expired')).toBeLessThan(steps[1].indexOf('**Publish before probing.**'));
       expect(steps[1]).toMatch(/\bstop exploration\b[^.]*write the report/i);
-      expect(steps[2]).toContain('G enforces the deadline');
+      expect(steps[2]).toContain(`${n.guard} enforces the deadline`);
       expect(steps[2]).toMatch(/refusals as not-run/i);
       expect(steps[3]).toContain('via steps 2–3');
       expect(steps[4]).toContain('return to step 2');

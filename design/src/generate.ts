@@ -135,9 +135,10 @@ export async function generate(options: GenerateOptions): Promise<GenerateResult
         break;
       }
 
-      entry.check = await checkMockup(savedPath, prompt);
-      if (entry.check.pass) {
-        console.error(`Quality check: PASS`);
+      const checked = await checkMockup(savedPath, prompt);
+      entry.check = checked;
+      if (checked.pass) {
+        console.error(checked.status === "skipped" ? `Quality check: SKIPPED — ${checked.issues}` : `Quality check: PASS`);
         selected = entry;
         break;
       }

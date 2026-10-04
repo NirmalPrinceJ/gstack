@@ -101,3 +101,79 @@ export function validateModel(input: string): string | null {
   if ((ALL_MODEL_NAMES as readonly string[]).includes(input)) return null;
   return `'${input}' is not a known model. Use ${ALL_MODEL_NAMES.join(', ')}.`;
 }
+
+/**
+ * Overlays `./setup --claude-model <id>` may select for the Claude host. The
+ * list is the Claude subset of ALL_MODEL_NAMES; a new Claude overlay joins
+ * both lists.
+ */
+export const CLAUDE_OVERLAY_MODELS = ['claude', 'opus-4-7', 'opus-4-8', 'sonnet-5', 'fable-5'] as const;
+
+export type ClaudeOverlay = (typeof CLAUDE_OVERLAY_MODELS)[number];
+
+export interface ClaudeOverlayError {
+  kind: 'alias' | 'unknown' | 'non-claude';
+  problem: string;
+  cause: string;
+  fix: string;
+}
+
+export type ClaudeOverlayResult =
+  | { overlay: ClaudeOverlay; generic: boolean }
+  | { error: ClaudeOverlayError };
+
+const CLAUDE_CODE_ALIASES = ['opus', 'sonnet', 'haiku', 'default'];
+
+/**
+ * Map a `--claude-model` value to the overlay setup renders. `resolveModel`
+ * does the family matching (bracketed context suffixes, dated and `-latest`
+ * snapshots); this adds the Claude-only allowlist and the errors setup prints.
+ * `generic` is true when a specific model ID has no overlay of its own and
+ * uses the generic `claude` overlay (for example `claude-opus-5-5`).
+ */
+export function resolveClaudeOverlay(id: string): ClaudeOverlayResult {
+  const s = id.trim().toLowerCase().replace(/\[[^\]]*\]$/, '').trim();
+  const problem = `${JSON.stringify(id)} is not a Claude model ID that gstack can map to a skill overlay.`;
+  if (CLAUDE_CODE_ALIASES.includes(s)) {
+    return { error: {
+      kind: 'alias',
+      problem,
+      cause: `"${s}" is a Claude Code alias whose model changes over time, so it names no fixed overlay.`,
+      fix: 'Pass a full model ID, for example ./setup --claude-model claude-opus-4-8, or ./setup --claude-model claude for the generic overlay.',
+    } };
+  }
+  const family = resolveModel(s);
+  if (!family) {
+    return { error: {
+      kind: 'unknown',
+      problem,
+      cause: 'It does not match any model family gstack knows.',
+      fix: 'Pass a Claude model ID such as claude-opus-4-8 or claude-sonnet-5, or claude for the generic overlay.',
+    } };
+  }
+  if (!(CLAUDE_OVERLAY_MODELS as readonly string[]).includes(family)) {
+    return { error: {
+      kind: 'non-claude',
+      problem,
+      cause: `It belongs to the ${family} family, and --claude-model selects Claude overlays only.`,
+      fix: `For Codex skills use ./setup --host codex --model ${id}. For Claude, pass a Claude model ID such as claude-opus-4-8.`,
+    } };
+  }
+  return { overlay: family as ClaudeOverlay, generic: family === 'claude' && s !== 'claude' };
+}
+
+// `bun scripts/models.ts claude-overlay <id>` — setup's bridge to the table
+// above. Prints "<overlay>\t<generic 0|1>" or the error lines on stderr (exit 1).
+if (import.meta.main) {
+  const [command, id] = process.argv.slice(2);
+  if (command !== 'claude-overlay' || id === undefined) {
+    console.error('Usage: bun scripts/models.ts claude-overlay <claude-model-id>');
+    process.exit(2);
+  }
+  const result = resolveClaudeOverlay(id);
+  if ('error' in result) {
+    console.error(`${result.error.problem}\n${result.error.cause}\n${result.error.fix}`);
+    process.exit(1);
+  }
+  console.log(`${result.overlay}\t${result.generic ? 1 : 0}`);
+}

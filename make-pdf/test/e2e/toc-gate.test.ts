@@ -26,7 +26,7 @@ import * as path from "node:path";
 
 import { resolvePopplerTool } from "../../src/pdftotext";
 import { pdfDestinationPages } from "../../src/toc-pages";
-import { browserAvailable, NO_BROWSER_REASON } from "./browser-available";
+import { browserAvailable, NO_BROWSER_REASON } from "../../../test/helpers/browser-available";
 
 const ROOT = path.resolve(__dirname, "../../..");
 const PDF_BIN = path.join(ROOT, "make-pdf/dist/pdf");

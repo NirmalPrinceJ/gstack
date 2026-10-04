@@ -290,3 +290,21 @@ for (const merged of [false, true]) for (const expired of [false, true]) test(`b
     expect(validateCallerEvidence({ ...input, receipt: { ...input.receipt, status: 'pass', remaining: [] } }).length).toBeGreaterThan(0);
   } finally { await fixture.close(); fs.rmSync(fixture.root, { recursive: true, force: true }); }
 });
+
+// ci-37163935292 eval-slices-3 ship-docsync-completion: Claude Code 2.1.284 answers a deferred-tool ToolSearch with tool_reference blocks.
+test('a ToolSearch tool_reference result is a completed native call; other non-text content still fails', () => {
+  const event = (type: string, content: unknown[]) => ({ type, parent_tool_use_id: null, message: { content } });
+  const transcript = (name: string, content: unknown[]) => [
+    event('assistant', [{ type: 'tool_use', id: 'search-1', name, input: { query: 'select:SendMessage' } }]),
+    event('user', [{ type: 'tool_result', tool_use_id: 'search-1', content }]),
+  ];
+  const failures: string[] = [];
+  const [call] = nativeCalls(transcript('ToolSearch', [{ type: 'tool_reference', tool_name: 'SendMessage' }]), failures);
+  expect(failures).toEqual([]);
+  expect(call).toMatchObject({ name: 'ToolSearch', failed: false, output: 'SendMessage' });
+  for (const [name, content] of [['Bash', [{ type: 'tool_reference', tool_name: 'SendMessage' }]], ['ToolSearch', [{ type: 'image' }]]] as const) {
+    const rejected: string[] = [];
+    nativeCalls(transcript(name, [...content]), rejected);
+    expect(rejected).toEqual(['Unsupported native result content']);
+  }
+});

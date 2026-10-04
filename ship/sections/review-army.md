@@ -94,6 +94,7 @@ Check if the diff touches frontend files using `gstack-diff-scope`:
 
 ```bash
 source <(~/.claude/skills/gstack/bin/gstack-diff-scope <base> 2>/dev/null)
+echo "SCOPE_FRONTEND=$SCOPE_FRONTEND"
 ```
 
 **If `SCOPE_FRONTEND=false`:** Skip design review silently. No output.
@@ -399,7 +400,8 @@ Core findings keep the core Confidence Calibration gates.
 #### 5. Score and present specialists
 
 Only specialist findings enter this header and `quality_score`; core findings do not.
-Use the merged NON-advisory specialist findings for both counts and score:
+Use the merged NON-advisory specialist findings for both counts and score;
+the header's N is X + Y, so advisory findings never add to it:
 `quality_score = max(0, 10 - (critical_count * 2 + informational_count * 0.5))`
 Cap at 10 and retain for the review-log persist. These are not final unresolved-defect totals.
 Print only this block: the stage 6 activity object and `test_stub` bodies are log and Fix-First data.
@@ -501,7 +503,7 @@ Run the shared preflight; start its smoke guard once. Guard every smoke probe. F
 
 **3. Run smoke and plan checks.**
 Follow the shared Probe loop for smoke checks and replays until the smoke limit.
-Then run required plan checks and revalidation, even after smoke expires, using the same procedure but no smoke guard; never reset the clock. Their checkpoints sit beside D; they skip `G status D` and use `--timeout-ms`, not `--deadline D`. Post-expiry smoke rechecks are not-run.
+Then run required plan checks and revalidation, even after smoke expires, using the same procedure but no smoke guard; never reset the clock. Their checkpoints sit beside DEADLINE_FILE; they skip `DEADLINE_TOOL status DEADLINE_FILE` and use `--timeout-ms`, not `--deadline DEADLINE_FILE`. Post-expiry smoke rechecks are not-run.
 Use finite command timeouts, capped at the caller's remaining time if it has a deadline.
 Await clock/guard results before acting. When the caller's deadline expires, mark unfinished checks not-run.
 
