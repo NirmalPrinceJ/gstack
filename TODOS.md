@@ -75,19 +75,14 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
   (`GIT_OBJECT_DIRECTORY` + `GIT_ALTERNATE_OBJECT_DIRECTORIES` under
   `$TMPDIR`) for the fingerprint, and report the fetch as stale-base coverage.
   **Effort:** S. **Priority:** P2.
-- **plan-eng-review-artifact skips the QA test plan (0/4 since #3017)** —
-  red in 37151477069, 37158847998, 37162480720 and one local CI-image run.
-  Every attempt reads SKILL.md, sections, plan and sources, writes the whole
-  review into review-output.md in one Write, runs no Bash, and never runs the
-  Test Plan Artifact block. A prompt destination rewording and a self-check
-  rewording each got one paid rerun and did not move it. Options: put the
-  artifact instruction back in the prompt, move the assertion into a PTY
-  full-workflow case, or quarantine with this evidence. **Priority:** P2.
 - **Closed by the wave's evals2 lane (run 37162480720):** Codex paid evals now
   run commands in CI (host-run job; all 8 Codex cases executed real commands),
   ship-exploratory-late-input no longer ends `inconclusive` (capture names the
   probes to rerun after an input change), plan-eng-multi-finding-batching's
   checker and office-hours-brain-writeback's prompt are fixed (3/3).
+  plan-eng-review-artifact (0/4 since #3017) measured a shortcut prompt that
+  skipped the workflow; it now drives the real interactive /plan-eng-review in
+  a PTY and wrote its QA test plan at 498 s in one CI-image paid run.
 - **Gate-outcome telemetry** — count `not_run`/`unavailable` outcomes per
   reason code from `lib/gate-outcomes.ts` so the most common gaps get fixed
   first. **Effort:** S. **Priority:** P3.
