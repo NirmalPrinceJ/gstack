@@ -160,7 +160,14 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
     
     'scripts/resolvers/learnings.ts',
     
-    "test/fixtures/plan-scope-recovery-av.json",  'plan-eng-review/**', 'test/skill-e2e-plan-eng-artifact.test.ts', 'test/helpers/workflow-excerpt.ts',
+    "test/fixtures/plan-scope-recovery-av.json",  'plan-eng-review/**', 'test/skill-e2e-plan-eng-artifact.test.ts', 'test/helpers/plan-eng-artifact-fixture.ts', 'test/helpers/plan-eng-resume.ts', 'test/fixtures/plan-eng-artifact-resume-37174266054.json', 'test/helpers/workflow-excerpt.ts',
+     "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
+    'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
+  'plan-eng-review-artifact-full':  [ 'test/helpers/auto-decision-state.ts', 'test/helpers/autoplan-artifact-digest.ts', 'test/helpers/autoplan-artifact-permission.ts', 'test/helpers/autoplan-artifact-recorder.ts', 'test/helpers/claude-pty-runner.ts', 'test/helpers/dx-selected-navigation.ts', 'test/helpers/e2e-gate.ts', 'test/helpers/eng-cache-writer-decision.ts', 'test/helpers/hermetic-skill-runtime.ts', 'test/helpers/native-auto-decide.ts', 'test/helpers/owned-claude-transcript.ts', 'test/helpers/plan-count-artifacts.ts', 'test/helpers/plan-count-file-permission.ts', 'test/helpers/plan-count-fixture.ts', 'test/helpers/plan-count-pending-exit.ts', 'test/helpers/plan-count-pending-question.ts', 'test/helpers/plan-count-transcript.ts', 'test/helpers/plan-floor-review.ts', 'test/helpers/plan-floor-target.ts', 'test/helpers/plan-scope-selection.ts', 'test/helpers/plan-seed-submission.ts', 'test/helpers/plan-skill-question-events.ts', 'test/helpers/plan-skill-question-hook-scope.ts', 'test/helpers/plan-skill-questions.ts', 'test/helpers/pty-screen.ts', 'test/helpers/pty-trust-dialog.ts', 'test/helpers/pty/**', 'test/helpers/pty/auq.ts', 'test/helpers/pty/binary.ts', 'test/helpers/pty/boundaries.ts', 'test/helpers/pty/classify.ts', 'test/helpers/pty/fake-session.ts', 'test/helpers/pty/judge.ts', 'test/helpers/pty/launch.ts', 'test/helpers/pty/plan-native.ts', 'test/helpers/pty/runners/counting.ts', 'test/helpers/pty/runners/floor.ts', 'test/helpers/pty/runners/observation.ts', 'test/helpers/pty/screen.ts', 'test/helpers/pty/session.ts', 'test/helpers/skill-census.ts', 
+    
+    'scripts/resolvers/learnings.ts',
+    
+    "test/fixtures/plan-scope-recovery-av.json",  'plan-eng-review/**', 'test/skill-e2e-plan-eng-artifact-full.test.ts', 'test/helpers/plan-eng-artifact-fixture.ts', 'test/helpers/workflow-excerpt.ts',
      "scripts/resolvers/preamble/generate-preamble-bash.ts", "scripts/resolvers/preamble/generate-completion-status.ts",
     'scripts/resolvers/testing.ts', 'scripts/resolvers/preamble/generate-ask-user-format.ts', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'test/helpers/llm-judge.ts', 'test/helpers/office-hours-attempt.ts', 'test/helpers/office-hours-completion.ts', 'test/helpers/workflow-judge-input.ts'],
   'plan-review-report':        [ 
@@ -1193,7 +1200,8 @@ export const E2E_TIERS: Record<string, 'gate' | 'periodic' | 'marathon'> = {
   'plan-ceo-review-selective': 'periodic',
   'plan-ceo-review-expansion-energy': 'periodic',  // Demoted from gate (2026-08 audit): Opus generator + subjective 2-axis >=4/5 LLM-judge threshold in the merge lane — the exact class siblings were demoted for (a +21-line preamble change once flipped the score). CLAUDE.md's own rule: Opus model test -> periodic.
   'plan-eng-review': 'periodic',
-  'plan-eng-review-artifact': 'periodic',
+  'plan-eng-review-artifact': 'periodic',  // Checkpoint: resumes at Test review from a real Scope Challenge ledger
+  'plan-eng-review-artifact-full': 'marathon',  // Full fresh /plan-eng-review through Test review (498 s pass; 595 s timeouts at 600 s before Test review)
   'plan-eng-coverage-audit': 'gate',
   'ship-coverage-value': 'gate',
   'review-test-value': 'gate',
@@ -1631,6 +1639,7 @@ export const E2E_KINDS: Record<string, 'rule' | 'behavior' | 'judge'> = {
   'plan-ceo-review-expansion-energy': 'behavior',
   'plan-eng-review': 'rule',
   'plan-eng-review-artifact': 'rule',
+  'plan-eng-review-artifact-full': 'rule',
   'plan-eng-coverage-audit': 'rule',
   'plan-review-report': 'rule',
   'plan-ceo-review-plan-mode': 'rule',

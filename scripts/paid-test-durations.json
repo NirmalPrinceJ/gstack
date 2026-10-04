@@ -172,6 +172,7 @@
       "test/skill-e2e-plan-design-finding-floor.test.ts": 155538,
       "test/skill-e2e-plan-design-plan-mode.test.ts": 106608,
       "test/skill-e2e-plan-devex-peer-comparison-classification.test.ts": 79786,
+      "test/skill-e2e-plan-eng-artifact-full.test.ts": 595009,
       "test/skill-e2e-plan-eng-artifact.test.ts": 498474,
       "test/skill-e2e-plan-eng-finding-floor.test.ts": 388666,
       "test/skill-e2e-plan-eng-multi-finding-batching.test.ts": 597500,

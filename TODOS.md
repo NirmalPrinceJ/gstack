@@ -82,7 +82,11 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
   checker and office-hours-brain-writeback's prompt are fixed (3/3).
   plan-eng-review-artifact (0/4 since #3017) measured a shortcut prompt that
   skipped the workflow; it now drives the real interactive /plan-eng-review in
-  a PTY and wrote its QA test plan at 498 s in one CI-image paid run.
+  a PTY. A fresh run needs more than its 600 s budget (498 s pass; 595 s
+  timeouts in census 37174266054 and a local run), so the periodic case
+  resumes at Test review from that census run's real Scope Challenge ledger
+  (pass, 364 s) and the fresh run is the marathon case
+  plan-eng-review-artifact-full.
 - **Gate-outcome telemetry** — count `not_run`/`unavailable` outcomes per
   reason code from `lib/gate-outcomes.ts` so the most common gaps get fixed
   first. **Effort:** S. **Priority:** P3.

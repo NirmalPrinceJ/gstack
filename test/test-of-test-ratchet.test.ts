@@ -150,6 +150,7 @@ const BASELINE = [
   'test/plan-create-permission.test.ts',
   'test/plan-create-prepublication.test.ts',
   'test/plan-edit-cropped-permission.test.ts',
+  'test/plan-eng-resume.test.ts', // harness owner for the plan-eng-review-artifact checkpoint: proves its resume point before paid spend
   'test/plan-floor-dx-actor.test.ts',
   'test/plan-floor-review.test.ts',
   'test/plan-mode-evidence.test.ts',
