@@ -130,10 +130,13 @@ mock.module(${JSON.stringify(path.join(ROOT, 'test/helpers/claude-pty-runner.ts'
     expect(opts.isLastStep0AUQ(fp('focus-ones', 'D1 — Review all 7 design dimensions, or focus on specific ones?'))).toBe(true);
     if (mode.startsWith('native-')) expect(opts.isLastStep0AUQ(nativeFocus)).toBe(true);
     expect(opts.isLastStep0AUQ(captured[1])).toBe(true);
+    // Run 37166586458 slice 5 (dfaf154): the Step 0D title spelled the count as a word.
+    expect(opts.isLastStep0AUQ(fp('focus-word', "D2 — Review all seven design dimensions, or focus on specific areas?\\nProject/branch/task: main branch, design review of the User Dashboard plan before implementation."))).toBe(true);
     for (const unrelated of ['Review all 4 design passes, or focus?',
       'Review all 7 engineering passes, or focus?', 'Review all 7 passes, or focus?',
       'Review all 4 design passes or focus?', 'Review all 7 engineering passes or focus?', 'Review all 7 passes or focus?',
-      'Which plan should receive all 7 design passes?']) {
+      'Which plan should receive all 7 design passes?', 'Review all seven engineering passes, or focus?',
+      'Review all six design passes, or focus?', 'Review all seven passes, or focus?']) {
       expect(opts.isLastStep0AUQ(fp('unrelated', unrelated))).toBe(false);
     }
     expect(opts.isReviewAUQ(target)).toBe(false);

@@ -28,8 +28,9 @@ const designFocusBoundary = (fp: AskUserQuestionFingerprint): boolean =>
     const text = question.trim().replace(/^D\d+(?:\.\d+)?\s*[—–:-]\s*/i, '');
     // Require the source Step 0D question or its retained native paraphrase.
     // A target menu can mention a design system without reviewing this plan.
-    return /^I(?:['’]ve| have) rated this plan (?:10(?:\.0+)?|[0-9](?:\.\d+)?)\/10 on design completeness\.[\s\S]*\bWant me to focus on specific areas instead of all 7\?/i.test(text)
-      || /^Review all 7 design (?:dimensions|passes),? or focus(?: on [^?\n]+)?\?$/i.test(text.split(/\r?\n/, 1)[0]!);
+    // The count is the skill's seven dimensions, written as a numeral or a word.
+    return /^I(?:['’]ve| have) rated this plan (?:10(?:\.0+)?|[0-9](?:\.\d+)?)\/10 on design completeness\.[\s\S]*\bWant me to focus on specific areas instead of all (?:7|seven)\?/i.test(text)
+      || /^Review all (?:7|seven) design (?:dimensions|passes),? or focus(?: on [^?\n]+)?\?$/i.test(text.split(/\r?\n/, 1)[0]!);
   });
 
 // Require a choice about the supplied UI, not a workflow offer after focus.
