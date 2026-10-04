@@ -1543,12 +1543,12 @@ function trackShardBrowser(stateDir: string, env: NodeJS.ProcessEnv) {
     }
     return true;
   };
-  const record = (file: string): any => {
+  const record = (file: string): any => { try { // a record a shutting-down daemon removes mid-read is absent
     if (!fs.existsSync(file)) return null;
     const info = fs.lstatSync(file);
     if (!info.isFile() || info.size > 65536) throw new BrowserCleanupError('unsafe browser state record');
     return JSON.parse(fs.readFileSync(file, 'utf8'));
-  };
+  } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null; throw error; } };
   const nativeStart = async (capture: Capture, identity: Identity): Promise<string> => {
     check(capture);
     const key = `${identity.pid}:${identity.start}`;
