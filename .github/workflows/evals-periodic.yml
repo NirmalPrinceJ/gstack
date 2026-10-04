@@ -399,7 +399,9 @@ jobs:
           include-hidden-files: true
           path: |
             ${{ runner.temp }}/eval-home/.gstack/projects/*/e2e-runs
+            ${{ runner.temp }}/eval-home/.gstack/projects/*/evals/qa-callers
             ${{ runner.temp }}/eval-home/.gstack-dev/e2e-runs
+            ${{ runner.temp }}/eval-home/.gstack-dev/evals/qa-callers
           if-no-files-found: ignore
           retention-days: 90
 
