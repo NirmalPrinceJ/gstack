@@ -75,34 +75,19 @@ Deferred from the approved severe fix wave (docs/designs/SEVERE_FIX_WAVE_2026_10
   (`GIT_OBJECT_DIRECTORY` + `GIT_ALTERNATE_OBJECT_DIRECTORIES` under
   `$TMPDIR`) for the fingerprint, and report the fetch as stale-base coverage.
   **Effort:** S. **Priority:** P2.
-- **P1: Codex paid evals cannot run commands in CI** — Docker's default
-  seccomp blocks bubblewrap's user namespace; on Ubicloud hosts
-  (`kernel.apparmor_restrict_unprivileged_userns=1`) `seccomp=unconfined` gives
-  "bwrap: Failed to make / slave", and adding `apparmor=unconfined` gives
-  "loopback: Failed RTM_NEWADDR". A stock Ubicloud VM ran `codex sandbox` only
-  with host `sysctl kernel.apparmor_restrict_unprivileged_userns=0` plus both
-  `--security-opt` options. Container jobs cannot set the host sysctl, so the
-  Codex cases need a host-run job or different isolation (in progress as the
-  wave/evals2 lane). Also audit every Codex case's validator for execution
-  evidence (shared-libs-codex-read-only and outside-voice-codex-to-claude-code
-  passed in 37158847998 with commands possibly failing). Runs 37151477069,
-  37158847998. **Effort:** M. **Priority:** P1.
-- **plan-eng-review-artifact skips the QA test plan** — red in 37151477069 and
-  37158847998: the model writes review-output.md without any Bash call, so the
-  artifact's gstack-paths/gstack-slug block never runs. Removing the "write
-  only when resolved" contradiction did not fix it. Next: check whether the
-  fixture prompt ("skip the preamble bash block", one named output) suppresses
-  the artifact; one paid rerun per change. **Priority:** P2.
-- **office-hours-brain-writeback turn budget** — 14/18 trials across six runs;
-  every failure is `error_max_turns` at 12 turns with `gbrain search` but no
-  `gbrain put`, after chunked re-reads of the 1260-line SKILL.md that Bash output
-  truncation forces. The budget must not rise: add reading guidance or decide
-  whether a smaller rendered fixture still tests the point. **Priority:** P2.
-- **ship-exploratory-late-input (gate) returns `inconclusive` in 2 of 8
-  censuses** (36920606897, 37158847998). It can redden the PR lane;
-  characterize it before relying on the lane. **Priority:** P2.
-- **plan-eng-multi-finding-batching** — red in 6 of 12 runs read (batching:
-  reviewCount 0-1, or Step 0 exhausting the 1495 s budget). **Priority:** P2.
+- **plan-eng-review-artifact skips the QA test plan (0/4 since #3017)** —
+  red in 37151477069, 37158847998, 37162480720 and one local CI-image run.
+  Every attempt reads SKILL.md, sections, plan and sources, writes the whole
+  review into review-output.md in one Write, runs no Bash, and never runs the
+  Test Plan Artifact block. A prompt destination rewording and a self-check
+  rewording each got one paid rerun and did not move it. Options: put the
+  artifact instruction back in the prompt, move the assertion into a PTY
+  full-workflow case, or quarantine with this evidence. **Priority:** P2.
+- **Closed by the wave's evals2 lane (run 37162480720):** Codex paid evals now
+  run commands in CI (host-run job; all 8 Codex cases executed real commands),
+  ship-exploratory-late-input no longer ends `inconclusive` (capture names the
+  probes to rerun after an input change), plan-eng-multi-finding-batching's
+  checker and office-hours-brain-writeback's prompt are fixed (3/3).
 - **Gate-outcome telemetry** — count `not_run`/`unavailable` outcomes per
   reason code from `lib/gate-outcomes.ts` so the most common gaps get fixed
   first. **Effort:** S. **Priority:** P3.

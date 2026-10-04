@@ -624,7 +624,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'ship-base-branch': [ 'bin/gstack-version-bump','bin/gstack-state-root.sh', 'lib/state-root.ts', 'ship/**', 'bin/gstack-repo-mode', 'test/skill-e2e-review-attribution.test.ts',
     'scripts/resolvers/testing.ts'
   ],
-  'ship-local-workflow': [ 'bin/gstack-version-bump', 'ship/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-workflow.test.ts',
+  'ship-local-workflow': [ 'test/helpers/outside-voice-evidence.ts', 'bin/gstack-version-bump', 'ship/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-workflow.test.ts',
     'scripts/resolvers/testing.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
   'review-dashboard-via': [ 'ship/**', 'scripts/resolvers/review-dashboard.ts', 'scripts/resolvers/plan-gates.ts', 'scripts/resolvers/spec-review.ts', 'scripts/resolvers/outside-voice-steps.ts', 'scripts/resolvers/review-scope.ts', 'scripts/resolvers/outside-voice.ts', 'codex/**', 'autoplan/**', 'land-and-deploy/**', 'test/skill-e2e-review-attribution.test.ts',
     'scripts/resolvers/testing.ts'
@@ -663,10 +663,10 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'context-save-list-all-branches':        [ 'context-save/**', 'test/skill-e2e-context-skills.test.ts', 'bin/gstack-skill-start', 'test/helpers/shipped-skill-routing.ts'],
 
   // Document-release
-  'document-release': [ 'bin/gstack-version-bump', 'document-release/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
+  'document-release': [ 'test/helpers/outside-voice-evidence.ts', 'bin/gstack-version-bump', 'document-release/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
 
   // Codex (Claude E2E — tests /codex skill via Claude)
-  'codex-review': [ 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts', 'codex/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts', 'bin/gstack-codex-probe', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/outside-voice-steps.ts'],
+  'codex-review': [ 'test/helpers/outside-voice-evidence.ts', 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts', 'codex/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts', 'bin/gstack-codex-probe', 'scripts/resolve-codex-generation-model.ts', 'scripts/resolvers/constants.ts', 'scripts/resolvers/outside-voice.ts', 'scripts/resolvers/outside-voice-steps.ts'],
 
   // Codex E2E (tests skills via Codex CLI + worktree)
   'codex-discover-skill':  [ 'lib/outside-review-result.ts', 'lib/gate-outcomes.ts', 'setup','codex/**', 'scripts/gen-skill-docs.ts', 'test/helpers/codex-session-runner.ts', 'lib/worktree.ts', 'test/codex-e2e.test.ts',
@@ -718,7 +718,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
 
 
   // Coverage audit (shared fixture) + triage + gates
-  'ship-coverage-audit': ['bin/gstack-state-root.sh', 'lib/state-root.ts', "test/fixtures/coverage-audit-aw.json",
+  'ship-coverage-audit': [ 'test/helpers/outside-voice-evidence.ts','bin/gstack-state-root.sh', 'lib/state-root.ts', "test/fixtures/coverage-audit-aw.json",
 
     
     "test/fixtures/coverage-checkbox-tail-av.json",
@@ -818,7 +818,7 @@ export const E2E_TOUCHFILES: Record<string, string[]> = {
   'diagram-authoring-quality':  ['bin/gstack-state-root.sh', 'lib/state-root.ts', 'diagram/**', 'lib/diagram-render/**', 'lib/aside-render.ts', 'bin/gstack-render.ts', 'test/helpers/aside-available.ts', 'browse/src/**', 'test/helpers/llm-judge.ts', 'test/skill-e2e-diagram.test.ts'],
 
   // gstack-upgrade
-  'gstack-upgrade-happy-path': [ 'setup', 'bin/gstack-relink', 'bin/gstack-session-update', 'gstack-upgrade/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
+  'gstack-upgrade-happy-path': [ 'test/helpers/outside-voice-evidence.ts', 'setup', 'bin/gstack-relink', 'bin/gstack-session-update', 'gstack-upgrade/**', 'test/skill-e2e-workflow.test.ts', 'test/fixtures/coverage-audit-fixture.ts', 'test/helpers/coverage-audit.ts', 'test/helpers/coverage-audit-evidence.ts', 'test/helpers/office-hours-attempt.ts'],
 
   // Deploy skills
   'land-and-deploy-workflow':      [ 'bin/gstack-version-bump', 'land-and-deploy/**', 'scripts/gen-skill-docs.ts', 'test/skill-e2e-deploy.test.ts'],
