@@ -45,6 +45,21 @@ test('captured parent tree read is accepted without granting the captured child 
   expect(docsToolFailures(remote, fixture, [], true)).toEqual(['command outside declared docs observation interface']);
 });
 
+// ci-37165022930 eval-slices-2 ship-docsync-store: the docs child listed tracked files with git ls-tree -r HEAD.
+test('captured tracked-file listing is a declared read and leaves the repository unchanged', () => {
+  expect(docsNativeInterface(fixture)).toContain('ls-files, ls-tree, rev-parse');
+  const before = repoSnapshot(fixture.repo);
+  const command = 'git ls-tree -r HEAD';
+  expect(docsCommandAllowed(command, fixture)).toBe(true);
+  const result = spawnSync('bash', ['-c', command], { cwd: fixture.repo, encoding: 'utf8', timeout: 10000 });
+  expect(result.status).toBe(0);
+  expect(docsToolFailures(nativeResult(command, result.stdout), fixture, [], true)).toEqual([]);
+  expect(repoSnapshot(fixture.repo)).toEqual(before);
+  for (const rejected of ['git ls-tree -r HEAD > tree.txt', 'git ls-tree -r HEAD | head', 'git -c core.pager=less ls-tree HEAD']) {
+    expect(docsCommandAllowed(rejected, fixture)).toBe(false);
+  }
+});
+
 test('permitted peel reads execute as single literal Bash arguments without changing the repository', () => {
   const before = repoSnapshot(fixture.repo);
   for (const revision of ['HEAD^{tree}', 'HEAD^{}', 'HEAD^{commit}', 'HEAD^{object}', 'HEAD@{0}']) {
