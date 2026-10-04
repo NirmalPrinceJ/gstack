@@ -28,7 +28,7 @@ beforeEach(() => {
   home = path.join(tmp, 'home');
   fs.mkdirSync(binDir, { recursive: true });
   fs.mkdirSync(home, { recursive: true });
-  for (const f of ['gstack-config', 'gstack-state-root.sh']) {
+  for (const f of ['gstack-config', 'gstack-state-root.sh', 'gstack-render-claude.sh']) {
     fs.copyFileSync(path.join(ROOT, 'bin', f), path.join(binDir, f));
     fs.chmodSync(path.join(binDir, f), 0o755);
   }

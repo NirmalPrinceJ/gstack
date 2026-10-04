@@ -4,7 +4,8 @@
  * reason, or listed by name as unattributed. Fixtures are trimmed from the
  * 2026-10-03 periodic and gate census artifacts (run 37151477069, commit
  * ac20ef1), whose report counted deselections as SKIPPED 82/282 and left
- * 72/24 testcases unattributed.
+ * 72/24 testcases unattributed. Budget records follow the current declared
+ * policy (plan-mode-no-op: 3,720,000 ms since v1.91.18.0 added its devex member).
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
