@@ -13,6 +13,9 @@ let base: string;
 
 const LINK_LOCAL = 'http://169.254.170.2/v2/credentials';
 const MAPPED = 'http://[::ffff:169.254.170.2]/v2/credentials';
+// Port 1 is unsafe in Chromium, so this blocked target fails at once (ERR_UNSAFE_PORT)
+// and commits its error page around the guard's reset, as CI's mapped-address hop did.
+const FAST_FAIL = 'http://[::ffff:169.254.170.2]:1/v2/credentials';
 
 beforeAll(async () => {
   server = Bun.serve({
@@ -23,6 +26,7 @@ beforeAll(async () => {
       const html = (body: string) => new Response(`<!doctype html><html><body>${body}</body></html>`, { headers: { 'Content-Type': 'text/html' } });
       if (url.pathname === '/to-link-local') return Response.redirect(LINK_LOCAL, 302);
       if (url.pathname === '/to-mapped') return Response.redirect(MAPPED, 302);
+      if (url.pathname === '/to-fast-fail') return Response.redirect(FAST_FAIL, 302);
       if (url.pathname === '/to-safe') return Response.redirect(`${base}/safe`, 302);
       if (url.pathname === '/link') return html(`<a id="go" href="${LINK_LOCAL}">go</a>`);
       if (url.pathname === '/script') return html(`<button id="go" onclick="location.href='${LINK_LOCAL}'">go</button>`);
@@ -53,6 +57,14 @@ describe('D2: navigation guard', () => {
   test('a redirect to an IPv4-mapped IPv6 link-local address is refused too', async () => {
     await expect(run('goto', [`${base}/to-mapped`])).rejects.toThrow(/cloud metadata or link-local/);
     expect(bm.getActiveSession().getPage().url()).toBe('about:blank');
+  }, 30_000);
+
+  test('a blocked target that fails at once still leaves the tab blank for the next command', async () => {
+    await expect(run('goto', [`${base}/to-fast-fail`])).rejects.toThrow(/cloud metadata or link-local/);
+    expect(bm.getActiveSession().getPage().url()).toBe('about:blank');
+    const result = await run('goto', [`${base}/safe`]);
+    expect(result).toContain('Navigated to');
+    expect(bm.getActiveSession().getPage().url()).toBe(`${base}/safe`);
   }, 30_000);
 
   test('clicking a link to a link-local address is refused', async () => {

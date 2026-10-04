@@ -2119,8 +2119,19 @@ export class BrowserManager {
         if (!reason || page.isClosed()) return;
         guard.blocked = reason;
         console.warn(`[browse] ${reason} (navigation from ${req.frame().url() || 'a new page'}; tab reset to about:blank)`);
-        // Commit is enough to blank the tab; a bounded reset never holds the command for the full navigation timeout.
-        await page.goto('about:blank', { waitUntil: 'commit', timeout: 5_000 }).catch(() => {});
+        // A target that fails fast commits its error page around the reset, so
+        // let it settle (bounded; a hanging target is cut off by the reset),
+        // then blank the tab until it stays blank (about:blank loads at once).
+        await Promise.race([req.response().catch(() => null), new Promise((resolve) => setTimeout(resolve, 1_000))]);
+        // Leaving an error page can commit a second about:blank after the reset
+        // resolves; wait for the main frame to stay quiet so the next command's
+        // navigation is not interrupted by it.
+        for (let attempt = 0; attempt < 3 && !page.isClosed(); attempt++) {
+          await page.goto('about:blank', { waitUntil: 'load', timeout: 5_000 }).catch(() => {});
+          const late = await page.waitForEvent('framenavigated', { predicate: (frame) => frame === page.mainFrame(), timeout: 250 })
+            .then(() => true, () => false);
+          if (!late && page.url() === 'about:blank') break;
+        }
       }).finally(() => { guard.pending.delete(check); });
       guard.pending.add(check);
     });
