@@ -443,7 +443,7 @@ the current behavior. Reading old notes never requires writing new ones.
 
 Load the shared preparation gate now (the exploratory STOP just below): complete its scope and selected-method Reads,
 await their results, and select the surfaces. Defer charters, clocks and probes to
-Run the Selected Checks, after report ownership and conditional browser setup below.
+Run the Selected Checks; its §1 then reuses the REPORT_DIR resolved under Prepare Report Artifacts.
 
 > **STOP.** Before selecting surfaces, then running report-only probes (one Read covers both), Read `sections/exploratory.md` relative to the installed `qa-only`/`gstack-qa-only` SKILL.md directory in full and follow it.
 > Use this host's installed path, never the product working directory or another host's assets.
