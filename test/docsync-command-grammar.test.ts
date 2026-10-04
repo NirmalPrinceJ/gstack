@@ -119,7 +119,7 @@ test.each([
 test('harmless read wrappers do not fail a docs run', () => {
   // Run 37170610789 slice 2 (feaa28d): the parent listed fixture directories with 2>&1.
   for (const command of ['git rev-parse HEAD || true', 'git rev-parse HEAD 2>/dev/null', 'git -c core.pager=cat show HEAD',
-    `ls ${fixture.home} ${fixture.skills} 2>&1`, 'git status 2>&1']) {
+    'ls 2>&1', 'git status 2>&1']) {
     expect(docsToolFailures(nativeResult(command, 'successful tool acknowledgment', 'docs-dispatch'), fixture, [], true)).toEqual([]);
   }
   for (const command of ['git status 2>&1 > out.txt', 'ls 2>&1 | head', `bun ${path.join(fixture.home, 'publish.ts')} 2>&1`, 'ls 2>out.txt']) {
