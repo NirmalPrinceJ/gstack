@@ -204,7 +204,7 @@ function unwrapHarmlessRead(text: string, fixture: ReturnType<typeof fixtureDocs
   const sameRepo = (value: string) => {
     try { return fs.realpathSync(unquote(value)) === fs.realpathSync(fixture.repo); } catch { return false; }
   };
-  let out = text.replace(/\s+\|\|\s+true$/, '').replace(/\s+2>\s*\/dev\/null(?=\s|$)/g, '').trim();
+  let out = text.replace(/\s+\|\|\s+true$/, '').replace(/\s+2>\s*(?:\/dev\/null|&1)(?=\s|$)/g, '').trim();
   const cd = /^cd\s+('[^']*'|"[^"]*"|\S+)\s+&&\s+/.exec(out);
   if (cd && sameRepo(cd[1]!)) out = out.slice(cd[0].length);
   const globals = /^git((?:\s+(?:--no-pager|-C\s+(?:'[^']*'|"[^"]*"|\S+)|-c\s+(?:'[^']*'|"[^"]*"|\S+)))+)(?=\s)/.exec(out);
