@@ -59,6 +59,9 @@ export function nativeCalls(transcript: unknown[], failures: string[]): Call[] {
         if (typeof block.content === 'string') call.output = block.content;
         else if (Array.isArray(block.content) && block.content.every(part => object(part) && part.type === 'text' && typeof part.text === 'string')) {
           call.output = block.content.map(part => part.text).join('\n');
+        } else if (call.name === 'ToolSearch' && Array.isArray(block.content)
+          && block.content.every(part => object(part) && part.type === 'tool_reference' && typeof part.tool_name === 'string')) {
+          call.output = block.content.map(part => part.tool_name).join('\n');
         } else { call.failed = true; failures.push('Unsupported native result content'); }
         const file = raw.tool_use_result?.type === 'text' ? raw.tool_use_result.file : undefined;
         if (call.name === 'Read' && !call.failed && object(file) && typeof call.input.file_path === 'string' && file.filePath === call.input.file_path && typeof file.content === 'string'
