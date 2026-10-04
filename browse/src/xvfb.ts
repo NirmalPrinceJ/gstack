@@ -188,12 +188,34 @@ export async function spawnXvfb(displayNum: number): Promise<XvfbHandle> {
 
   // Spawn detached: Xvfb's lifetime is tied to whether we've explicitly
   // killed it via the handle's close() method, not to the parent process.
-  const proc = Bun.spawn(['Xvfb', display, '-screen', '0', '1920x1080x24', '-ac'], {
-    windowsHide: true,
-    stdio: ['ignore', 'ignore', 'ignore'],
-  });
+  // Startup stderr goes to a private file: a holder that takes the display and
+  // exits before we look leaves no lock behind, only Xvfb's own message.
+  const stderrDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-xvfb-'));
+  const stderrPath = path.join(stderrDir, 'stderr.log');
+  const stderrFd = fs.openSync(stderrPath, 'w', 0o600);
+  let proc: ReturnType<typeof Bun.spawn>;
+  try {
+    proc = Bun.spawn(['Xvfb', display, '-screen', '0', '1920x1080x24', '-ac'], {
+      windowsHide: true,
+      stdio: ['ignore', 'ignore', stderrFd],
+    });
+  } catch (err) {
+    fs.rmSync(stderrDir, { recursive: true, force: true });
+    throw err;
+  } finally {
+    fs.closeSync(stderrFd);
+  }
   proc.unref();
   const startTime = readPidStartTime(proc.pid);
+  try {
+    return await awaitXvfbReady(proc, displayNum, startTime, stderrPath);
+  } finally {
+    fs.rmSync(stderrDir, { recursive: true, force: true });
+  }
+}
+
+async function awaitXvfbReady(proc: ReturnType<typeof Bun.spawn>, displayNum: number, startTime: string, stderrPath: string): Promise<XvfbHandle> {
+  const display = `:${displayNum}`;
 
   // Wait for the X server to become reachable — Xvfb takes a few hundred ms
   // to bind. Probe via xdpyinfo with retries.
@@ -203,8 +225,13 @@ export async function spawnXvfb(displayNum: number): Promise<XvfbHandle> {
     await Bun.sleep(100);
     // If Xvfb crashed during startup, fail fast.
     if (proc.exitCode != null) {
-      if (!isDisplayFree(displayNum)) throw new XvfbDisplayTakenError(`X display ${display} was reserved by another X server during startup`);
-      throw new Error(`Xvfb on ${display} exited during startup (code ${proc.exitCode}). Hint: install xvfb (apt-get install xvfb / yum install xorg-x11-server-Xvfb).`);
+      let stderr = '';
+      try { stderr = fs.readFileSync(stderrPath, 'utf8'); } catch {}
+      if (!isDisplayFree(displayNum) || /Server is already active for display/.test(stderr)) {
+        throw new XvfbDisplayTakenError(`X display ${display} was reserved by another X server during startup`);
+      }
+      const fatal = stderr.split('\n').map(line => line.replace(/^\(EE\)\s*/, '').trim()).filter(Boolean).slice(-3).join(' ');
+      throw new Error(`Xvfb on ${display} exited during startup (code ${proc.exitCode})${fatal ? `: ${fatal}` : ''}. Hint: install xvfb (apt-get install xvfb / yum install xorg-x11-server-Xvfb).`);
     }
     let ownsLock = false;
     try { ownsLock = Number(fs.readFileSync(`/tmp/.X${displayNum}-lock`, 'utf8').trim()) === proc.pid; } catch {}
