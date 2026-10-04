@@ -45,6 +45,23 @@ test('captured parent tree read is accepted without granting the captured child 
   expect(docsToolFailures(remote, fixture, [], true)).toEqual(['command outside declared docs observation interface']);
 });
 
+// Run 37166586458 slice 2 (dfaf154): the parent verified the prompt's claim that
+// .qa-state/ is Git-excluded. check-ignore is a declared Git read; composition is not.
+test('captured check-ignore read is declared, executes without changing the repository', () => {
+  const command = 'git check-ignore -v .qa-state';
+  expect(docsNativeInterface(fixture)).toContain('ls-files, check-ignore, rev-parse');
+  expect(docsCommandAllowed(command, fixture)).toBe(true);
+  const before = repoSnapshot(fixture.repo);
+  const result = spawnSync('bash', ['-c', command], { cwd: fixture.repo, encoding: 'utf8', timeout: 10000 });
+  expect(result.status).toBe(0);
+  expect(result.stdout).toContain('.qa-state');
+  expect(docsToolFailures(nativeResult(command, result.stdout), fixture, [], true)).toEqual([]);
+  expect(repoSnapshot(fixture.repo)).toEqual(before);
+  for (const denied of ['git check-ignore -v .qa-state; ls', 'git check-ignore -v .qa-state > out.txt']) {
+    expect(docsCommandAllowed(denied, fixture)).toBe(false);
+  }
+});
+
 test('permitted peel reads execute as single literal Bash arguments without changing the repository', () => {
   const before = repoSnapshot(fixture.repo);
   for (const revision of ['HEAD^{tree}', 'HEAD^{}', 'HEAD^{commit}', 'HEAD^{object}', 'HEAD@{0}']) {
