@@ -5,6 +5,7 @@ import { createSharedInteractiveToolHandler } from './helpers/shared-libs-eval-f
 import capturedNoHardening from './fixtures/shared-libs-plan-callers-no-hardening-36633323521.json';
 import capturedParity from './fixtures/shared-libs-plan-callers-parity-36776104571.json';
 import capturedOutOfScope from './fixtures/shared-libs-plan-callers-out-of-scope-37151477069.json';
+import capturedSlashScope from './fixtures/shared-libs-plan-callers-slash-scope-37174266054.json';
 
 // Exact native R1 from the September 22 timeout. R2 was saved in an Edit, but
 // never sent as a native AUQ; its public draft fields are reconstructed below.
@@ -382,8 +383,19 @@ describe('bounded shared-code planning actor', () => {
     expect(run.refusals).toEqual([]);
   });
 
+  // Census 37174266054 refused this exact question: every option ends "Scheduler semantics,
+  // existing callers and helper hardening stay unchanged/out of scope", a combined exclusion.
+  test('actual native combined exclusion keeps unchanged-helper reuse answerable', async () => {
+    const run = actor();
+    const result = await run.callback('AskUserQuestion', capturedSlashScope);
+    expect(result.updatedInput.answers).toEqual({ [capturedSlashScope.questions[0].question]: 'Reuse shared helper' });
+    expect(run.refusals).toEqual([]);
+  });
+
   test.each([
     'Harden helper parsing so behavior stays unchanged.',
+    'Existing callers stay unchanged/harden the helper.',
+    'Helper hardening stays unchanged or tighten helper validation.',
     'Existing copies stay unchanged and tighten helper validation.',
     'Migrate existing retry-worker.ts; helper hardening stays unchanged.',
     'Existing-caller migration stays out of scope and harden the helper.',
