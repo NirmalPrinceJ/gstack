@@ -34,7 +34,7 @@ const expectedWalls = {
   'test/skill-e2e-plan-ceo-mode-routing.test.ts': 1_320_000,
   'test/skill-e2e-plan-eng-plan-mode.test.ts': 1_320_000,
   'test/skill-e2e-plan-prosons.test.ts': 1_360_000,
-  'test/skill-e2e-plan.test.ts': 3_720_000,
+  'test/skill-e2e-plan.test.ts': 3_120_000,
 };
 
 test('paid evals never retry: every paid file and registered row runs once', () => {
@@ -99,7 +99,7 @@ test('source allowances retain all captures, cases, and finalization grace', () 
   expect(read('test/skill-e2e-auq-matrix.test.ts').match(/^    skill: '/gm)).toHaveLength(6);
   expect(timeoutExpressions('test/skill-e2e-auq-matrix.test.ts')).toEqual(['CAPTURE_MS']);
   expect(timeoutExpressions('test/skill-e2e-plan.test.ts')).toEqual([
-    'PTY_MS', 'PTY_MS', 'CAPTURE_LONG_MS', 'CAPTURE_LONG_MS', 'CAPTURE_LONG_MS',
+    'PTY_MS', 'PTY_MS', 'CAPTURE_LONG_MS', 'CAPTURE_LONG_MS',
     'CAPTURE_LONG_MS + OFFICE_HOURS_BUN_GRACE_MS',
   ]);
 });
