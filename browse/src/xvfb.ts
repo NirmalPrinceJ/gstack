@@ -179,9 +179,11 @@ export function isOurXvfb(pid: number, recordedStartTime: string): boolean {
  * Throws if Xvfb isn't installed (caller should print a platform-specific
  * install hint).
  */
+export class XvfbDisplayTakenError extends Error {}
+
 export async function spawnXvfb(displayNum: number): Promise<XvfbHandle> {
   const display = `:${displayNum}`;
-  if (!isDisplayFree(displayNum)) throw new Error(`X display ${display} is already reserved; refusing to replace it`);
+  if (!isDisplayFree(displayNum)) throw new XvfbDisplayTakenError(`X display ${display} is already reserved; refusing to replace it`);
   if (!readPidStartTime(process.pid)) throw new Error('Cannot start Xvfb without process start-time ownership checks');
 
   // Spawn detached: Xvfb's lifetime is tied to whether we've explicitly
@@ -201,6 +203,7 @@ export async function spawnXvfb(displayNum: number): Promise<XvfbHandle> {
     await Bun.sleep(100);
     // If Xvfb crashed during startup, fail fast.
     if (proc.exitCode != null) {
+      if (!isDisplayFree(displayNum)) throw new XvfbDisplayTakenError(`X display ${display} was reserved by another X server during startup`);
       throw new Error(`Xvfb on ${display} exited during startup (code ${proc.exitCode}). Hint: install xvfb (apt-get install xvfb / yum install xorg-x11-server-Xvfb).`);
     }
     let ownsLock = false;
@@ -226,6 +229,22 @@ export async function spawnXvfb(displayNum: number): Promise<XvfbHandle> {
     display,
     close: () => cleanupXvfb({ pid: proc.pid, startTime, display }),
   };
+}
+
+/**
+ * Pick-then-spawn races with any other allocator (a second daemon, a parallel
+ * test shard): both can see the same display free before either Xvfb takes its
+ * lock. The loser moves on to the next free display instead of failing.
+ */
+export async function spawnFreeXvfb(
+  rangeStart: number = DISPLAY_RANGE_START,
+  rangeEnd: number = DISPLAY_RANGE_END,
+): Promise<XvfbHandle> {
+  for (let n = pickFreeDisplay(rangeStart, rangeEnd); n != null; n = pickFreeDisplay(n + 1, rangeEnd)) {
+    try { return await spawnXvfb(n); }
+    catch (err) { if (!(err instanceof XvfbDisplayTakenError)) throw err; }
+  }
+  throw new Error(`no free X display in range :${rangeStart}-:${rangeEnd} — refusing to clobber existing X servers`);
 }
 
 /**

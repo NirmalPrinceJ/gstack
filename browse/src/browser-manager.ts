@@ -25,7 +25,7 @@ import { TabSession, type RefEntry } from './tab-session';
 import { resolveChromiumProfile, cleanSingletonLocks, resolveConfig } from './config';
 import { ensureProjectProfile } from './chromium-profiles';
 import { launchWithXProtectHeal } from './xprotect-heal';
-import { readPidStartTime, shouldSpawnXvfb, pickFreeDisplay, spawnXvfb, xvfbInstallHint, type XvfbHandle } from './xvfb';
+import { readPidStartTime, shouldSpawnXvfb, spawnFreeXvfb, xvfbInstallHint, type XvfbHandle } from './xvfb';
 import { withCdpSession } from './cdp-bridge';
 import type { MemorySnapshot, MemoryStructureStats, MemoryTabSnapshot, MemoryProcess } from './memory-snapshot';
 
@@ -382,10 +382,8 @@ export class BrowserManager {
     if (this.displayAllocation) return this.displayAllocation;
     if (!shouldSpawnXvfb({ ...process.env, BROWSE_HEADED: '1' }, process.platform).spawn) return;
     this.displayAllocation = (async () => {
-      const displayNum = pickFreeDisplay();
-      if (displayNum == null) throw new Error('no free X display in range :99-:120 — refusing to clobber existing X servers');
       try {
-        const handle = await spawnXvfb(displayNum);
+        const handle = await spawnFreeXvfb();
         if (this.closing) {
           handle.close();
           throw new Error('Browser is shutting down');

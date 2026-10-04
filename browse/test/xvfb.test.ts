@@ -260,6 +260,30 @@ describe.skipIf(process.platform !== 'linux')('display allocation failure contro
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  test.skipIf(!HAS_XVFB)('concurrent allocators that pick the same display both get one', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'gstack-xvfb-race-'));
+    const realXvfb = Bun.which('Xvfb')!;
+    fs.writeFileSync(path.join(root, 'Xvfb'), `#!/bin/sh\nsleep 0.3\nexec ${JSON.stringify(realXvfb)} "$@"\n`, { mode: 0o755 });
+    try {
+      const first = pickFreeDisplay(24000, 24100);
+      expect(first).not.toBeNull();
+      const child = Bun.spawn([process.execPath, '-e', `
+        import { spawnFreeXvfb } from ${JSON.stringify(path.resolve(import.meta.dir, '../src/xvfb.ts'))};
+        const results = await Promise.allSettled([spawnFreeXvfb(${first}, ${first! + 5}), spawnFreeXvfb(${first}, ${first! + 5})]);
+        console.log(JSON.stringify(results.map(r => r.status === 'fulfilled' ? r.value.display : r.reason.message)));
+        for (const r of results) if (r.status === 'fulfilled') r.value.close();
+      `], { env: { ...process.env, PATH: `${root}:${process.env.PATH}` }, stdout: 'pipe', stderr: 'pipe', timeout: 20000 });
+      const [stdout, exitCode] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+      expect(exitCode).toBe(0);
+      const displays: string[] = JSON.parse(stdout.trim());
+      expect(displays[0]).toBe(`:${first}`);
+      expect(displays[1]).toMatch(/^:\d+$/);
+      expect(displays[1]).not.toBe(displays[0]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }, 30000);
 });
 
 describe.skipIf(process.platform !== 'linux')('daemon-owned display lifecycle', () => {
